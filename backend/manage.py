@@ -7,10 +7,15 @@ from pathlib import Path
 # Load environment variables from .env file if it exists
 def load_env():
     """Load environment variables from .env file."""
-    from dotenv import load_dotenv
-    env_path = Path(__file__).resolve().parent / '.env'
-    if env_path.exists():
-        load_dotenv(dotenv_path=env_path)
+    try:
+        from dotenv import load_dotenv
+        env_path = Path(__file__).resolve().parent / '.env'
+        if env_path.exists():
+            load_dotenv(dotenv_path=env_path)
+    except ImportError:
+        # dotenv not available, skip loading .env file
+        # Environment variables should be set manually or via system
+        pass
 
 # Load .env file before Django initialization
 load_env()

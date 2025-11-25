@@ -9,12 +9,17 @@ https://docs.djangoproject.com/en/4.2/howto/deployment/wsgi/
 
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 
 # Load environment variables from .env file
-env_path = Path(__file__).resolve().parent.parent / '.env'
-if env_path.exists():
-    load_dotenv(dotenv_path=env_path)
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).resolve().parent.parent / '.env'
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path)
+except ImportError:
+    # dotenv not available, skip loading .env file
+    # Environment variables should be set manually or via system
+    pass
 
 from django.core.wsgi import get_wsgi_application
 
