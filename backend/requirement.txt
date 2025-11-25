@@ -1,0 +1,6 @@
+mysqlclient
+django
+djangorestframework
+django-cors-headers
+gunicorn
+python-dotenv

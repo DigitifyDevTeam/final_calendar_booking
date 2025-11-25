@@ -1,0 +1,1074 @@
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { getAllBookings, BookingRecord, getCalendarName, CALENDAR_CONFIGS, updateBooking, deleteBooking, addBooking } from '../services/bookingService'
+import { getAllNotifications, NotificationItem, getTimeAgo as getNotificationTimeAgo } from '../services/notificationService'
+import AdminBookingModal, { AdminBookingFormData } from '../components/AdminBookingModal'
+import {
+  Calendar,
+  CalendarCheck,
+  ChevronsRight,
+  Moon,
+  Sun,
+  Home,
+  Settings,
+  LogOut,
+  ClipboardList,
+  Bell,
+  Users,
+  ChevronDown,
+  Minus,
+  RefreshCw
+} from 'lucide-react'
+import './AdminPage.css'
+
+function AdminPage() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [bookings, setBookings] = useState<BookingRecord[]>([])
+  const [filteredBookings, setFilteredBookings] = useState<BookingRecord[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [selectedCalendar, setSelectedCalendar] = useState<string>('all')
+  const [searchTerm, setSearchTerm] = useState<string>('')
+  const [dateFilter, setDateFilter] = useState<string>('all') // 'all', 'today', 'future', 'past'
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem('darkMode')
+    return saved ? JSON.parse(saved) : true
+  })
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
+  const [editingBooking, setEditingBooking] = useState<any | null>(null)
+  const [calendarsExpanded, setCalendarsExpanded] = useState<boolean>(true)
+  const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false)
+  const [unreadCount, setUnreadCount] = useState<number>(0)
+  const [allNotifications, setAllNotifications] = useState<NotificationItem[]>([])
+
+  useEffect(() => {
+    // Check if user is admin
+    const user = localStorage.getItem('user')
+    if (!user) {
+      navigate('/login')
+      return
+    }
+    
+    const userData = JSON.parse(user)
+    if (userData.role !== 'admin') {
+      navigate('/')
+      return
+    }
+
+    loadAllBookings()
+  }, [navigate])
+
+  useEffect(() => {
+    localStorage.setItem('darkMode', JSON.stringify(isDarkMode))
+    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light')
+  }, [isDarkMode])
+
+  useEffect(() => {
+    filterBookings()
+  }, [bookings, selectedCalendar, searchTerm, dateFilter])
+
+  // Load all notifications
+  const loadNotifications = async () => {
+    try {
+      const notifications = await getAllNotifications()
+      setAllNotifications(notifications)
+      setUnreadCount(notifications.length)
+    } catch (error) {
+      console.error('Error loading notifications:', error)
+    }
+  }
+
+  useEffect(() => {
+    loadNotifications()
+    // Refresh notifications every 30 seconds
+    const interval = setInterval(loadNotifications, 30000)
+    // Listen for custom refresh events
+    const handleRefresh = () => loadNotifications()
+    window.addEventListener('notificationRefresh', handleRefresh)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('notificationRefresh', handleRefresh)
+    }
+  }, [bookings])
+
+  // Close notifications dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (notificationsOpen && !target.closest('[data-notifications-dropdown]')) {
+        setNotificationsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [notificationsOpen])
+
+  const loadAllBookings = async () => {
+    setLoading(true)
+    try {
+      // Load bookings from all calendars
+      const allCalendars = Object.values(CALENDAR_CONFIGS)
+      const allBookingsPromises = allCalendars.map(calendarId => 
+        getAllBookings(calendarId).then(bookings => ({ calendarId, bookings }))
+      )
+      const results = await Promise.all(allBookingsPromises)
+      
+      // Flatten and add calendar info to each booking
+      const allBookings: (BookingRecord & { calendarId: string })[] = []
+      results.forEach(({ calendarId, bookings }) => {
+        bookings.forEach(booking => {
+          allBookings.push({ ...booking, calendarId })
+        })
+      })
+
+      // Sort by date (newest first) and then by time
+      allBookings.sort((a, b) => {
+        const dateCompare = b.date.localeCompare(a.date)
+        if (dateCompare !== 0) return dateCompare
+        return (b.time || '').localeCompare(a.time || '')
+      })
+
+      setBookings(allBookings as BookingRecord[])
+    } catch (error) {
+      console.error('Error loading bookings:', error)
+      alert('Erreur lors du chargement des réservations')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filterBookings = () => {
+    let filtered = [...bookings]
+
+    // Filter by calendar
+    if (selectedCalendar !== 'all') {
+      filtered = filtered.filter((booking: any) => booking.calendarId === selectedCalendar)
+    }
+
+    // Filter by search term (name, phone, designer)
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      filtered = filtered.filter(booking =>
+        booking.name.toLowerCase().includes(term) ||
+        booking.phone.includes(term) ||
+        booking.designer.toLowerCase().includes(term)
+      )
+    }
+
+    // Filter by date
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    // Use local date string to avoid timezone issues
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    const todayStr = `${year}-${month}-${day}`
+
+    if (dateFilter === 'today') {
+      filtered = filtered.filter(booking => booking.date === todayStr)
+    } else if (dateFilter === 'future') {
+      filtered = filtered.filter(booking => {
+        const bookingDate = new Date(booking.date + 'T00:00:00')
+        bookingDate.setHours(0, 0, 0, 0)
+        return bookingDate >= today
+      })
+    } else if (dateFilter === 'past') {
+      filtered = filtered.filter(booking => {
+        const bookingDate = new Date(booking.date + 'T00:00:00')
+        bookingDate.setHours(0, 0, 0, 0)
+        return bookingDate < today
+      })
+    }
+
+    setFilteredBookings(filtered)
+  }
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString + 'T00:00:00')
+    return date.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+  }
+
+  const formatDateTime = (timestamp: number): string => {
+    const date = new Date(timestamp)
+    return date.toLocaleString('fr-FR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
+
+  const getRoleLabel = (role: string): string => {
+    const roleLabels: { [key: string]: string } = {
+      'admin': 'Administrateur',
+      'technicien': 'Technicien',
+      'user': 'Utilisateur'
+    }
+    return roleLabels[role] || role
+  }
+
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode)
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('user')
+    navigate('/')
+  }
+
+  const orangeColor = '#fa541c'
+  const bgColor = isDarkMode ? '#000000' : '#f5f5f5'
+  const textColor = isDarkMode ? '#ffffff' : '#111827'
+  const textSecondary = isDarkMode ? '#9ca3af' : '#6b7280'
+  const borderColor = isDarkMode ? '#333333' : '#e5e7eb'
+
+
+  const handleEditClick = (booking: any) => {
+    setEditingBooking(booking)
+    setIsModalOpen(true)
+  }
+
+  const handleDeleteClick = async (booking: any) => {
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer la réservation de ${booking.name} pour le ${formatDate(booking.date)} ?`)) {
+      return
+    }
+
+    try {
+      await deleteBooking(booking.id)
+      alert('Réservation supprimée avec succès')
+      await loadAllBookings()
+      loadNotifications() // Refresh notifications after deleting booking
+    } catch (error) {
+      console.error('Error deleting booking:', error)
+      alert('Erreur lors de la suppression de la réservation')
+    }
+  }
+
+  const handleModalSubmit = async (formData: AdminBookingFormData) => {
+    try {
+      if (editingBooking) {
+        // Update existing booking
+        await updateBooking(editingBooking.id, formData)
+        alert('Réservation modifiée avec succès')
+      } else {
+        // Create new booking
+        const bookingData = {
+          name: formData.client_name,
+          phone: formData.client_phone,
+          designer: formData.designer_name,
+          message: formData.message,
+          date: formData.booking_date,
+          selectedDate: new Date(formData.booking_date),
+          timeSlot: formData.booking_time || undefined
+        }
+        await addBooking(bookingData, formData.calendar_id)
+        alert('Réservation créée avec succès')
+      }
+      setIsModalOpen(false)
+      setEditingBooking(null)
+      await loadAllBookings()
+      loadNotifications() // Refresh notifications after creating/updating booking
+    } catch (error: any) {
+      console.error('Error saving booking:', error)
+      const errorMessage = error?.message || 'Erreur lors de l\'enregistrement de la réservation'
+      alert(`❌ ${errorMessage}`)
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', width: '100%', backgroundColor: bgColor }}>
+      {/* Sidebar */}
+      <nav
+        style={{
+          position: 'sticky',
+          top: 0,
+          height: '100vh',
+          width: sidebarOpen ? '256px' : '64px',
+          borderRight: `1px solid ${borderColor}`,
+          backgroundColor: isDarkMode ? '#000000' : '#ffffff',
+          padding: '8px',
+          paddingBottom: '60px',
+          transition: 'width 0.3s ease',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+        }}
+      >
+        {/* Logo Section */}
+        <div style={{
+          marginBottom: '24px',
+          paddingBottom: '16px',
+          borderBottom: `1px solid ${borderColor}`,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '8px'
+        }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '8px',
+            background: `linear-gradient(135deg, ${orangeColor} 0%, #ff6b35 100%)`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(250, 84, 28, 0.3)'
+          }}>
+            <Calendar style={{ width: '20px', height: '20px', color: '#ffffff' }} />
+          </div>
+          {sidebarOpen && (
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: textColor }}>Tableau de Bord</div>
+              <div style={{ fontSize: '12px', color: textSecondary }}>Tableau de Bord</div>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation Items */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <AdminSidebarItem
+            Icon={Home}
+            title="Accueil"
+            isActive={location.pathname === '/' || location.pathname === '/dashboard'}
+            open={sidebarOpen}
+            onClick={() => navigate('/dashboard')}
+            isDarkMode={isDarkMode}
+            orangeColor={orangeColor}
+            textColor={textColor}
+            textSecondary={textSecondary}
+          />
+          
+          <AdminSidebarItem
+            Icon={ClipboardList}
+            title="Réservation"
+            isActive={location.pathname === '/réservation'}
+            open={sidebarOpen}
+            onClick={() => navigate('/réservation')}
+            isDarkMode={isDarkMode}
+            orangeColor={orangeColor}
+            textColor={textColor}
+            textSecondary={textSecondary}
+          />
+          
+          <AdminSidebarItem
+            Icon={CalendarCheck}
+            title="Gestion des jours-fériés"
+            isActive={location.pathname === '/jours-feries'}
+            open={sidebarOpen}
+            onClick={() => navigate('/jours-feries')}
+            isDarkMode={isDarkMode}
+            orangeColor={orangeColor}
+            textColor={textColor}
+            textSecondary={textSecondary}
+          />
+          
+          <AdminSidebarItem
+            Icon={Users}
+            title="Utilisateurs"
+            isActive={location.pathname === '/utilisateurs'}
+            open={sidebarOpen}
+            onClick={() => navigate('/utilisateurs')}
+            isDarkMode={isDarkMode}
+            orangeColor={orangeColor}
+            textColor={textColor}
+            textSecondary={textSecondary}
+          />
+          
+          <button
+            onClick={() => setCalendarsExpanded(!calendarsExpanded)}
+            style={{
+              width: '100%',
+              height: '44px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '0 12px',
+              borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: 'transparent',
+              color: textSecondary,
+              borderLeft: '3px solid transparent',
+              transition: 'all 0.2s',
+              fontSize: '14px',
+              fontWeight: 500
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
+              e.currentTarget.style.color = textColor
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+              e.currentTarget.style.color = textSecondary
+            }}
+          >
+            <Calendar style={{ width: '20px', height: '20px', flexShrink: 0 }} />
+            {sidebarOpen && (
+              <>
+                <span style={{ flex: 1, textAlign: 'left' }}>Calendriers</span>
+                {calendarsExpanded ? (
+                  <Minus style={{ width: '16px', height: '16px', flexShrink: 0 }} />
+                ) : (
+                  <ChevronDown style={{ width: '16px', height: '16px', flexShrink: 0 }} />
+                )}
+              </>
+            )}
+          </button>
+          
+          {calendarsExpanded && (
+            <div style={{ paddingLeft: '20px' }}>
+              <AdminSidebarItem
+                Icon={Calendar}
+                title="Metré"
+                isActive={location.pathname === '/metre'}
+                open={sidebarOpen}
+                onClick={() => navigate('/metre')}
+                isDarkMode={isDarkMode}
+                orangeColor={orangeColor}
+                textColor={textColor}
+                textSecondary={textSecondary}
+              />
+              <AdminSidebarItem
+                Icon={Calendar}
+                title="Pose"
+                isActive={location.pathname === '/pose'}
+                open={sidebarOpen}
+                onClick={() => navigate('/pose')}
+                isDarkMode={isDarkMode}
+                orangeColor={orangeColor}
+                textColor={textColor}
+                textSecondary={textSecondary}
+              />
+              <AdminSidebarItem
+                Icon={Calendar}
+                title="SAV"
+                isActive={location.pathname === '/sav'}
+                open={sidebarOpen}
+                onClick={() => navigate('/sav')}
+                isDarkMode={isDarkMode}
+                orangeColor={orangeColor}
+                textColor={textColor}
+                textSecondary={textSecondary}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Settings Section */}
+        {sidebarOpen && (
+          <div style={{
+            borderTop: `1px solid ${borderColor}`,
+            paddingTop: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            marginBottom: '8px'
+          }}>
+            <div style={{
+              padding: '8px 12px',
+              fontSize: '12px',
+              fontWeight: 500,
+              color: textSecondary,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px'
+            }}>
+              Paramètres
+            </div>
+            <AdminSidebarItem
+              Icon={isDarkMode ? Sun : Moon}
+              title={isDarkMode ? 'Mode clair' : 'Mode sombre'}
+              isActive={false}
+              open={sidebarOpen}
+              onClick={toggleDarkMode}
+              isDarkMode={isDarkMode}
+              orangeColor={orangeColor}
+              textColor={textColor}
+              textSecondary={textSecondary}
+            />
+            <AdminSidebarItem
+              Icon={Settings}
+              title="Paramètres"
+              isActive={location.pathname === '/parametres'}
+              open={sidebarOpen}
+              onClick={() => navigate('/parametres')}
+              isDarkMode={isDarkMode}
+              orangeColor={orangeColor}
+              textColor={textColor}
+              textSecondary={textSecondary}
+            />
+          </div>
+        )}
+        
+        {/* Logout Section */}
+        <div style={{
+          borderTop: `1px solid ${borderColor}`,
+          paddingTop: '8px',
+          paddingBottom: '8px',
+          marginBottom: '8px'
+        }}>
+          <AdminSidebarItem
+            Icon={LogOut}
+            title="Déconnexion"
+            isActive={false}
+            open={sidebarOpen}
+            onClick={handleLogout}
+            isDarkMode={isDarkMode}
+            orangeColor={orangeColor}
+            textColor={textColor}
+            textSecondary={textSecondary}
+          />
+        </div>
+
+        {/* Toggle Button */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            borderTop: `1px solid ${borderColor}`,
+            padding: '12px',
+            backgroundColor: 'transparent',
+            borderLeft: 'none',
+            borderRight: 'none',
+            borderBottom: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            color: textSecondary,
+            transition: 'background-color 0.2s',
+            height: '48px'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        >
+          <div style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ChevronsRight style={{
+              width: '16px',
+              height: '16px',
+              transform: sidebarOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.3s'
+            }} />
+          </div>
+          {sidebarOpen && (
+            <span style={{ fontSize: '14px', fontWeight: 500 }}>Masquer</span>
+          )}
+        </button>
+      </nav>
+      
+      <div style={{ flex: 1, overflow: 'auto', backgroundColor: bgColor }}>
+        <div className={`admin-page ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
+          <header className="admin-header">
+            <div className="header-content">
+              <div>
+                <h1>Administration - Réservations</h1>
+                <p>Gestion des réservations</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', position: 'relative' }}>
+                <button 
+                  data-notifications-dropdown
+                  onClick={() => setNotificationsOpen(!notificationsOpen)}
+                  style={{
+                    position: 'relative',
+                    padding: '8px',
+                    borderRadius: '8px',
+                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    color: isDarkMode ? '#9ca3af' : '#6b7280',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
+                  }}
+                >
+                  <Bell style={{ width: '20px', height: '20px' }} />
+                  {unreadCount > 0 && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '-4px',
+                      right: '-4px',
+                      minWidth: '18px',
+                      height: '18px',
+                      backgroundColor: '#ef4444',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: '#ffffff',
+                      padding: '0 4px'
+                    }}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+                
+                {/* Notifications Dropdown */}
+                {notificationsOpen && (
+                  <div 
+                    data-notifications-dropdown
+                    style={{
+                    position: 'absolute',
+                    top: '50px',
+                    right: '0',
+                    width: '380px',
+                    maxHeight: '500px',
+                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    borderRadius: '12px',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
+                    zIndex: 1000,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}>
+                    <div style={{
+                      padding: '16px',
+                      borderBottom: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <h3 style={{
+                        margin: 0,
+                        fontSize: '16px',
+                        fontWeight: 600,
+                        color: isDarkMode ? '#ffffff' : '#111827'
+                      }}>
+                        Notifications
+                      </h3>
+                      {unreadCount > 0 && (
+                        <span style={{
+                          fontSize: '12px',
+                          color: '#ef4444',
+                          fontWeight: 600
+                        }}>
+                          {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{
+                      overflowY: 'auto',
+                      maxHeight: '400px',
+                      flex: 1
+                    }}>
+                      {allNotifications.length === 0 ? (
+                        <div style={{
+                          padding: '40px 20px',
+                          textAlign: 'center',
+                          color: isDarkMode ? '#9ca3af' : '#6b7280'
+                        }}>
+                          Aucune notification
+                        </div>
+                      ) : (
+                        allNotifications.slice(0, 10).map((notification) => {
+                          const timeAgo = getNotificationTimeAgo(notification.timestamp)
+                          const getNotificationDetails = () => {
+                            if (notification.type === 'booking') {
+                              const booking = notification.data as any
+                              const calendarName = getCalendarName(booking.calendarId)
+                              return {
+                                subtitle: `${booking.name} - ${calendarName}`,
+                                details: `${formatDate(booking.date)} ${booking.time && booking.time !== '21h00' ? `à ${booking.time}` : ''}`,
+                                onClick: () => {
+                                  setNotificationsOpen(false)
+                                  navigate('/réservation')
+                                }
+                              }
+                            } else if (notification.type === 'holiday') {
+                              const holiday = notification.data as any
+                              const calendarName = getCalendarName(holiday.calendarId)
+                              return {
+                                subtitle: `${calendarName} - ${formatDate(holiday.holiday_date)}`,
+                                details: 'Jour férié ajouté',
+                                onClick: () => {
+                                  setNotificationsOpen(false)
+                                  navigate('/jours-feries')
+                                }
+                              }
+                            } else if (notification.type === 'user') {
+                              const user = notification.data
+                              return {
+                                subtitle: `${user.name} (${getRoleLabel(user.role)})`,
+                                details: user.email,
+                                onClick: () => {
+                                  setNotificationsOpen(false)
+                                  navigate('/utilisateurs')
+                                }
+                              }
+                            }
+                            return { subtitle: '', details: '', onClick: () => {} }
+                          }
+                          const details = getNotificationDetails()
+                          return (
+                            <div
+                              key={notification.id}
+                              onClick={details.onClick}
+                              style={{
+                                padding: '12px 16px',
+                                borderBottom: `1px solid ${isDarkMode ? '#2a2a2a' : '#f0f0f0'}`,
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = isDarkMode ? '#2a2a2a' : '#f9fafb'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent'
+                              }}
+                            >
+                              <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'flex-start',
+                                gap: '12px'
+                              }}>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{
+                                    fontSize: '14px',
+                                    fontWeight: 500,
+                                    color: isDarkMode ? '#ffffff' : '#111827',
+                                    marginBottom: '4px'
+                                  }}>
+                                    {notification.title}
+                                  </div>
+                                  <div style={{
+                                    fontSize: '13px',
+                                    color: isDarkMode ? '#9ca3af' : '#6b7280',
+                                    marginBottom: '4px'
+                                  }}>
+                                    {details.subtitle}
+                                  </div>
+                                  <div style={{
+                                    fontSize: '12px',
+                                    color: isDarkMode ? '#6b7280' : '#9ca3af'
+                                  }}>
+                                    {details.details}
+                                  </div>
+                                </div>
+                                <div style={{
+                                  fontSize: '11px',
+                                  color: isDarkMode ? '#6b7280' : '#9ca3af',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {timeAgo}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                    {allNotifications.length > 0 && (
+                      <div style={{
+                        padding: '12px 16px',
+                        borderTop: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                        textAlign: 'center'
+                      }}>
+                        <button
+                          onClick={() => {
+                            setNotificationsOpen(false)
+                            if (allNotifications[0]?.type === 'booking') {
+                              navigate('/réservation')
+                            } else if (allNotifications[0]?.type === 'holiday') {
+                              navigate('/jours-feries')
+                            } else {
+                              navigate('/utilisateurs')
+                            }
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#fa541c',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: 500
+                          }}
+                        >
+                          Voir toutes les notifications
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <button
+                  onClick={toggleDarkMode}
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '8px',
+                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                    color: isDarkMode ? '#9ca3af' : '#6b7280',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
+                  }}
+                >
+                  {isDarkMode ? (
+                    <Sun style={{ width: '16px', height: '16px' }} />
+                  ) : (
+                    <Moon style={{ width: '16px', height: '16px' }} />
+                  )}
+                </button>
+                <button 
+                  onClick={handleLogout}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '8px',
+                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    color: isDarkMode ? '#9ca3af' : '#6b7280',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
+                  }}
+                >
+                  <LogOut style={{ width: '20px', height: '20px' }} />
+                </button>
+              </div>
+            </div>
+          </header>
+
+      <div className="admin-filters">
+        <div className="filter-group">
+          <label htmlFor="calendar-filter">Calendrier:</label>
+          <select
+            id="calendar-filter"
+            value={selectedCalendar}
+            onChange={(e) => setSelectedCalendar(e.target.value)}
+          >
+            <option value="all">Tous les calendriers</option>
+            <option value={CALENDAR_CONFIGS['calendar1']}>Pose</option>
+            <option value={CALENDAR_CONFIGS['calendar2']}>SAV</option>
+            <option value={CALENDAR_CONFIGS['calendar3']}>Metré</option>
+          </select>
+        </div>
+
+        <div className="filter-group">
+          <label htmlFor="date-filter">Date:</label>
+          <select
+            id="date-filter"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+          >
+            <option value="all">Toutes les dates</option>
+            <option value="today">Aujourd'hui</option>
+            <option value="future">Futures</option>
+            <option value="past">Passées</option>
+          </select>
+        </div>
+
+        <div className="filter-group search-group">
+          <label htmlFor="search">Rechercher:</label>
+          <div style={{ position: 'relative', width: '100%', height: '42px', minHeight: '42px', maxHeight: '42px' }}>
+            <input
+              id="search"
+              type="text"
+              placeholder="Nom, téléphone, concepteur..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ width: '100%', height: '42px', minHeight: '42px', maxHeight: '42px', boxSizing: 'border-box' }}
+            />
+          </div>
+        </div>
+
+        <button className="refresh-button" onClick={loadAllBookings}>
+          <RefreshCw className="refresh-icon" />
+          Actualiser
+        </button>
+      </div>
+
+      <main className="admin-main">
+        {loading ? (
+          <div className="loading-message">Chargement des réservations...</div>
+        ) : filteredBookings.length === 0 ? (
+          <div className="no-bookings">Aucune réservation trouvée</div>
+        ) : (
+          <>
+            <div className="bookings-summary">
+              <p>Total: {filteredBookings.length} réservation(s)</p>
+            </div>
+            <div className="bookings-table-container">
+              <table className="bookings-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Heure</th>
+                    <th>Calendrier</th>
+                    <th>Client</th>
+                    <th>Téléphone</th>
+                    <th>Concepteur</th>
+                    <th>Message</th>
+                    <th>Créé le</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredBookings.map((booking: any) => (
+                    <tr key={booking.id}>
+                      <td>{formatDate(booking.date)}</td>
+                      <td className="time-slot-cell">
+                        {booking.time && booking.time !== '21h00' ? booking.time : '-'}
+                      </td>
+                      <td>
+                        <span className="calendar-badge">
+                          {getCalendarName(booking.calendarId)}
+                        </span>
+                      </td>
+                      <td>{booking.name}</td>
+                      <td>{booking.phone}</td>
+                      <td>{booking.designer}</td>
+                      <td className="message-cell">
+                        {booking.message || <span className="no-message">-</span>}
+                      </td>
+                      <td>{formatDateTime(booking.timestamp)}</td>
+                      <td className="actions-cell">
+                        <button
+                          className="edit-button"
+                          onClick={() => handleEditClick(booking)}
+                          title="Modifier"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          className="delete-button"
+                          onClick={() => handleDeleteClick(booking)}
+                          title="Supprimer"
+                        >
+                          🗑️
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </main>
+
+      <AdminBookingModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false)
+          setEditingBooking(null)
+        }}
+        onSubmit={handleModalSubmit}
+        booking={editingBooking}
+        isDarkMode={isDarkMode}
+      />
+
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface AdminSidebarItemProps {
+  Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
+  title: string
+  isActive: boolean
+  open: boolean
+  onClick: () => void
+  isDarkMode: boolean
+  orangeColor: string
+  textColor: string
+  textSecondary: string
+}
+
+const AdminSidebarItem: React.FC<AdminSidebarItemProps> = ({
+  Icon,
+  title,
+  isActive,
+  open,
+  onClick,
+  isDarkMode,
+  orangeColor,
+  textColor,
+  textSecondary
+}) => {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: '100%',
+        height: '44px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        padding: '0 12px',
+        borderRadius: '8px',
+        border: 'none',
+        cursor: 'pointer',
+        backgroundColor: isActive
+          ? (isDarkMode ? `${orangeColor}30` : `${orangeColor}15`)
+          : 'transparent',
+        color: isActive ? orangeColor : textSecondary,
+        borderLeft: isActive ? `3px solid ${orangeColor}` : '3px solid transparent',
+        transition: 'all 0.2s',
+        fontSize: '14px',
+        fontWeight: isActive ? 600 : 500
+      }}
+      onMouseEnter={(e) => {
+        if (!isActive) {
+          e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
+          e.currentTarget.style.color = textColor
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!isActive) {
+          e.currentTarget.style.backgroundColor = 'transparent'
+          e.currentTarget.style.color = textSecondary
+        }
+      }}
+    >
+      <Icon style={{ width: '20px', height: '20px', flexShrink: 0 }} />
+      {open && <span>{title}</span>}
+    </button>
+  )
+}
+
+export default AdminPage
+
