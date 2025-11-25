@@ -1,28 +1,30 @@
 #!/bin/bash
 # Production startup script for Django backend
 
-# Load environment variables
-if [ -f .env ]; then
-    export $(cat .env | grep -v '^#' | xargs)
+# Set Python path for user-installed packages
+export PYTHONPATH="$HOME/.local/lib/python3.9/site-packages:$PYTHONPATH"
+
+# Load environment variables from load_env.sh
+if [ -f load_env.sh ]; then
+    source load_env.sh
 fi
 
-# Activate virtual environment if it exists
-if [ -d "venv" ]; then
-    source venv/bin/activate
-elif [ -d "../venv" ]; then
-    source ../venv/bin/activate
-fi
+# Create logs directory if it doesn't exist
+mkdir -p logs
 
 # Collect static files
-python manage.py collectstatic --noinput
+/usr/bin/python3 manage.py collectstatic --noinput
 
 # Run migrations
-python manage.py migrate --noinput
+/usr/bin/python3 manage.py migrate --noinput
+
+# Find gunicorn (try user install first, then system)
+GUNICORN_CMD=$(which gunicorn 2>/dev/null || echo "$HOME/.local/bin/gunicorn")
 
 # Start Gunicorn
-exec gunicorn \
+exec $GUNICORN_CMD \
     --bind 127.0.0.1:8000 \
-    --workers 3 \
+    --workers 2 \
     --timeout 120 \
     --access-logfile logs/access.log \
     --error-logfile logs/error.log \
