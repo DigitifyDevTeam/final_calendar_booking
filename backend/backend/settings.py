@@ -70,9 +70,21 @@ MIDDLEWARE = [
 
 # Security settings for production
 if not DEBUG:
-    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'True').lower() == 'true'
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    # Allow HTTP on localhost for testing, but force HTTPS in production
+    # Check if we're running on localhost/127.0.0.1
+    is_localhost = any(host in ['localhost', '127.0.0.1'] for host in ALLOWED_HOSTS)
+    
+    # Only force SSL redirect if not on localhost
+    if not is_localhost:
+        SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'True').lower() == 'true'
+        SESSION_COOKIE_SECURE = True
+        CSRF_COOKIE_SECURE = True
+    else:
+        # Allow HTTP on localhost for testing
+        SECURE_SSL_REDIRECT = False
+        SESSION_COOKIE_SECURE = False
+        CSRF_COOKIE_SECURE = False
+    
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
