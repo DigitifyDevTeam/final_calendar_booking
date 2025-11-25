@@ -167,15 +167,23 @@ CORS_ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 
+# Always add dev.woodagency.fr to allowed origins
+if 'dev.woodagency.fr' not in [origin.replace('https://', '').replace('http://', '') for origin in CORS_ALLOWED_ORIGINS]:
+    CORS_ALLOWED_ORIGINS.extend([
+        'https://dev.woodagency.fr',
+        'http://dev.woodagency.fr',
+    ])
+
 # If no specific origins set and not allowing all, add common patterns
 if not CORS_ALLOW_ALL_ORIGINS and not CORS_ALLOWED_ORIGINS:
     # Extract from ALLOWED_HOSTS if available
     for host in ALLOWED_HOSTS:
         if host not in ['localhost', '127.0.0.1']:
-            CORS_ALLOWED_ORIGINS.extend([
-                f'https://{host}',
-                f'http://{host}',
-            ])
+            if f'https://{host}' not in CORS_ALLOWED_ORIGINS:
+                CORS_ALLOWED_ORIGINS.extend([
+                    f'https://{host}',
+                    f'http://{host}',
+                ])
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
