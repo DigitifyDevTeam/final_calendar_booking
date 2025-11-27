@@ -13,55 +13,65 @@ from .serializers import BookingSerializer, ContactMessageSerializer, HolidaySer
 
 def _notify_booking(booking: Booking, is_update=False):
     """Send email notification for booking creation or update"""
-    action = "modifiée" if is_update else "enregistrée"
-    subject = f"Réservation {action} pour {booking.calendar_id} le {booking.booking_date}"
-    body_lines = [
-        f"Une réservation vient d'être {action} :",
-        "",
-        f"Calendrier : {booking.calendar_id}",
-        f"Date : {booking.booking_date}",
-    ]
+    try:
+        action = "modifiée" if is_update else "enregistrée"
+        subject = f"Réservation {action} pour {booking.calendar_id} le {booking.booking_date}"
+        body_lines = [
+            f"Une réservation vient d'être {action} :",
+            "",
+            f"Calendrier : {booking.calendar_id}",
+            f"Date : {booking.booking_date}",
+        ]
 
-    # Show time slot for calendars that use time slots (SAV and Metré)
-    # For Pose calendar, time is optional and defaults to '21h00' which we don't need to show
-    if booking.calendar_id in ['calendar2', 'calendar3', '2', '3']:
-        # For time slot calendars, always show the time slot
-        if booking.booking_time and booking.booking_time.strip():
+        # Show time slot for calendars that use time slots (SAV and Metré)
+        # For Pose calendar, time is optional and defaults to '21h00' which we don't need to show
+        if booking.calendar_id in ['calendar2', 'calendar3', '2', '3']:
+            # For time slot calendars, always show the time slot
+            if booking.booking_time and booking.booking_time.strip():
+                body_lines.append(f"Heure : {booking.booking_time}")
+            else:
+                body_lines.append(f"Heure : Non spécifiée")
+        elif booking.booking_time and booking.booking_time.strip() and booking.booking_time.strip() != '21h00':
+            # For other calendars, only show time if it's not the default
             body_lines.append(f"Heure : {booking.booking_time}")
-        else:
-            body_lines.append(f"Heure : Non spécifiée")
-    elif booking.booking_time and booking.booking_time.strip() and booking.booking_time.strip() != '21h00':
-        # For other calendars, only show time if it's not the default
-        body_lines.append(f"Heure : {booking.booking_time}")
 
-    body_lines.extend([
-        f"Nom du client : {booking.client_name}",
-        f"Téléphone : {booking.client_phone}",
-        f"Nom du concepteur : {booking.designer_name}",
-        "",
-        "Message / Commentaire :",
-        booking.message or "(aucun)",
-        "",
-        f"ID de réservation : {booking.id}",
-        f"{'Modifiée' if is_update else 'Créée'} le : {booking.created_at}",
-    ])
+        body_lines.extend([
+            f"Nom du client : {booking.client_name}",
+            f"Téléphone : {booking.client_phone}",
+            f"Nom du concepteur : {booking.designer_name}",
+            "",
+            "Message / Commentaire :",
+            booking.message or "(aucun)",
+            "",
+            f"ID de réservation : {booking.id}",
+            f"{'Modifiée' if is_update else 'Créée'} le : {booking.created_at}",
+        ])
 
-    body = "\n".join(body_lines)
+        body = "\n".join(body_lines)
 
-    recipient_raw = settings.CONTACT_EMAIL_RECIPIENTS or settings.DEFAULT_FROM_EMAIL
-    recipients = [
-        email.strip() for email in recipient_raw.split(',')
-        if email.strip()
-    ]
+        # Safely get email settings with defaults
+        default_from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com')
+        contact_email_recipients = getattr(settings, 'CONTACT_EMAIL_RECIPIENTS', default_from_email)
+        
+        recipient_raw = contact_email_recipients or default_from_email
+        recipients = [
+            email.strip() for email in recipient_raw.split(',')
+            if email.strip()
+        ]
 
-    email_message = EmailMessage(
-        subject=subject,
-        body=body,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        to=recipients or [settings.DEFAULT_FROM_EMAIL],
-    )
+        email_message = EmailMessage(
+            subject=subject,
+            body=body,
+            from_email=default_from_email,
+            to=recipients or [default_from_email],
+        )
 
-    email_message.send(fail_silently=False)
+        email_message.send(fail_silently=True)  # Don't fail if email can't be sent
+    except Exception as e:
+        # Log the error but don't break the booking creation
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error sending booking notification email: {e}", exc_info=True)
 
 
 class ContactEmailView(generics.ListCreateAPIView):
@@ -74,43 +84,53 @@ class ContactEmailView(generics.ListCreateAPIView):
         self._send_email(contact_message)
 
     def _send_email(self, contact_message: ContactMessage):
-        subject = contact_message.subject
-        body_lines = [
-            "Nouvelle demande reçue via le calendrier :",
-            "",
-            f"Nom : {contact_message.name}",
-            f"Email : {contact_message.email}",
-        ]
+        try:
+            subject = contact_message.subject
+            body_lines = [
+                "Nouvelle demande reçue via le calendrier :",
+                "",
+                f"Nom : {contact_message.name}",
+                f"Email : {contact_message.email}",
+            ]
 
-        if contact_message.phone:
-            body_lines.append(f"Téléphone : {contact_message.phone}")
+            if contact_message.phone:
+                body_lines.append(f"Téléphone : {contact_message.phone}")
 
-        body_lines.extend([
-            "",
-            "Message :",
-            contact_message.message,
-            "",
-            f"ID message : {contact_message.id}",
-            f"Reçu le : {contact_message.created_at}",
-        ])
+            body_lines.extend([
+                "",
+                "Message :",
+                contact_message.message,
+                "",
+                f"ID message : {contact_message.id}",
+                f"Reçu le : {contact_message.created_at}",
+            ])
 
-        body = "\n".join(body_lines)
+            body = "\n".join(body_lines)
 
-        recipient_raw = settings.CONTACT_EMAIL_RECIPIENTS or settings.DEFAULT_FROM_EMAIL
-        recipients = [
-            email.strip() for email in recipient_raw.split(',')
-            if email.strip()
-        ]
+            # Safely get email settings with defaults
+            default_from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com')
+            contact_email_recipients = getattr(settings, 'CONTACT_EMAIL_RECIPIENTS', default_from_email)
+            
+            recipient_raw = contact_email_recipients or default_from_email
+            recipients = [
+                email.strip() for email in recipient_raw.split(',')
+                if email.strip()
+            ]
 
-        email_message = EmailMessage(
-            subject=subject,
-            body=body,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=recipients or [settings.DEFAULT_FROM_EMAIL],
-            reply_to=[contact_message.email],
-        )
+            email_message = EmailMessage(
+                subject=subject,
+                body=body,
+                from_email=default_from_email,
+                to=recipients or [default_from_email],
+                reply_to=[contact_message.email],
+            )
 
-        email_message.send(fail_silently=False)
+            email_message.send(fail_silently=True)  # Don't fail if email can't be sent
+        except Exception as e:
+            # Log the error but don't break the contact message creation
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error sending contact message email: {e}", exc_info=True)
 
 
 class BookingListCreateView(generics.ListCreateAPIView):
@@ -165,33 +185,43 @@ class BookingRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     
     def _notify_booking_deletion(self, booking_info):
         """Send email notification when a booking is deleted"""
-        subject = f"Réservation supprimée pour {booking_info['calendar_id']} le {booking_info['booking_date']}"
-        body_lines = [
-            "Une réservation a été supprimée :",
-            "",
-            f"Calendrier : {booking_info['calendar_id']}",
-            f"Date : {booking_info['booking_date']}",
-            f"Client : {booking_info['client_name']}",
-            "",
-            "Cette réservation a été supprimée par l'administrateur.",
-        ]
+        try:
+            subject = f"Réservation supprimée pour {booking_info['calendar_id']} le {booking_info['booking_date']}"
+            body_lines = [
+                "Une réservation a été supprimée :",
+                "",
+                f"Calendrier : {booking_info['calendar_id']}",
+                f"Date : {booking_info['booking_date']}",
+                f"Client : {booking_info['client_name']}",
+                "",
+                "Cette réservation a été supprimée par l'administrateur.",
+            ]
 
-        body = "\n".join(body_lines)
+            body = "\n".join(body_lines)
 
-        recipient_raw = settings.CONTACT_EMAIL_RECIPIENTS or settings.DEFAULT_FROM_EMAIL
-        recipients = [
-            email.strip() for email in recipient_raw.split(',')
-            if email.strip()
-        ]
+            # Safely get email settings with defaults
+            default_from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com')
+            contact_email_recipients = getattr(settings, 'CONTACT_EMAIL_RECIPIENTS', default_from_email)
+            
+            recipient_raw = contact_email_recipients or default_from_email
+            recipients = [
+                email.strip() for email in recipient_raw.split(',')
+                if email.strip()
+            ]
 
-        email_message = EmailMessage(
-            subject=subject,
-            body=body,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=recipients or [settings.DEFAULT_FROM_EMAIL],
-        )
+            email_message = EmailMessage(
+                subject=subject,
+                body=body,
+                from_email=default_from_email,
+                to=recipients or [default_from_email],
+            )
 
-        email_message.send(fail_silently=False)
+            email_message.send(fail_silently=True)  # Don't fail if email can't be sent
+        except Exception as e:
+            # Log the error but don't break the booking deletion
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error sending booking deletion notification email: {e}", exc_info=True)
 
 
 class BookingResetView(APIView):

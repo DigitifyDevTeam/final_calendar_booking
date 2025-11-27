@@ -6,6 +6,7 @@ import Calendar1Page from './Calendar1Page'
 import Calendar2Page from './Calendar2Page'
 import { getAllBookings, BookingRecord, CALENDAR_NAMES, getCalendarName } from '../services/bookingService'
 import { getAllNotifications, NotificationItem, getTimeAgo as getNotificationTimeAgo } from '../services/notificationService'
+import { getAllUsers } from '../services/userService'
 import {
   Calendar,
   CalendarCheck,
@@ -39,6 +40,15 @@ function DashbordPage() {
   const [topClients, setTopClients] = useState<Array<{ name: string; count: number }>>([])
   const [isLoadingTopClients, setIsLoadingTopClients] = useState(true)
   const [calendarsExpanded, setCalendarsExpanded] = useState<boolean>(true)
+  // Real stats data
+  const [totalBookings, setTotalBookings] = useState<number>(0)
+  const [totalUsers, setTotalUsers] = useState<number>(0)
+  const [savBookings, setSavBookings] = useState<number>(0)
+  const [poseBookings, setPoseBookings] = useState<number>(0)
+  const [metreBookings, setMetreBookings] = useState<number>(0)
+  const [chartData, setChartData] = useState<Array<{ month: string; Metré: number; Pose: number; SAV: number }>>([])
+  const [bookingRate, setBookingRate] = useState<number>(0)
+  const [hoveredMonth, setHoveredMonth] = useState<number | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false)
   const [unreadCount, setUnreadCount] = useState<number>(0)
   const [allNotifications, setAllNotifications] = useState<NotificationItem[]>([])
@@ -86,39 +96,130 @@ function DashbordPage() {
         const bookingArrays = await Promise.all(bookingPromises)
         const allBookings = bookingArrays.flat()
 
+        // Calculate real statistics
+        const poseCount = bookingArrays[0]?.length || 0 // calendar1 = Pose
+        const savCount = bookingArrays[1]?.length || 0 // calendar2 = SAV
+        const metreCount = bookingArrays[2]?.length || 0 // calendar3 = Metré
+        
+        setTotalBookings(allBookings.length)
+        setPoseBookings(poseCount)
+        setSavBookings(savCount)
+        setMetreBookings(metreCount)
+
+        // Calculate booking rate (percentage of days with bookings in current month)
+        const now = new Date()
+        const currentMonth = now.getMonth()
+        const currentYear = now.getFullYear()
+        const daysPassed = now.getDate()
+        
+        const bookingsThisMonth = allBookings.filter(booking => {
+          const bookingDate = new Date(booking.date)
+          return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear
+        })
+        
+        // Calculate unique days with bookings
+        const uniqueDaysWithBookings = new Set(
+          bookingsThisMonth.map(b => b.date)
+        ).size
+        
+        const rate = daysPassed > 0 ? Math.round((uniqueDaysWithBookings / daysPassed) * 100) : 0
+        setBookingRate(rate)
+
+        // Generate chart data from real bookings (from first to last booking date)
+        const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+        const chartMonths: Array<{ month: string; Metré: number; Pose: number; SAV: number }> = []
+        
+        if (allBookings.length === 0) {
+          setChartData([])
+        } else {
+          // Find the earliest and latest booking dates
+          let earliestDate: Date | null = null
+          let latestDate: Date | null = null
+          
+          allBookings.forEach(booking => {
+            const dateParts = booking.date.split('-')
+            if (dateParts.length === 3) {
+              const bookingDate = new Date(
+                parseInt(dateParts[0], 10),
+                parseInt(dateParts[1], 10) - 1,
+                parseInt(dateParts[2], 10)
+              )
+              if (!earliestDate || bookingDate < earliestDate) {
+                earliestDate = bookingDate
+              }
+              if (!latestDate || bookingDate > latestDate) {
+                latestDate = bookingDate
+              }
+            }
+          })
+          
+          if (earliestDate !== null && latestDate !== null) {
+            // Generate months from earliest to latest
+            const firstDate = earliestDate as Date
+            const lastDate = latestDate as Date
+            const startMonth = firstDate.getMonth()
+            const startYear = firstDate.getFullYear()
+            const endMonth = lastDate.getMonth()
+            const endYear = lastDate.getFullYear()
+            
+            // Calculate total months to display
+            let currentMonth = startMonth
+            let currentYear = startYear
+            
+            while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
+              const month = currentMonth
+              const year = currentYear
+              
+              const monthBookings = allBookings.filter(booking => {
+                const dateParts = booking.date.split('-')
+                if (dateParts.length === 3) {
+                  const bookingYear = parseInt(dateParts[0], 10)
+                  const bookingMonth = parseInt(dateParts[1], 10) - 1
+                  return bookingMonth === month && bookingYear === year
+                }
+                return false
+              })
+              
+              const metreMonthCount = monthBookings.filter(b => (b as any).calendarId === 'calendar3').length
+              const poseMonthCount = monthBookings.filter(b => (b as any).calendarId === 'calendar1').length
+              const savMonthCount = monthBookings.filter(b => (b as any).calendarId === 'calendar2').length
+              
+              // Show month with year if spanning multiple years
+              const monthLabel = startYear !== endYear 
+                ? `${monthNames[month]} ${year.toString().slice(-2)}`
+                : monthNames[month]
+              
+              chartMonths.push({
+                month: monthLabel,
+                Metré: metreMonthCount,
+                Pose: poseMonthCount,
+                SAV: savMonthCount
+              })
+              
+              // Move to next month
+              currentMonth++
+              if (currentMonth > 11) {
+                currentMonth = 0
+                currentYear++
+              }
+            }
+          }
+          
+          setChartData(chartMonths)
+        }
+
         // Process recent bookings (top 5 most recent)
         const sortedBookings = allBookings
           .sort((a, b) => b.timestamp - a.timestamp)
           .slice(0, 5)
         setRecentBookings(sortedBookings)
 
-        // Process top clients
+        // Process top clients (real data only)
         const clientCounts: { [key: string]: number } = {}
         allBookings.forEach(booking => {
           const clientName = booking.name
           if (clientName) {
             clientCounts[clientName] = (clientCounts[clientName] || 0) + 1
-          }
-        })
-
-        // Add fake data for demonstration
-        const fakeClients = [
-          { name: 'Jean Dupont', count: 12 },
-          { name: 'Marie Martin', count: 9 },
-          { name: 'Pierre Dubois', count: 8 },
-          { name: 'Sophie Bernard', count: 7 },
-          { name: 'Luc Moreau', count: 6 },
-          { name: 'Isabelle Petit', count: 5 },
-          { name: 'Antoine Rousseau', count: 4 },
-          { name: 'Camille Leroy', count: 4 },
-          { name: 'Thomas Simon', count: 3 },
-          { name: 'Julie Girard', count: 3 }
-        ]
-
-        // Merge real data with fake data (real data takes priority)
-        fakeClients.forEach(fakeClient => {
-          if (!clientCounts[fakeClient.name]) {
-            clientCounts[fakeClient.name] = fakeClient.count
           }
         })
 
@@ -128,33 +229,10 @@ function DashbordPage() {
           .sort((a, b) => b.count - a.count)
           .slice(0, 10)
         
-        // If we have less than 10 clients, fill with fake data
-        if (topClientsList.length < 10) {
-          const existingNames = new Set(topClientsList.map(c => c.name))
-          const additionalFake = fakeClients
-            .filter(fake => !existingNames.has(fake.name))
-            .slice(0, 10 - topClientsList.length)
-          topClientsList.push(...additionalFake)
-          topClientsList.sort((a, b) => b.count - a.count)
-        }
-        
         setTopClients(topClientsList)
       } catch (error) {
         console.error('Error loading bookings data:', error)
-        // On error, show fake data for top clients
-        const fakeClients = [
-          { name: 'Jean Dupont', count: 12 },
-          { name: 'Marie Martin', count: 9 },
-          { name: 'Pierre Dubois', count: 8 },
-          { name: 'Sophie Bernard', count: 7 },
-          { name: 'Luc Moreau', count: 6 },
-          { name: 'Isabelle Petit', count: 5 },
-          { name: 'Antoine Rousseau', count: 4 },
-          { name: 'Camille Leroy', count: 4 },
-          { name: 'Thomas Simon', count: 3 },
-          { name: 'Julie Girard', count: 3 }
-        ]
-        setTopClients(fakeClients)
+        setTopClients([])
       } finally {
         setIsLoadingBookings(false)
         setIsLoadingTopClients(false)
@@ -162,6 +240,20 @@ function DashbordPage() {
     }
 
     loadBookingsData()
+  }, [])
+
+  // Load users count
+  useEffect(() => {
+    const loadUsersCount = async () => {
+      try {
+        const users = await getAllUsers()
+        setTotalUsers(users.length)
+      } catch (error) {
+        console.error('Error loading users count:', error)
+        setTotalUsers(0)
+      }
+    }
+    loadUsersCount()
   }, [])
 
   // Load all notifications
@@ -200,17 +292,10 @@ function DashbordPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [notificationsOpen])
 
-  // Chart data - reservations per month for the last 6 months
-  const chartData = [
-    { month: 'Jan', Metré: 18, Pose: 12, SAV: 24 },
-    { month: 'Fév', Metré: 22, Pose: 15, SAV: 28 },
-    { month: 'Mar', Metré: 20, Pose: 18, SAV: 30 },
-    { month: 'Avr', Metré: 25, Pose: 20, SAV: 32 },
-    { month: 'Mai', Metré: 24, Pose: 22, SAV: 35 },
-    { month: 'Juin', Metré: 24, Pose: 18, SAV: 32 },
-  ]
-
-  const maxValue = Math.max(...chartData.flatMap(d => [d.Metré, d.Pose, d.SAV])) + 5
+  // Calculate max value for chart
+  const maxValue = chartData.length > 0 
+    ? Math.max(...chartData.flatMap(d => [d.Metré, d.Pose, d.SAV]), 1) + 2 
+    : 10
 
   // Helper function to calculate time ago
   const getTimeAgo = (timestamp: number): string => {
@@ -239,7 +324,36 @@ function DashbordPage() {
     navigate('/')
   }
 
-  const orangeColor = '#fa541c'
+  const [orangeColor, setOrangeColor] = useState<string>(() => {
+    const saved = localStorage.getItem('accentColor')
+    return saved || '#fa541c'
+  })
+
+  // Listen for settings updates
+  useEffect(() => {
+    const handleSettingsUpdate = () => {
+      const saved = localStorage.getItem('accentColor')
+      if (saved) {
+        setOrangeColor(saved)
+        document.documentElement.style.setProperty('--accent-color', saved)
+      }
+    }
+    
+    window.addEventListener('settingsUpdated', handleSettingsUpdate)
+    window.addEventListener('storage', handleSettingsUpdate)
+    
+    // Check on mount
+    const saved = localStorage.getItem('accentColor')
+    if (saved) {
+      setOrangeColor(saved)
+      document.documentElement.style.setProperty('--accent-color', saved)
+    }
+    
+    return () => {
+      window.removeEventListener('settingsUpdated', handleSettingsUpdate)
+      window.removeEventListener('storage', handleSettingsUpdate)
+    }
+  }, [])
   const bgColor = isDarkMode ? '#000000' : '#f5f5f5'
   const cardBg = isDarkMode ? '#1a1a1a' : '#ffffff'
   const textColor = isDarkMode ? '#ffffff' : '#111827'
@@ -957,8 +1071,8 @@ function DashbordPage() {
         }}>
           <StatCardContent
             title="Taux de réservation"
-            value="76 %"
-            change="+12% par rapport au mois dernier"
+            value={`${bookingRate} %`}
+            change="Jours avec réservations ce mois"
             Icon={Percent}
             iconBg={isDarkMode ? `${orangeColor}30` : `${orangeColor}20`}
             iconColor={orangeColor}
@@ -968,9 +1082,9 @@ function DashbordPage() {
             borderColor={borderColor}
           />
           <StatCardContent
-            title="Utilisateurs Actifs"
-            value="1 234"
-            change="+5% par rapport à la semaine dernière"
+            title="Utilisateurs"
+            value={totalUsers.toLocaleString('fr-FR')}
+            change="Comptes enregistrés"
             Icon={UsersIcon}
             iconBg={isDarkMode ? '#10b98130' : '#10b98120'}
             iconColor="#10b981"
@@ -980,9 +1094,9 @@ function DashbordPage() {
             borderColor={borderColor}
           />
           <StatCardContent
-            title="Réservations"
-            value="456"
-            change="+8% par rapport à hier"
+            title="Total Réservations"
+            value={totalBookings.toLocaleString('fr-FR')}
+            change={`Pose: ${poseBookings} | Metré: ${metreBookings}  | SAV: ${savBookings}`}
             Icon={CalendarCheck}
             iconBg={isDarkMode ? '#8b5cf630' : '#8b5cf620'}
             iconColor="#8b5cf6"
@@ -992,9 +1106,9 @@ function DashbordPage() {
             borderColor={borderColor}
           />
           <StatCardContent
-            title=" Réservations SAV"
-            value="89"
-            change="+3 nouveaux cette semaine"
+            title="Réservations SAV"
+            value={savBookings.toLocaleString('fr-FR')}
+            change="Interventions SAV"
             Icon={Calendar}
             iconBg={isDarkMode ? `${orangeColor}30` : `${orangeColor}20`}
             iconColor={orangeColor}
@@ -1090,6 +1204,22 @@ function DashbordPage() {
 
             {/* Chart */}
             <div style={{ position: 'relative', width: '100%', flex: 1, minHeight: '400px' }}>
+              {chartData.length === 0 ? (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  minHeight: '400px',
+                  color: textSecondary,
+                  fontSize: '16px',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <Calendar style={{ width: '48px', height: '48px', opacity: 0.5 }} />
+                  <span>Aucune réservation pour afficher le graphique</span>
+                </div>
+              ) : (
               <svg width="100%" height="100%" style={{ overflow: 'visible' }} viewBox="0 0 900 400" preserveAspectRatio="xMidYMid meet">
                 {/* Grid lines */}
                 {[0, 1, 2, 3, 4, 5].map((i) => {
@@ -1135,9 +1265,10 @@ function DashbordPage() {
 
                 {/* Chart area */}
                 <g transform="translate(60, 10)">
-                  {chartData.map((data, index) => {
+                  {chartData.length > 0 && chartData.map((data, index) => {
                     const chartWidth = 800
-                    const x = (index / (chartData.length - 1)) * chartWidth
+                    const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
+                    const x = (index / divisor) * chartWidth
                     
                     return (
                       <g key={`month-${index}`}>
@@ -1158,139 +1289,258 @@ function DashbordPage() {
                     )
                   })}
 
-                  {/* Metré line */}
-                  <path
-                    d={(() => {
-                      const chartWidth = 800
-                      const points = chartData.map((data, index) => {
-                        const x = (index / (chartData.length - 1)) * chartWidth
-                        const y = 380 - (data.Metré / maxValue) * 380
-                        return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
-                      }).join(' ')
-                      return points
-                    })()}
-                    fill="none"
-                    stroke="#3b82f6"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{
-                      strokeDasharray: chartAnimation ? '1000' : '0',
-                      strokeDashoffset: chartAnimation ? '0' : '1000',
-                      transition: 'stroke-dashoffset 2s ease-out',
-                      filter: 'drop-shadow(0 0 4px rgba(59, 130, 246, 0.5))'
-                    }}
-                  />
+                  {/* Metré line - offset up when overlapping */}
+                  {chartData.length > 0 && (
+                    <path
+                      d={(() => {
+                        const chartWidth = 800
+                        const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
+                        const points = chartData.map((data, index) => {
+                          const x = (index / divisor) * chartWidth
+                          const baseY = 380 - (data.Metré / maxValue) * 380
+                          // Add offset when overlapping with other values
+                          let offset = 0
+                          if (data.Metré === data.Pose || data.Metré === data.SAV) offset = -8
+                          const y = Math.max(5, baseY + offset)
+                          return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
+                        }).join(' ')
+                        return points || 'M 0 380'
+                      })()}
+                      fill="none"
+                      stroke="#3b82f6"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        strokeDasharray: chartAnimation ? '1000' : '0',
+                        strokeDashoffset: chartAnimation ? '0' : '1000',
+                        transition: 'stroke-dashoffset 2s ease-out',
+                        filter: 'drop-shadow(0 0 4px rgba(59, 130, 246, 0.5))'
+                      }}
+                    />
+                  )}
 
-                  {/* Pose line */}
-                  <path
-                    d={(() => {
-                      const chartWidth = 800
-                      const points = chartData.map((data, index) => {
-                        const x = (index / (chartData.length - 1)) * chartWidth
-                        const y = 380 - (data.Pose / maxValue) * 380
-                        return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
-                      }).join(' ')
-                      return points
-                    })()}
-                    fill="none"
-                    stroke={orangeColor}
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{
-                      strokeDasharray: chartAnimation ? '1000' : '0',
-                      strokeDashoffset: chartAnimation ? '0' : '1000',
-                      transition: 'stroke-dashoffset 2s ease-out 0.3s',
-                      filter: `drop-shadow(0 0 4px ${orangeColor}50)`
-                    }}
-                  />
+                  {/* Pose line - no offset (middle) */}
+                  {chartData.length > 0 && (
+                    <path
+                      d={(() => {
+                        const chartWidth = 800
+                        const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
+                        const points = chartData.map((data, index) => {
+                          const x = (index / divisor) * chartWidth
+                          const y = 380 - (data.Pose / maxValue) * 380
+                          return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
+                        }).join(' ')
+                        return points || 'M 0 380'
+                      })()}
+                      fill="none"
+                      stroke={orangeColor}
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        strokeDasharray: chartAnimation ? '1000' : '0',
+                        strokeDashoffset: chartAnimation ? '0' : '1000',
+                        transition: 'stroke-dashoffset 2s ease-out 0.3s',
+                        filter: `drop-shadow(0 0 4px ${orangeColor}50)`
+                      }}
+                    />
+                  )}
 
-                  {/* SAV line */}
-                  <path
-                    d={(() => {
-                      const chartWidth = 800
-                      const points = chartData.map((data, index) => {
-                        const x = (index / (chartData.length - 1)) * chartWidth
-                        const y = 380 - (data.SAV / maxValue) * 380
-                        return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
-                      }).join(' ')
-                      return points
-                    })()}
-                    fill="none"
-                    stroke="#10b981"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{
-                      strokeDasharray: chartAnimation ? '1000' : '0',
-                      strokeDashoffset: chartAnimation ? '0' : '1000',
-                      transition: 'stroke-dashoffset 2s ease-out 0.6s',
-                      filter: 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.5))'
-                    }}
-                  />
+                  {/* SAV line - offset down when overlapping */}
+                  {chartData.length > 0 && (
+                    <path
+                      d={(() => {
+                        const chartWidth = 800
+                        const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
+                        const points = chartData.map((data, index) => {
+                          const x = (index / divisor) * chartWidth
+                          const baseY = 380 - (data.SAV / maxValue) * 380
+                          // Add offset when overlapping with other values
+                          let offset = 0
+                          if (data.SAV === data.Pose || data.SAV === data.Metré) offset = 8
+                          const y = Math.min(378, baseY + offset)
+                          return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
+                        }).join(' ')
+                        return points || 'M 0 380'
+                      })()}
+                      fill="none"
+                      stroke="#10b981"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        strokeDasharray: chartAnimation ? '1000' : '0',
+                        strokeDashoffset: chartAnimation ? '0' : '1000',
+                        transition: 'stroke-dashoffset 2s ease-out 0.6s',
+                        filter: 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.5))'
+                      }}
+                    />
+                  )}
 
-                  {/* Data points */}
-                  {chartData.map((data, index) => {
+                  {/* Data points with combined hover */}
+                  {chartData.length > 0 && chartData.map((data, index) => {
                     const chartWidth = 800
-                    const x = (index / (chartData.length - 1)) * chartWidth
+                    const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
+                    const x = (index / divisor) * chartWidth
                     const delay = 0.8 + index * 0.1
+                    const isHovered = hoveredMonth === index
+                    
+                    // Calculate Y positions with offsets for overlapping values
+                    const metreY = 380 - (data.Metré / maxValue) * 380
+                    const poseY = 380 - (data.Pose / maxValue) * 380
+                    const savY = 380 - (data.SAV / maxValue) * 380
+                    
+                    // Offset points when overlapping
+                    const metreOffset = (data.Metré === data.Pose || data.Metré === data.SAV) ? -8 : 0
+                    const savOffset = (data.SAV === data.Pose || data.SAV === data.Metré) ? 8 : 0
                     
                     return (
-                      <g key={`points-${index}`}>
+                      <g 
+                        key={`points-${index}`}
+                        onMouseEnter={() => setHoveredMonth(index)}
+                        onMouseLeave={() => setHoveredMonth(null)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        {/* Invisible hover zone for the entire column */}
+                        <rect
+                          x={x - 30}
+                          y={0}
+                          width={60}
+                          height={380}
+                          fill="transparent"
+                        />
+                        
+                        {/* Vertical hover line */}
+                        {isHovered && (
+                          <line
+                            x1={x}
+                            y1={10}
+                            x2={x}
+                            y2={380}
+                            stroke={isDarkMode ? '#ffffff20' : '#00000015'}
+                            strokeWidth="2"
+                            strokeDasharray="4 4"
+                          />
+                        )}
+                        
                         {/* Metré point */}
                         <circle
                           cx={x}
-                          cy={380 - (data.Metré / maxValue) * 380}
-                          r="6"
+                          cy={Math.max(5, metreY + metreOffset)}
+                          r={isHovered ? 8 : 6}
                           fill="#3b82f6"
+                          stroke={isHovered ? '#ffffff' : 'none'}
+                          strokeWidth="2"
                           style={{
                             opacity: chartAnimation ? 1 : 0,
                             transform: chartAnimation ? 'scale(1)' : 'scale(0)',
                             transformOrigin: 'center',
                             transition: `all 0.3s ease-out ${delay}s`,
-                            filter: 'drop-shadow(0 0 6px rgba(59, 130, 246, 0.8))',
-                            cursor: 'pointer'
+                            filter: isHovered 
+                              ? 'drop-shadow(0 0 10px rgba(59, 130, 246, 1))' 
+                              : 'drop-shadow(0 0 6px rgba(59, 130, 246, 0.8))'
                           }}
-                        >
-                          <title>Metré: {data.Metré}</title>
-                        </circle>
+                        />
                         
                         {/* Pose point */}
                         <circle
                           cx={x}
-                          cy={380 - (data.Pose / maxValue) * 380}
-                          r="6"
+                          cy={poseY}
+                          r={isHovered ? 8 : 6}
                           fill={orangeColor}
+                          stroke={isHovered ? '#ffffff' : 'none'}
+                          strokeWidth="2"
                           style={{
                             opacity: chartAnimation ? 1 : 0,
                             transform: chartAnimation ? 'scale(1)' : 'scale(0)',
                             transformOrigin: 'center',
                             transition: `all 0.3s ease-out ${delay + 0.1}s`,
-                            filter: `drop-shadow(0 0 6px ${orangeColor}80)`,
-                            cursor: 'pointer'
+                            filter: isHovered 
+                              ? `drop-shadow(0 0 10px ${orangeColor})` 
+                              : `drop-shadow(0 0 6px ${orangeColor}80)`
                           }}
-                        >
-                          <title>Pose: {data.Pose}</title>
-                        </circle>
+                        />
                         
                         {/* SAV point */}
                         <circle
                           cx={x}
-                          cy={380 - (data.SAV / maxValue) * 380}
-                          r="6"
+                          cy={Math.min(378, savY + savOffset)}
+                          r={isHovered ? 8 : 6}
                           fill="#10b981"
+                          stroke={isHovered ? '#ffffff' : 'none'}
+                          strokeWidth="2"
                           style={{
                             opacity: chartAnimation ? 1 : 0,
                             transform: chartAnimation ? 'scale(1)' : 'scale(0)',
                             transformOrigin: 'center',
                             transition: `all 0.3s ease-out ${delay + 0.2}s`,
-                            filter: 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.8))',
-                            cursor: 'pointer'
+                            filter: isHovered 
+                              ? 'drop-shadow(0 0 10px rgba(16, 185, 129, 1))' 
+                              : 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.8))'
                           }}
-                        >
-                          <title>SAV: {data.SAV}</title>
-                        </circle>
+                        />
+                        
+                        {/* Combined tooltip */}
+                        {isHovered && (
+                          <g>
+                            {/* Tooltip background */}
+                            <rect
+                              x={x - 70}
+                              y={Math.min(metreY, poseY, savY) - 90}
+                              width={140}
+                              height={80}
+                              rx="8"
+                              fill={isDarkMode ? '#1a1a1a' : '#ffffff'}
+                              stroke={isDarkMode ? '#333333' : '#e5e7eb'}
+                              strokeWidth="1"
+                              style={{
+                                filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15))'
+                              }}
+                            />
+                            {/* Month title */}
+                            <text
+                              x={x}
+                              y={Math.min(metreY, poseY, savY) - 68}
+                              textAnchor="middle"
+                              fontSize="12"
+                              fontWeight="600"
+                              fill={isDarkMode ? '#ffffff' : '#111827'}
+                            >
+                              {data.month}
+                            </text>
+                            {/* Metré value */}
+                            <text
+                              x={x - 55}
+                              y={Math.min(metreY, poseY, savY) - 48}
+                              fontSize="11"
+                              fill="#3b82f6"
+                              fontWeight="500"
+                            >
+                              ● Metré: {data.Metré}
+                            </text>
+                            {/* Pose value */}
+                            <text
+                              x={x - 55}
+                              y={Math.min(metreY, poseY, savY) - 32}
+                              fontSize="11"
+                              fill={orangeColor}
+                              fontWeight="500"
+                            >
+                              ● Pose: {data.Pose}
+                            </text>
+                            {/* SAV value */}
+                            <text
+                              x={x - 55}
+                              y={Math.min(metreY, poseY, savY) - 16}
+                              fontSize="11"
+                              fill="#10b981"
+                              fontWeight="500"
+                            >
+                              ● SAV: {data.SAV}
+                            </text>
+                          </g>
+                        )}
                       </g>
                     )
                   })}
@@ -1322,6 +1572,7 @@ function DashbordPage() {
                   }}
                 />
               </svg>
+              )}
             </div>
           </div>
 

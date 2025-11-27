@@ -1,0 +1,48 @@
+{
+  // Terminal Settings
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  
+  // Terminal Appearance
+  "terminal.integrated.fontSize": 14,
+  "terminal.integrated.fontFamily": "Consolas, 'Courier New', monospace",
+  "terminal.integrated.cursorBlinking": true,
+  "terminal.integrated.cursorStyle": "line",
+  
+  // Terminal Colors & Theme
+  "terminal.integrated.background": "#1e1e1e",
+  "terminal.integrated.foreground": "#cccccc",
+  
+  // Terminal Behavior
+  "terminal.integrated.scrollback": 10000,
+  "terminal.integrated.confirmOnExit": "never",
+  "terminal.integrated.enableMultiLinePasteWarning": false,
+  
+  // Terminal Profiles (PowerShell, CMD, Git Bash, etc.)
+  "terminal.integrated.profiles.windows": {
+    "PowerShell": {
+      "source": "PowerShell",
+      "icon": "terminal-powershell",
+      "args": ["-NoLogo"]
+    },
+    "Command Prompt": {
+      "path": [
+        "${env:windir}\\System32\\cmd.exe"
+      ],
+      "args": [],
+      "icon": "terminal-cmd"
+    },
+    "Git Bash": {
+      "source": "Git Bash",
+      "icon": "terminal-bash"
+    }
+  },
+  
+  // Terminal Shell Integration
+  "terminal.integrated.shellIntegration.enabled": true,
+  "terminal.integrated.shellIntegration.history": 1000,
+  
+  // Terminal Copy/Paste
+  "terminal.integrated.copyOnSelection": false,
+  "terminal.integrated.rightClickBehavior": "default"
+}
+

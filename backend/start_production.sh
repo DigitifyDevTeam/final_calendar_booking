@@ -1,6 +1,9 @@
 #!/bin/bash
 # Production startup script for Django backend
 
+# Set environment to production
+export DJANGO_ENV=production
+
 # Set Python path for user-installed packages
 export PYTHONPATH="$HOME/.local/lib/python3.9/site-packages:$PYTHONPATH"
 

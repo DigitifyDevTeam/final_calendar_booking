@@ -22,6 +22,7 @@ load_env()
 
 def main():
     """Run administrative tasks."""
+    # Use new settings module structure (supports profiles)
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
     try:
         from django.core.management import execute_from_command_line

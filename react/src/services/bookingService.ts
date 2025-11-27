@@ -210,9 +210,9 @@ export const getAllBookings = async (
   return requestPromise
 }
 
-// Get max bookings per day for a calendar (default: 3, calendar1: 1)
+// Get max bookings per day for a calendar (default: 3, calendar1: 2)
 const MAX_BOOKINGS_PER_DAY_BY_BIN: { [key: string]: number } = {
-  [CALENDAR_CONFIGS['calendar1']]: 1, // Pose calendar (per-day bookings)
+  [CALENDAR_CONFIGS['calendar1']]: 2, // Pose calendar (per-day bookings)
   [CALENDAR_CONFIGS['calendar2']]: 3, // SAV calendar (3 distinct slots)
   [CALENDAR_CONFIGS['calendar3']]: 8, // Métré calendar (8 distinct slots)
 };

@@ -537,7 +537,26 @@
   }
 }
 
-/* Date header actions container for Pose calendar */
+/* Date header info button container on LEFT side for Pose calendar */
+.date-header-info-left {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.date-header-info-left .calendar-info-button-pose {
+  position: relative;
+  right: auto;
+  top: auto;
+  transform: none;
+}
+
+/* Date header actions container for Pose calendar (edit/delete on RIGHT) */
 .date-header-actions {
   position: absolute;
   right: 4px;
@@ -579,6 +598,10 @@
 }
 
 @media (max-width: 768px) {
+  .date-header-info-left {
+    left: 2px;
+  }
+  
   .date-header-actions {
     gap: 2px;
   }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getAllBookings, BookingRecord, getCalendarName, CALENDAR_CONFIGS, updateBooking, deleteBooking, addBooking } from '../services/bookingService'
 import { getAllNotifications, NotificationItem, getTimeAgo as getNotificationTimeAgo } from '../services/notificationService'
+import { getAllUsers, UserRecord } from '../services/userService'
 import AdminBookingModal, { AdminBookingFormData } from '../components/AdminBookingModal'
 import {
   Calendar,
@@ -41,9 +42,13 @@ function AdminPage() {
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false)
   const [unreadCount, setUnreadCount] = useState<number>(0)
   const [allNotifications, setAllNotifications] = useState<NotificationItem[]>([])
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [isAdmin, setIsAdmin] = useState<boolean>(false)
+  const [infoBooking, setInfoBooking] = useState<any | null>(null)
+  const [usersList, setUsersList] = useState<UserRecord[]>([])
 
   useEffect(() => {
-    // Check if user is admin
+    // Check if user is logged in (admin or regular user)
     const user = localStorage.getItem('user')
     if (!user) {
       navigate('/login')
@@ -51,12 +56,15 @@ function AdminPage() {
     }
     
     const userData = JSON.parse(user)
-    if (userData.role !== 'admin') {
-      navigate('/')
-      return
-    }
+    setCurrentUser(userData)
+    setIsAdmin(userData.role === 'admin')
 
     loadAllBookings()
+    
+    // Load users list for admin to select designer
+    if (userData.role === 'admin') {
+      loadUsersList()
+    }
   }, [navigate])
 
   useEffect(() => {
@@ -66,7 +74,7 @@ function AdminPage() {
 
   useEffect(() => {
     filterBookings()
-  }, [bookings, selectedCalendar, searchTerm, dateFilter])
+  }, [bookings, selectedCalendar, searchTerm, dateFilter, currentUser, isAdmin])
 
   // Load all notifications
   const loadNotifications = async () => {
@@ -138,8 +146,43 @@ function AdminPage() {
     }
   }
 
+  const loadUsersList = async () => {
+    try {
+      const users = await getAllUsers()
+      setUsersList(users)
+    } catch (error) {
+      console.error('Error loading users:', error)
+    }
+  }
+
+  // Check if a booking belongs to the current user
+  const isBookingOwnedByUser = (booking: any): boolean => {
+    if (!currentUser) return false
+    if (isAdmin) return true // Admin can see all bookings
+    
+    const userName = currentUser.name?.toLowerCase().trim() || ''
+    const userEmail = currentUser.email?.toLowerCase().trim() || ''
+    const userPhone = currentUser.phone?.trim() || ''
+    
+    // Match by client name, phone, or designer name
+    const clientNameMatch = userName && booking.name?.toLowerCase().trim() === userName
+    const phoneMatch = userPhone && booking.phone?.trim() === userPhone
+    const designerMatch = userName && booking.designer?.toLowerCase().trim() === userName
+    const emailInName = userEmail && (
+      booking.name?.toLowerCase().includes(userEmail) ||
+      booking.designer?.toLowerCase().includes(userEmail)
+    )
+    
+    return clientNameMatch || phoneMatch || designerMatch || emailInName || false
+  }
+
   const filterBookings = () => {
     let filtered = [...bookings]
+
+    // For regular users, filter to show only their own bookings
+    if (!isAdmin && currentUser) {
+      filtered = filtered.filter(booking => isBookingOwnedByUser(booking))
+    }
 
     // Filter by calendar
     if (selectedCalendar !== 'all') {
@@ -225,7 +268,36 @@ function AdminPage() {
     navigate('/')
   }
 
-  const orangeColor = '#fa541c'
+  const [orangeColor, setOrangeColor] = useState<string>(() => {
+    const saved = localStorage.getItem('accentColor')
+    return saved || '#fa541c'
+  })
+
+  // Listen for settings updates
+  useEffect(() => {
+    const handleSettingsUpdate = () => {
+      const saved = localStorage.getItem('accentColor')
+      if (saved) {
+        setOrangeColor(saved)
+        document.documentElement.style.setProperty('--accent-color', saved)
+      }
+    }
+    
+    window.addEventListener('settingsUpdated', handleSettingsUpdate)
+    window.addEventListener('storage', handleSettingsUpdate)
+    
+    // Check on mount
+    const saved = localStorage.getItem('accentColor')
+    if (saved) {
+      setOrangeColor(saved)
+      document.documentElement.style.setProperty('--accent-color', saved)
+    }
+    
+    return () => {
+      window.removeEventListener('settingsUpdated', handleSettingsUpdate)
+      window.removeEventListener('storage', handleSettingsUpdate)
+    }
+  }, [])
   const bgColor = isDarkMode ? '#000000' : '#f5f5f5'
   const textColor = isDarkMode ? '#ffffff' : '#111827'
   const textSecondary = isDarkMode ? '#9ca3af' : '#6b7280'
@@ -233,11 +305,22 @@ function AdminPage() {
 
 
   const handleEditClick = (booking: any) => {
+    // Check if user can edit this booking
+    if (!isAdmin && !isBookingOwnedByUser(booking)) {
+      alert('Vous ne pouvez modifier que vos propres réservations.')
+      return
+    }
     setEditingBooking(booking)
     setIsModalOpen(true)
   }
 
   const handleDeleteClick = async (booking: any) => {
+    // Check if user can delete this booking
+    if (!isAdmin && !isBookingOwnedByUser(booking)) {
+      alert('Vous ne pouvez supprimer que vos propres réservations.')
+      return
+    }
+
     if (!window.confirm(`Êtes-vous sûr de vouloir supprimer la réservation de ${booking.name} pour le ${formatDate(booking.date)} ?`)) {
       return
     }
@@ -572,8 +655,8 @@ function AdminPage() {
           <header className="admin-header">
             <div className="header-content">
               <div>
-                <h1>Administration - Réservations</h1>
-                <p>Gestion des réservations</p>
+                <h1>{isAdmin ? 'Administration - Réservations' : 'Mes Réservations'}</h1>
+                <p>{isAdmin ? 'Gestion des réservations' : 'Vos réservations personnelles'}</p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', position: 'relative' }}>
                 <button 
@@ -965,6 +1048,8 @@ function AdminPage() {
                       </td>
                       <td>{formatDateTime(booking.timestamp)}</td>
                       <td className="actions-cell">
+                        {isAdmin || isBookingOwnedByUser(booking) ? (
+                          <>
                         <button
                           className="edit-button"
                           onClick={() => handleEditClick(booking)}
@@ -979,6 +1064,12 @@ function AdminPage() {
                         >
                           🗑️
                         </button>
+                          </>
+                        ) : (
+                          <span style={{ color: isDarkMode ? '#6b7280' : '#9ca3af', fontSize: '12px' }}>
+                            Non autorisé
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -998,7 +1089,118 @@ function AdminPage() {
         onSubmit={handleModalSubmit}
         booking={editingBooking}
         isDarkMode={isDarkMode}
+        users={isAdmin ? usersList : []}
       />
+
+      {/* Info Modal */}
+      {infoBooking && (
+        <div 
+          className={`admin-booking-modal-overlay ${isDarkMode ? 'dark-mode' : 'light-mode'}`}
+          onClick={() => setInfoBooking(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
+        >
+          <div 
+            className="admin-booking-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '500px',
+              width: '90%',
+              maxHeight: '80vh',
+              overflow: 'auto'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, color: isDarkMode ? '#ffffff' : '#111827' }}>Détails de la réservation</h2>
+              <button
+                onClick={() => setInfoBooking(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: isDarkMode ? '#9ca3af' : '#6b7280',
+                  padding: '0',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ×
+              </button>
+        </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <strong style={{ color: isDarkMode ? '#9ca3af' : '#6b7280', fontSize: '12px' }}>Date:</strong>
+                <p style={{ margin: '4px 0 0 0', color: isDarkMode ? '#ffffff' : '#111827' }}>{formatDate(infoBooking.date)}</p>
+              </div>
+              {infoBooking.time && infoBooking.time !== '21h00' && (
+                <div>
+                  <strong style={{ color: isDarkMode ? '#9ca3af' : '#6b7280', fontSize: '12px' }}>Heure:</strong>
+                  <p style={{ margin: '4px 0 0 0', color: isDarkMode ? '#ffffff' : '#111827' }}>{infoBooking.time}</p>
+                </div>
+              )}
+              <div>
+                <strong style={{ color: isDarkMode ? '#9ca3af' : '#6b7280', fontSize: '12px' }}>Calendrier:</strong>
+                <p style={{ margin: '4px 0 0 0', color: isDarkMode ? '#ffffff' : '#111827' }}>{getCalendarName(infoBooking.calendarId)}</p>
+              </div>
+              <div>
+                <strong style={{ color: isDarkMode ? '#9ca3af' : '#6b7280', fontSize: '12px' }}>Client:</strong>
+                <p style={{ margin: '4px 0 0 0', color: isDarkMode ? '#ffffff' : '#111827' }}>{infoBooking.name}</p>
+              </div>
+              <div>
+                <strong style={{ color: isDarkMode ? '#9ca3af' : '#6b7280', fontSize: '12px' }}>Téléphone:</strong>
+                <p style={{ margin: '4px 0 0 0', color: isDarkMode ? '#ffffff' : '#111827' }}>{infoBooking.phone}</p>
+              </div>
+              <div>
+                <strong style={{ color: isDarkMode ? '#9ca3af' : '#6b7280', fontSize: '12px' }}>Concepteur:</strong>
+                <p style={{ margin: '4px 0 0 0', color: isDarkMode ? '#ffffff' : '#111827' }}>{infoBooking.designer}</p>
+              </div>
+              {infoBooking.message && (
+                <div>
+                  <strong style={{ color: isDarkMode ? '#9ca3af' : '#6b7280', fontSize: '12px' }}>Message:</strong>
+                  <p style={{ margin: '4px 0 0 0', color: isDarkMode ? '#ffffff' : '#111827', whiteSpace: 'pre-wrap' }}>{infoBooking.message}</p>
+                </div>
+              )}
+              <div>
+                <strong style={{ color: isDarkMode ? '#9ca3af' : '#6b7280', fontSize: '12px' }}>Créé le:</strong>
+                <p style={{ margin: '4px 0 0 0', color: isDarkMode ? '#ffffff' : '#111827' }}>{formatDateTime(infoBooking.timestamp)}</p>
+              </div>
+            </div>
+            <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                onClick={() => setInfoBooking(null)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                  backgroundColor: 'transparent',
+                  color: isDarkMode ? '#ffffff' : '#111827',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
         </div>
       </div>

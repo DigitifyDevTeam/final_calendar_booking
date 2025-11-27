@@ -4,6 +4,7 @@ import Calendar from '../components/Calendar'
 import BookingModal from '../components/BookingModal'
 import NoelDecorations from '../components/NoelDecorations'
 import { addBooking, getBinId as getBinIdFromConfig, type BookingData } from '../services/bookingService'
+import { getAllUsers, UserRecord } from '../services/userService'
 import '../App.css'
 
 interface Calendar1PageProps {
@@ -22,9 +23,32 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
     const saved = localStorage.getItem('darkMode')
     return saved ? JSON.parse(saved) : true
   })
+  const [isAdmin, setIsAdmin] = useState<boolean>(false)
+  const [usersList, setUsersList] = useState<UserRecord[]>([])
 
   // Get the bin ID for calendar1 - ensures it uses its own data
   const binId = getBinIdFromConfig('calendar1')
+
+  // Check if user is admin and load users list
+  useEffect(() => {
+    const user = localStorage.getItem('user')
+    if (user) {
+      const userData = JSON.parse(user)
+      if (userData.role === 'admin') {
+        setIsAdmin(true)
+        loadUsersList()
+      }
+    }
+  }, [])
+
+  const loadUsersList = async () => {
+    try {
+      const users = await getAllUsers()
+      setUsersList(users)
+    } catch (error) {
+      console.error('Error loading users:', error)
+    }
+  }
 
   useEffect(() => {
     setRefreshTrigger(prev => prev + 1)
@@ -181,6 +205,7 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
           onClose={handleCloseModal}
           onSubmit={handleBookingSubmit}
           isDarkMode={isDarkMode}
+          users={isAdmin ? usersList : []}
         />
       )}
 

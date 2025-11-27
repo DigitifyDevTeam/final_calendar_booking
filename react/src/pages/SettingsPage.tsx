@@ -16,7 +16,6 @@ import {
   Save,
   Database,
   Mail,
-  Shield,
   Palette,
   Clock,
   Globe,
@@ -27,10 +26,6 @@ import {
   Trash2,
   Download,
   Upload,
-  Key,
-  Lock,
-  Eye,
-  EyeOff,
   ClipboardList
 } from 'lucide-react'
 import './SettingsPage.css'
@@ -121,10 +116,6 @@ function SettingsPage() {
   const [language, setLanguage] = useState('fr')
   const [timezone, setTimezone] = useState('Europe/Paris')
   const [autoSave, setAutoSave] = useState(true)
-  const [showPassword, setShowPassword] = useState(false)
-  const [password, setPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [accentColor, setAccentColor] = useState<string>(() => {
     const saved = localStorage.getItem('accentColor')
     return saved || '#fa541c'
@@ -168,15 +159,38 @@ function SettingsPage() {
     setSaving(true)
     setSaveStatus('idle')
     
-    // Simulate save operation
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    setSaving(false)
-    setSaveStatus('success')
-    
-    setTimeout(() => {
-      setSaveStatus('idle')
-    }, 3000)
+    try {
+      // Save all settings to localStorage
+      localStorage.setItem('accentColor', accentColor)
+      localStorage.setItem('darkMode', JSON.stringify(isDarkMode))
+      localStorage.setItem('notifications', JSON.stringify(notifications))
+      localStorage.setItem('language', language)
+      localStorage.setItem('timezone', timezone)
+      localStorage.setItem('autoSave', JSON.stringify(autoSave))
+      
+      // Update CSS variable immediately
+      document.documentElement.style.setProperty('--accent-color', accentColor)
+      
+      // Trigger a custom event to notify other pages
+      window.dispatchEvent(new Event('settingsUpdated'))
+      
+      // Simulate save operation
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      setSaving(false)
+      setSaveStatus('success')
+      
+      setTimeout(() => {
+        setSaveStatus('idle')
+      }, 3000)
+    } catch (error) {
+      console.error('Error saving settings:', error)
+      setSaving(false)
+      setSaveStatus('error')
+      setTimeout(() => {
+        setSaveStatus('idle')
+      }, 3000)
+    }
   }
 
   const handleExport = () => {
@@ -223,7 +237,6 @@ function SettingsPage() {
   const settingsSections = [
     { id: 'general', label: 'Général', icon: Settings },
     { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'security', label: 'Sécurité', icon: Shield },
     { id: 'appearance', label: 'Apparence', icon: Palette },
     { id: 'data', label: 'Données', icon: Database }
   ]
@@ -763,91 +776,6 @@ function SettingsPage() {
                       >
                         <span className="toggle-slider"></span>
                       </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Security Settings */}
-              {activeSection === 'security' && (
-                <div className="settings-section">
-                  <div className="section-header">
-                    <Shield size={24} style={{ color: accentColor }} />
-                    <div>
-                      <h2>Sécurité</h2>
-                      <p>Gérez la sécurité de votre compte</p>
-                    </div>
-                  </div>
-
-                  <div className="settings-card">
-                    <div className="setting-item">
-                      <div className="setting-info">
-                        <Lock size={20} />
-                        <div>
-                          <label>Mot de passe actuel</label>
-                          <p>Entrez votre mot de passe actuel</p>
-                        </div>
-                      </div>
-                      <div style={{ position: 'relative', width: '300px' }}>
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="setting-input"
-                          placeholder="••••••••"
-                        />
-                        <button
-                          onClick={() => setShowPassword(!showPassword)}
-                          style={{
-                            position: 'absolute',
-                            right: '12px',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: textSecondary
-                          }}
-                        >
-                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="setting-item">
-                      <div className="setting-info">
-                        <Key size={20} />
-                        <div>
-                          <label>Nouveau mot de passe</label>
-                          <p>Créez un nouveau mot de passe sécurisé</p>
-                        </div>
-                      </div>
-                      <input
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="setting-input"
-                        placeholder="••••••••"
-                        style={{ width: '300px' }}
-                      />
-                    </div>
-
-                    <div className="setting-item">
-                      <div className="setting-info">
-                        <Key size={20} />
-                        <div>
-                          <label>Confirmer le mot de passe</label>
-                          <p>Confirmez votre nouveau mot de passe</p>
-                        </div>
-                      </div>
-                      <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="setting-input"
-                        placeholder="••••••••"
-                        style={{ width: '300px' }}
-                      />
                     </div>
                   </div>
                 </div>

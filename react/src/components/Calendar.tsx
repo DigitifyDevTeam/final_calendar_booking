@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import './Calendar.css'
 import { getAllBookings, BookingRecord, getMaxBookingsPerDay, usesTimeSlots, getAllHolidays, HolidayRecord, updateBooking, deleteBooking } from '../services/bookingService'
+import { getAllUsers, UserRecord } from '../services/userService'
 import BookingModal from './BookingModal'
 
 // Orange info icon component
@@ -28,7 +29,31 @@ interface CalendarProps {
 }
 
 const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, refreshTrigger, binId, view = 'monthly', showTimeSlots = true, timeSlotType = 'numerical' }) => {
-  const [currentDate, setCurrentDate] = useState<Date>(new Date())
+  // Restore currentDate from localStorage or use today's date
+  const getStoredDate = (): Date => {
+    const stored = localStorage.getItem(`calendar_currentDate_${binId || 'default'}`)
+    if (stored) {
+      try {
+        const parsed = new Date(stored)
+        if (!isNaN(parsed.getTime())) {
+          return parsed
+        }
+      } catch (e) {
+        // Invalid date, use today
+      }
+    }
+    return new Date()
+  }
+  
+  const [currentDate, setCurrentDate] = useState<Date>(getStoredDate())
+  const [internalRefreshTrigger, setInternalRefreshTrigger] = useState<number>(0)
+  
+  // Save currentDate to localStorage whenever it changes
+  useEffect(() => {
+    if (currentDate) {
+      localStorage.setItem(`calendar_currentDate_${binId || 'default'}`, currentDate.toISOString())
+    }
+  }, [currentDate, binId])
   
   const [bookingCounts, setBookingCounts] = useState<{[key: string]: number}>({})
   
@@ -41,6 +66,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   const [bookingDetails, setBookingDetails] = useState<{[key: string]: BookingRecord}>({})
   // Store all bookings for admin view (to get all names for Pose calendar)
   const [allBookingsData, setAllBookingsData] = useState<BookingRecord[]>([])
+  const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [isTechnicien, setIsTechnicien] = useState<boolean>(false)
   const [isRegularUser, setIsRegularUser] = useState<boolean>(false)
   const [userEmail, setUserEmail] = useState<string>('')
@@ -50,26 +76,48 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   // Track editing/deleting bookings for Technicien
   const [editingBooking, setEditingBooking] = useState<BookingRecord | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false)
-  // Track info popup state
-  const [infoPopup, setInfoPopup] = useState<{x: number, y: number, names: string[], date: Date, timeSlot?: string} | null>(null)
+  // Track info popup state - now includes booking records for admin
+  const [infoPopup, setInfoPopup] = useState<{x: number, y: number, names: string[], bookings: BookingRecord[], date: Date, timeSlot?: string} | null>(null)
+  // List of users for admin to select as designer
+  const [usersList, setUsersList] = useState<UserRecord[]>([])
+  // Booking selection popup for multiple bookings on same date (Pose calendar)
+  const [bookingSelectPopup, setBookingSelectPopup] = useState<{x: number, y: number, bookings: BookingRecord[], date: Date, action: 'edit' | 'delete'} | null>(null)
 
   // Refs to prevent duplicate API calls from React StrictMode double-invocation
   const holidaysLoadingRef = useRef<string | null>(null)
   const bookingsLoadingRef = useRef<string | null>(null)
+
+  // Load users list for admin to select designer
+  const loadUsersList = async () => {
+    try {
+      const users = await getAllUsers()
+      setUsersList(users)
+    } catch (error) {
+      console.error('Error loading users:', error)
+    }
+  }
 
   // Check if user is admin, Technicien, or regular user
   useEffect(() => {
     const user = localStorage.getItem('user')
     if (user) {
       const userData = JSON.parse(user)
+      setIsAdmin(userData.role === 'admin')
       setIsTechnicien(userData.role === 'technicien')
       setIsRegularUser(userData.role !== 'admin' && userData.role !== 'technicien')
       setUserEmail(userData.email || '')
       setUserName(userData.name || userData.email || '')
+      
+      // Load users list for admin to select designer
+      if (userData.role === 'admin') {
+        loadUsersList()
+      }
+      
       console.log('=== CALENDAR USER INFO ===', {
         role: userData.role,
         email: userData.email,
         name: userData.name,
+        isAdmin: userData.role === 'admin',
         isTechnicien: userData.role === 'technicien'
       })
     } else {
@@ -225,7 +273,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   // This ensures fully-booked days in other months appear gray immediately when navigating
   useEffect(() => {
     // Create a unique key for this request to prevent duplicate calls from React StrictMode
-    const requestKey = `bookings_${binId}_${refreshTrigger}`
+    const requestKey = `bookings_${binId}_${refreshTrigger}_${internalRefreshTrigger}`
     
     // Skip if we're already loading this exact request
     if (bookingsLoadingRef.current === requestKey) {
@@ -328,7 +376,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         bookingsLoadingRef.current = null
       }
     }
-  }, [refreshTrigger, binId]) // Remove monthDays dependency - load all dates once, update on refreshTrigger
+  }, [refreshTrigger, binId, internalRefreshTrigger]) // Remove monthDays dependency - load all dates once, update on refreshTrigger
 
   // Get booking status for a date
   const getBookingStatus = (date: Date) => {
@@ -417,6 +465,11 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   }
 
   const getNamesForDate = (date: Date, timeSlot?: string): string[] => {
+    const bookings = getBookingsForDate(date, timeSlot)
+    return bookings.map(b => b.name)
+  }
+
+  const getBookingsForDate = (date: Date, timeSlot?: string): BookingRecord[] => {
     const year = date.getFullYear()
     const month = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
@@ -428,35 +481,77 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     const checkDate = new Date(date)
     checkDate.setHours(0, 0, 0, 0)
     
-    // Only show names for future dates
+    // Only show bookings for future dates
     if (checkDate < today) {
       return []
     }
     
     if (timeSlot) {
       // For time slot calendars (SAV, Metré), get the booking for this specific time slot
-      // Only show if it's by another technicien (not the current one)
       const booking = getBookingForSlot(date, timeSlot)
-      if (booking && isBookingByOtherTechnicien(booking)) {
-        return [booking.name]
+      if (booking) {
+        // For admin, show all bookings. For technicien, only show if it's by another technicien
+        if (isAdmin) {
+          return [booking]
+        } else if (isBookingByOtherTechnicien(booking)) {
+          return [booking]
+        }
       }
       return []
     } else {
-      // For Pose calendar, get all bookings for this date that are by other techniciens
-      const names: string[] = []
+      // For Pose calendar, get all bookings for this date
+      // Show all bookings so users can see who has booked (for info icon)
+      const bookings: BookingRecord[] = []
       allBookingsData.forEach((booking: BookingRecord) => {
-        if (booking.date === dateString && isBookingByOtherTechnicien(booking)) {
-          names.push(booking.name)
+        if (booking.date === dateString) {
+          bookings.push(booking)
         }
       })
-      return names
+      return bookings
+    }
+  }
+
+  // Helper function to determine if info icon should be shown
+  const shouldShowInfoIcon = (date: Date, timeSlot?: string): boolean => {
+    if (isAdmin) {
+      // Admin sees all bookings
+      if (timeSlot) {
+        return isSlotBooked(date, timeSlot)
+      } else {
+        return getBookingStatus(date).count > 0
+      }
+    } else if (isTechnicien) {
+      // For technicien, only show info icon if booking is by another technicien (not their own)
+      if (timeSlot) {
+        const booking = getBookingForSlot(date, timeSlot)
+        return booking ? isBookingByOtherTechnicien(booking) : false
+      } else {
+        // For non-time-slot calendars (Pose), check if there are bookings by OTHER techniciens
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        const dateString = `${year}-${month}-${day}`
+        
+        // Get all bookings for this date
+        const allBookings = allBookingsData.filter((booking: BookingRecord) => booking.date === dateString)
+        // Filter to only bookings by other techniciens (not the current one)
+        const otherBookings = allBookings.filter((booking: BookingRecord) => isBookingByOtherTechnicien(booking))
+        return otherBookings.length > 0
+      }
+    } else {
+      // Regular users see all bookings
+      if (timeSlot) {
+        return isSlotBooked(date, timeSlot) && getNamesForDate(date, timeSlot).length > 0
+      } else {
+        return getBookingStatus(date).count > 0 && getNamesForDate(date).length > 0
+      }
     }
   }
 
   const handleInfoClick = (e: React.MouseEvent, date: Date, timeSlot?: string) => {
     e.stopPropagation()
-    const names = getNamesForDate(date, timeSlot)
-    if (names.length > 0) {
+    const bookings = getBookingsForDate(date, timeSlot)
+    if (bookings.length > 0) {
       const button = e.currentTarget as HTMLElement
       const calendarContainer = button.closest('.calendar')
       if (calendarContainer) {
@@ -465,7 +560,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         setInfoPopup({
           x: buttonRect.right - containerRect.left + 8,
           y: buttonRect.top - containerRect.top,
-          names: names,
+          names: bookings.map(b => b.name),
+          bookings: bookings,
           date: date,
           timeSlot: timeSlot
         })
@@ -491,6 +587,22 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
       }
     }
   }, [infoPopup])
+
+  // Close booking select popup when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.booking-select-popup')) {
+        setBookingSelectPopup(null)
+      }
+    }
+    if (bookingSelectPopup) {
+      document.addEventListener('click', handleClickOutside)
+      return () => {
+        document.removeEventListener('click', handleClickOutside)
+      }
+    }
+  }, [bookingSelectPopup])
 
   // Check if a booking belongs to the current Technicien user
   const isBookingByTechnicien = (booking: BookingRecord): boolean => {
@@ -628,43 +740,147 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
       await deleteBooking(booking.id)
       alert('✅ Réservation supprimée avec succès')
       setInfoPopup(null)
-      // Refresh bookings by reloading
-      window.location.reload()
+      // Refresh bookings without reloading page
+      setInternalRefreshTrigger(prev => prev + 1)
     } catch (error) {
       console.error('Error deleting booking:', error)
       alert('❌ Erreur lors de la suppression de la réservation')
     }
   }
 
-  const handleEditBooking = (date: Date, timeSlot?: string) => {
-    const booking = getBookingForDateAndSlot(date, timeSlot)
-    if (booking) {
-      setEditingBooking(booking)
+  // Get all bookings for a date that the current user can edit (for Pose calendar)
+  const getEditableBookingsForDate = (date: Date): BookingRecord[] => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const dateString = `${year}-${month}-${day}`
+    
+    return allBookingsData.filter(b => {
+      if (b.date !== dateString) return false
+      if (isTechnicien) return isBookingByTechnicien(b)
+      if (isRegularUser) return isBookingByUser(b)
+      return false
+    })
+  }
+
+  const handleEditBooking = (date: Date, timeSlot?: string, event?: React.MouseEvent) => {
+    // For time-slot calendars, use the existing logic
+    if (timeSlot) {
+      const booking = getBookingForDateAndSlot(date, timeSlot)
+      if (booking) {
+        setEditingBooking(booking)
+        setIsEditModalOpen(true)
+      }
+      return
+    }
+    
+    // For Pose calendar (no time slot), check if there are multiple bookings
+    const editableBookings = getEditableBookingsForDate(date)
+    
+    if (editableBookings.length === 0) {
+      return
+    }
+    
+    if (editableBookings.length === 1) {
+      // Only one booking, edit directly
+      setEditingBooking(editableBookings[0])
       setIsEditModalOpen(true)
+    } else {
+      // Multiple bookings, show selection popup
+      const rect = event?.currentTarget?.getBoundingClientRect()
+      setBookingSelectPopup({
+        x: rect ? rect.left + rect.width / 2 : 200,
+        y: rect ? rect.bottom + 5 : 200,
+        bookings: editableBookings,
+        date: date,
+        action: 'edit'
+      })
     }
   }
 
-  const handleDeleteBooking = async (date: Date, timeSlot?: string) => {
-    const booking = getBookingForDateAndSlot(date, timeSlot)
-    if (!booking) return
+  const handleDeleteBooking = async (date: Date, timeSlot?: string, event?: React.MouseEvent) => {
+    // For time-slot calendars, use the existing logic
+    if (timeSlot) {
+      const booking = getBookingForDateAndSlot(date, timeSlot)
+      if (!booking) return
 
-    const confirmMessage = timeSlot 
-      ? `Êtes-vous sûr de vouloir supprimer votre réservation du ${new Date(booking.date + 'T00:00:00').toLocaleDateString('fr-FR')} à ${timeSlot} ?`
-      : `Êtes-vous sûr de vouloir supprimer votre réservation du ${new Date(booking.date + 'T00:00:00').toLocaleDateString('fr-FR')} ?`
-    
-    if (!window.confirm(confirmMessage)) {
+      const confirmMessage = `Êtes-vous sûr de vouloir supprimer votre réservation du ${new Date(booking.date + 'T00:00:00').toLocaleDateString('fr-FR')} à ${timeSlot} ?`
+      
+      if (!window.confirm(confirmMessage)) {
+        return
+      }
+
+      try {
+        await deleteBooking(booking.id)
+        alert('Réservation supprimée avec succès')
+        setInternalRefreshTrigger(prev => prev + 1)
+      } catch (error) {
+        console.error('Error deleting booking:', error)
+        alert('Erreur lors de la suppression de la réservation')
+      }
       return
     }
-
-    try {
-      await deleteBooking(booking.id)
-      alert('Réservation supprimée avec succès')
-      // Refresh bookings by reloading
-      window.location.reload()
-    } catch (error) {
-      console.error('Error deleting booking:', error)
-      alert('Erreur lors de la suppression de la réservation')
+    
+    // For Pose calendar (no time slot), check if there are multiple bookings
+    const editableBookings = getEditableBookingsForDate(date)
+    
+    if (editableBookings.length === 0) {
+      return
     }
+    
+    if (editableBookings.length === 1) {
+      // Only one booking, delete directly
+      const booking = editableBookings[0]
+      const confirmMessage = `Êtes-vous sûr de vouloir supprimer votre réservation du ${new Date(booking.date + 'T00:00:00').toLocaleDateString('fr-FR')} ?`
+      
+      if (!window.confirm(confirmMessage)) {
+        return
+      }
+
+      try {
+        await deleteBooking(booking.id)
+        alert('Réservation supprimée avec succès')
+        setInternalRefreshTrigger(prev => prev + 1)
+      } catch (error) {
+        console.error('Error deleting booking:', error)
+        alert('Erreur lors de la suppression de la réservation')
+      }
+    } else {
+      // Multiple bookings, show selection popup
+      const rect = event?.currentTarget?.getBoundingClientRect()
+      setBookingSelectPopup({
+        x: rect ? rect.left + rect.width / 2 : 200,
+        y: rect ? rect.bottom + 5 : 200,
+        bookings: editableBookings,
+        date: date,
+        action: 'delete'
+      })
+    }
+  }
+
+  // Handle booking selection from popup
+  const handleBookingSelect = async (booking: BookingRecord) => {
+    if (!bookingSelectPopup) return
+    
+    if (bookingSelectPopup.action === 'edit') {
+      setEditingBooking(booking)
+      setIsEditModalOpen(true)
+    } else if (bookingSelectPopup.action === 'delete') {
+      const confirmMessage = `Êtes-vous sûr de vouloir supprimer la réservation de ${booking.name} du ${new Date(booking.date + 'T00:00:00').toLocaleDateString('fr-FR')} ?`
+      
+      if (window.confirm(confirmMessage)) {
+        try {
+          await deleteBooking(booking.id)
+          alert('Réservation supprimée avec succès')
+          setInternalRefreshTrigger(prev => prev + 1)
+        } catch (error) {
+          console.error('Error deleting booking:', error)
+          alert('Erreur lors de la suppression de la réservation')
+        }
+      }
+    }
+    
+    setBookingSelectPopup(null)
   }
 
   const handleEditModalSubmit = async (bookingData: any) => {
@@ -695,8 +911,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
       alert('✅ Réservation modifiée avec succès')
       setIsEditModalOpen(false)
       setEditingBooking(null)
-      // Refresh bookings by reloading
-      window.location.reload()
+      // Refresh bookings without reloading page
+      setInternalRefreshTrigger(prev => prev + 1)
     } catch (error: any) {
       console.error('Error updating booking:', error)
       const errorMessage = error?.message || 'Erreur lors de la modification de la réservation'
@@ -774,7 +990,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                       style={{ cursor: !isDateNumberClickable ? 'default' : (isDisabled || isFullyBooked ? 'not-allowed' : 'pointer') }}
                     >
                       <span>{date.getDate()}</span>
-                      {!usesTimeSlots(binId) && bookingStatus.count > 0 && getNamesForDate(date).length > 0 && (
+                      {!usesTimeSlots(binId) && shouldShowInfoIcon(date) && (
                         <button
                           className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date)}
@@ -817,7 +1033,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot1Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>8:00-11:00</span>
-                                    {slot1Booked && getNamesForDate(date, '8:00-11:00').length > 0 && (
+                                    {shouldShowInfoIcon(date, '8:00-11:00') && (
                                       <button
                                         className="calendar-info-button"
                                         onClick={(e) => handleInfoClick(e, date, '8:00-11:00')}
@@ -833,7 +1049,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot2Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>11:00-14:00</span>
-                                    {slot2Booked && getNamesForDate(date, '11:00-14:00').length > 0 && (
+                                    {shouldShowInfoIcon(date, '11:00-14:00') && (
                                       <button
                                         className="calendar-info-button"
                                         onClick={(e) => handleInfoClick(e, date, '11:00-14:00')}
@@ -849,7 +1065,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot3Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>14:00-17:00</span>
-                                    {slot3Booked && getNamesForDate(date, '14:00-17:00').length > 0 && (
+                                    {shouldShowInfoIcon(date, '14:00-17:00') && (
                                       <button
                                         className="calendar-info-button"
                                         onClick={(e) => handleInfoClick(e, date, '14:00-17:00')}
@@ -883,7 +1099,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot8_00Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>8:00</span>
-                                    {slot8_00Booked && getNamesForDate(date, '8:00').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '8:00') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '8:00')}
@@ -892,6 +1109,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '8:00') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '8:00')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '8:00')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                   <div 
                                     className={`time-slot ${isDisabled || slot9_30Booked ? 'disabled' : ''}`}
@@ -899,7 +1141,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot9_30Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>9:30</span>
-                                    {slot9_30Booked && getNamesForDate(date, '9:30').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '9:30') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '9:30')}
@@ -908,6 +1151,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '9:30') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '9:30')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '9:30')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                   <div 
                                     className={`time-slot ${isDisabled || slot11_00Booked ? 'disabled' : ''}`}
@@ -915,7 +1183,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot11_00Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>11:00</span>
-                                    {slot11_00Booked && getNamesForDate(date, '11:00').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '11:00') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '11:00')}
@@ -924,6 +1193,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '11:00') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '11:00')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '11:00')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                   <div 
                                     className={`time-slot ${isDisabled || slot12_30Booked ? 'disabled' : ''}`}
@@ -931,7 +1225,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot12_30Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>12:30</span>
-                                    {slot12_30Booked && getNamesForDate(date, '12:30').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '12:30') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '12:30')}
@@ -940,6 +1235,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '12:30') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '12:30')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '12:30')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                   <div 
                                     className={`time-slot ${isDisabled || slot14_00Booked ? 'disabled' : ''}`}
@@ -947,7 +1267,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot14_00Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>14:00</span>
-                                    {slot14_00Booked && getNamesForDate(date, '14:00').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '14:00') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '14:00')}
@@ -956,6 +1277,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '14:00') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '14:00')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '14:00')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                   <div 
                                     className={`time-slot ${isDisabled || slot15_30Booked ? 'disabled' : ''}`}
@@ -963,7 +1309,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot15_30Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>15:30</span>
-                                    {slot15_30Booked && getNamesForDate(date, '15:30').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '15:30') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '15:30')}
@@ -972,6 +1319,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '15:30') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '15:30')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '15:30')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                   <div 
                                     className={`time-slot ${isDisabled || slot17_00Booked ? 'disabled' : ''}`}
@@ -979,7 +1351,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot17_00Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>17:00</span>
-                                    {slot17_00Booked && getNamesForDate(date, '17:00').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '17:00') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '17:00')}
@@ -988,6 +1361,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '17:00') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '17:00')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '17:00')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                   <div 
                                     className={`time-slot ${isDisabled || slot18_30Booked ? 'disabled' : ''}`}
@@ -995,7 +1393,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot18_30Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>18:30</span>
-                                    {slot18_30Booked && getNamesForDate(date, '18:30').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '18:30') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '18:30')}
@@ -1004,6 +1403,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '18:30') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '18:30')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '18:30')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 </>
                               )
@@ -1027,15 +1451,15 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                   >
                                     <span>8-10</span>
                                     <div className="time-slot-actions">
-                                      {slot8_10Booked && getNamesForDate(date, '8-10').length > 0 && (
-                                        <button
-                                          className="calendar-info-button"
+                                      {shouldShowInfoIcon(date, '8-10') && (
+                                      <button
+                                        className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '8-10')}
-                                          title="Voir les réservations"
-                                        >
-                                          <InfoIcon />
-                                        </button>
-                                      )}
+                                        title="Voir les réservations"
+                                      >
+                                        <InfoIcon />
+                                      </button>
+                                    )}
                                       {isTechnicien && getBookingForDateAndSlot(date, '8-10') && (
                                         <>
                                           <button
@@ -1069,15 +1493,15 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                   >
                                     <span>10-12</span>
                                     <div className="time-slot-actions">
-                                      {slot10_12Booked && getNamesForDate(date, '10-12').length > 0 && (
-                                        <button
-                                          className="calendar-info-button"
+                                      {shouldShowInfoIcon(date, '10-12') && (
+                                      <button
+                                        className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '10-12')}
-                                          title="Voir les réservations"
-                                        >
-                                          <InfoIcon />
-                                        </button>
-                                      )}
+                                        title="Voir les réservations"
+                                      >
+                                        <InfoIcon />
+                                      </button>
+                                    )}
                                       {isTechnicien && getBookingForDateAndSlot(date, '10-12') && (
                                         <>
                                           <button
@@ -1111,15 +1535,15 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                   >
                                     <span>14-16</span>
                                     <div className="time-slot-actions">
-                                      {slot14_16Booked && getNamesForDate(date, '14-16').length > 0 && (
-                                        <button
-                                          className="calendar-info-button"
+                                      {shouldShowInfoIcon(date, '14-16') && (
+                                      <button
+                                        className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '14-16')}
-                                          title="Voir les réservations"
-                                        >
-                                          <InfoIcon />
-                                        </button>
-                                      )}
+                                        title="Voir les réservations"
+                                      >
+                                        <InfoIcon />
+                                      </button>
+                                    )}
                                       {isTechnicien && getBookingForDateAndSlot(date, '14-16') && (
                                         <>
                                           <button
@@ -1153,15 +1577,15 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                   >
                                     <span>16-18</span>
                                     <div className="time-slot-actions">
-                                      {slot16_18Booked && getNamesForDate(date, '16-18').length > 0 && (
-                                        <button
-                                          className="calendar-info-button"
+                                      {shouldShowInfoIcon(date, '16-18') && (
+                                      <button
+                                        className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '16-18')}
-                                          title="Voir les réservations"
-                                        >
-                                          <InfoIcon />
-                                        </button>
-                                      )}
+                                        title="Voir les réservations"
+                                      >
+                                        <InfoIcon />
+                                      </button>
+                                    )}
                                       {isTechnicien && getBookingForDateAndSlot(date, '16-18') && (
                                         <>
                                           <button
@@ -1212,8 +1636,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
               const isDisabled = bookingStatus.isDisabled // This includes both past dates and fully booked dates
                 return (
                   <div key={index} className={`date-header ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked' : ''}`}>
-                    <div className="date-header-actions">
-                      {!usesTimeSlots(binId) && bookingStatus.count > 0 && getNamesForDate(date).length > 0 && (
+                    {!usesTimeSlots(binId) && shouldShowInfoIcon(date) && (
+                      <div className="date-header-info-left">
                         <button
                           className="calendar-info-button-pose"
                           onClick={(e) => handleInfoClick(e, date)}
@@ -1221,32 +1645,32 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                         >
                           <InfoIcon />
                         </button>
-                      )}
-                      {isTechnicien && !usesTimeSlots(binId) && getBookingForDateAndSlot(date) && (
-                        <>
-                          <button
-                            className="calendar-edit-button-pose"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleEditBooking(date)
-                            }}
-                            title="Modifier"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            className="calendar-delete-button-pose"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDeleteBooking(date)
-                            }}
-                            title="Supprimer"
-                          >
-                            🗑️
-                          </button>
-                        </>
-                      )}
-                    </div>
+                      </div>
+                    )}
+                    {isTechnicien && !usesTimeSlots(binId) && getBookingForDateAndSlot(date) && (
+                      <div className="date-header-actions">
+                        <button
+                          className="calendar-edit-button-pose"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleEditBooking(date, undefined, e)
+                          }}
+                          title="Modifier"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          className="calendar-delete-button-pose"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteBooking(date, undefined, e)
+                          }}
+                          title="Supprimer"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    )}
                     <div 
                       className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''} ${!isDateNumberClickable ? 'not-clickable' : ''}`}
                       onClick={isDateNumberClickable ? (() => !isDisabled && !isFullyBooked && handleDateClick(date)) : undefined}
@@ -1288,8 +1712,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
               const isDisabled = bookingStatus.isDisabled // This includes both past dates and fully booked dates
               return (
                 <div key={`second-${index}`} className={`date-header ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked' : ''}`}>
-                  <div className="date-header-actions">
-                    {!usesTimeSlots(binId) && bookingStatus.count > 0 && getNamesForDate(date).length > 0 && (
+                  {!usesTimeSlots(binId) && shouldShowInfoIcon(date) && (
+                    <div className="date-header-info-left">
                       <button
                         className="calendar-info-button-pose"
                         onClick={(e) => handleInfoClick(e, date)}
@@ -1297,32 +1721,32 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                       >
                         <InfoIcon />
                       </button>
-                    )}
-                    {isTechnicien && !usesTimeSlots(binId) && getBookingForDateAndSlot(date) && (
-                      <>
-                        <button
-                          className="calendar-edit-button-pose"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleEditBooking(date)
-                          }}
-                          title="Modifier"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          className="calendar-delete-button-pose"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDeleteBooking(date)
-                          }}
-                          title="Supprimer"
-                        >
-                          🗑️
-                        </button>
-                      </>
-                    )}
-                  </div>
+                    </div>
+                  )}
+                  {isTechnicien && !usesTimeSlots(binId) && getBookingForDateAndSlot(date) && (
+                    <div className="date-header-actions">
+                      <button
+                        className="calendar-edit-button-pose"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditBooking(date)
+                        }}
+                        title="Modifier"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        className="calendar-delete-button-pose"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteBooking(date)
+                        }}
+                        title="Supprimer"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  )}
                   <div 
                     className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''}`}
                     onClick={isDateNumberClickable ? (() => !isDisabled && !isFullyBooked && handleDateClick(date)) : undefined}
@@ -1364,8 +1788,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
               const isDisabled = bookingStatus.isDisabled // This includes both past dates and fully booked dates
               return (
                 <div key={`third-${index}`} className={`date-header ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked' : ''}`}>
-                  <div className="date-header-actions">
-                    {!usesTimeSlots(binId) && bookingStatus.count > 0 && getNamesForDate(date).length > 0 && (
+                  {!usesTimeSlots(binId) && shouldShowInfoIcon(date) && (
+                    <div className="date-header-info-left">
                       <button
                         className="calendar-info-button-pose"
                         onClick={(e) => handleInfoClick(e, date)}
@@ -1373,32 +1797,32 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                       >
                         <InfoIcon />
                       </button>
-                    )}
-                    {isTechnicien && !usesTimeSlots(binId) && getBookingForDateAndSlot(date) && (
-                      <>
-                        <button
-                          className="calendar-edit-button-pose"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleEditBooking(date)
-                          }}
-                          title="Modifier"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          className="calendar-delete-button-pose"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDeleteBooking(date)
-                          }}
-                          title="Supprimer"
-                        >
-                          🗑️
-                        </button>
-                      </>
-                    )}
-                  </div>
+                    </div>
+                  )}
+                  {isTechnicien && !usesTimeSlots(binId) && getBookingForDateAndSlot(date) && (
+                    <div className="date-header-actions">
+                      <button
+                        className="calendar-edit-button-pose"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditBooking(date)
+                        }}
+                        title="Modifier"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        className="calendar-delete-button-pose"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteBooking(date)
+                        }}
+                        title="Supprimer"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  )}
                   <div 
                     className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''}`}
                     onClick={isDateNumberClickable ? (() => !isDisabled && !isFullyBooked && handleDateClick(date)) : undefined}
@@ -1440,8 +1864,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
               const isDisabled = bookingStatus.isDisabled // This includes both past dates and fully booked dates
               return (
                 <div key={`fourth-${index}`} className={`date-header ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked' : ''}`}>
-                  <div className="date-header-actions">
-                    {!usesTimeSlots(binId) && bookingStatus.count > 0 && getNamesForDate(date).length > 0 && (
+                  {!usesTimeSlots(binId) && shouldShowInfoIcon(date) && (
+                    <div className="date-header-info-left">
                       <button
                         className="calendar-info-button-pose"
                         onClick={(e) => handleInfoClick(e, date)}
@@ -1449,32 +1873,32 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                       >
                         <InfoIcon />
                       </button>
-                    )}
-                    {isTechnicien && !usesTimeSlots(binId) && getBookingForDateAndSlot(date) && (
-                      <>
-                        <button
-                          className="calendar-edit-button-pose"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleEditBooking(date)
-                          }}
-                          title="Modifier"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          className="calendar-delete-button-pose"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDeleteBooking(date)
-                          }}
-                          title="Supprimer"
-                        >
-                          🗑️
-                        </button>
-                      </>
-                    )}
-                  </div>
+                    </div>
+                  )}
+                  {isTechnicien && !usesTimeSlots(binId) && getBookingForDateAndSlot(date) && (
+                    <div className="date-header-actions">
+                      <button
+                        className="calendar-edit-button-pose"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditBooking(date)
+                        }}
+                        title="Modifier"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        className="calendar-delete-button-pose"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteBooking(date)
+                        }}
+                        title="Supprimer"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  )}
                   <div 
                     className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''}`}
                     onClick={isDateNumberClickable ? (() => !isDisabled && !isFullyBooked && handleDateClick(date)) : undefined}
@@ -1523,7 +1947,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                       style={{ cursor: !isDateNumberClickable ? 'default' : (isDisabled || isFullyBooked ? 'not-allowed' : 'pointer') }}
                     >
                       <span>{date.getDate()}</span>
-                      {!usesTimeSlots(binId) && bookingStatus.count > 0 && getNamesForDate(date).length > 0 && (
+                      {!usesTimeSlots(binId) && shouldShowInfoIcon(date) && (
                         <button
                           className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date)}
@@ -1566,7 +1990,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot1Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>8:00-11:00</span>
-                                    {slot1Booked && getNamesForDate(date, '8:00-11:00').length > 0 && (
+                                    {shouldShowInfoIcon(date, '8:00-11:00') && (
                                       <button
                                         className="calendar-info-button"
                                         onClick={(e) => handleInfoClick(e, date, '8:00-11:00')}
@@ -1582,7 +2006,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot2Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>11:00-14:00</span>
-                                    {slot2Booked && getNamesForDate(date, '11:00-14:00').length > 0 && (
+                                    {shouldShowInfoIcon(date, '11:00-14:00') && (
                                       <button
                                         className="calendar-info-button"
                                         onClick={(e) => handleInfoClick(e, date, '11:00-14:00')}
@@ -1598,7 +2022,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot3Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>14:00-17:00</span>
-                                    {slot3Booked && getNamesForDate(date, '14:00-17:00').length > 0 && (
+                                    {shouldShowInfoIcon(date, '14:00-17:00') && (
                                       <button
                                         className="calendar-info-button"
                                         onClick={(e) => handleInfoClick(e, date, '14:00-17:00')}
@@ -1632,7 +2056,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot8_00Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>8:00</span>
-                                    {slot8_00Booked && getNamesForDate(date, '8:00').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '8:00') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '8:00')}
@@ -1641,6 +2066,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '8:00') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '8:00')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '8:00')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                   <div 
                                     className={`time-slot ${isDisabled || slot9_30Booked ? 'disabled' : ''}`}
@@ -1648,7 +2098,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot9_30Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>9:30</span>
-                                    {slot9_30Booked && getNamesForDate(date, '9:30').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '9:30') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '9:30')}
@@ -1657,6 +2108,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '9:30') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '9:30')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '9:30')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                   <div 
                                     className={`time-slot ${isDisabled || slot11_00Booked ? 'disabled' : ''}`}
@@ -1664,7 +2140,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot11_00Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>11:00</span>
-                                    {slot11_00Booked && getNamesForDate(date, '11:00').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '11:00') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '11:00')}
@@ -1673,6 +2150,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '11:00') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '11:00')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '11:00')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                   <div 
                                     className={`time-slot ${isDisabled || slot12_30Booked ? 'disabled' : ''}`}
@@ -1680,7 +2182,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot12_30Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>12:30</span>
-                                    {slot12_30Booked && getNamesForDate(date, '12:30').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '12:30') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '12:30')}
@@ -1689,6 +2192,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '12:30') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '12:30')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '12:30')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                   <div 
                                     className={`time-slot ${isDisabled || slot14_00Booked ? 'disabled' : ''}`}
@@ -1696,7 +2224,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot14_00Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>14:00</span>
-                                    {slot14_00Booked && getNamesForDate(date, '14:00').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '14:00') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '14:00')}
@@ -1705,6 +2234,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '14:00') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '14:00')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '14:00')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                   <div 
                                     className={`time-slot ${isDisabled || slot15_30Booked ? 'disabled' : ''}`}
@@ -1712,7 +2266,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot15_30Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>15:30</span>
-                                    {slot15_30Booked && getNamesForDate(date, '15:30').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '15:30') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '15:30')}
@@ -1721,6 +2276,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '15:30') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '15:30')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '15:30')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                   <div 
                                     className={`time-slot ${isDisabled || slot17_00Booked ? 'disabled' : ''}`}
@@ -1728,7 +2308,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot17_00Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>17:00</span>
-                                    {slot17_00Booked && getNamesForDate(date, '17:00').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '17:00') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '17:00')}
@@ -1737,6 +2318,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '17:00') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '17:00')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '17:00')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                   <div 
                                     className={`time-slot ${isDisabled || slot18_30Booked ? 'disabled' : ''}`}
@@ -1744,7 +2350,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: isDisabled || slot18_30Booked ? 'not-allowed' : 'pointer' }}
                                   >
                                     <span>18:30</span>
-                                    {slot18_30Booked && getNamesForDate(date, '18:30').length > 0 && (
+                                    <div className="time-slot-actions">
+                                      {shouldShowInfoIcon(date, '18:30') && (
                                       <button
                                         className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '18:30')}
@@ -1753,6 +2360,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                         <InfoIcon />
                                       </button>
                                     )}
+                                      {isTechnicien && getBookingForDateAndSlot(date, '18:30') && (
+                                        <>
+                                          <button
+                                            className="calendar-edit-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleEditBooking(date, '18:30')
+                                            }}
+                                            title="Modifier"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            className="calendar-delete-button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDeleteBooking(date, '18:30')
+                                            }}
+                                            title="Supprimer"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 </>
                               )
@@ -1776,15 +2408,15 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                   >
                                     <span>8-10</span>
                                     <div className="time-slot-actions">
-                                      {slot8_10Booked && getNamesForDate(date, '8-10').length > 0 && (
-                                        <button
-                                          className="calendar-info-button"
+                                      {shouldShowInfoIcon(date, '8-10') && (
+                                      <button
+                                        className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '8-10')}
-                                          title="Voir les réservations"
-                                        >
-                                          <InfoIcon />
-                                        </button>
-                                      )}
+                                        title="Voir les réservations"
+                                      >
+                                        <InfoIcon />
+                                      </button>
+                                    )}
                                       {isTechnicien && getBookingForDateAndSlot(date, '8-10') && (
                                         <>
                                           <button
@@ -1818,15 +2450,15 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                   >
                                     <span>10-12</span>
                                     <div className="time-slot-actions">
-                                      {slot10_12Booked && getNamesForDate(date, '10-12').length > 0 && (
-                                        <button
-                                          className="calendar-info-button"
+                                      {shouldShowInfoIcon(date, '10-12') && (
+                                      <button
+                                        className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '10-12')}
-                                          title="Voir les réservations"
-                                        >
-                                          <InfoIcon />
-                                        </button>
-                                      )}
+                                        title="Voir les réservations"
+                                      >
+                                        <InfoIcon />
+                                      </button>
+                                    )}
                                       {isTechnicien && getBookingForDateAndSlot(date, '10-12') && (
                                         <>
                                           <button
@@ -1860,15 +2492,15 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                   >
                                     <span>14-16</span>
                                     <div className="time-slot-actions">
-                                      {slot14_16Booked && getNamesForDate(date, '14-16').length > 0 && (
-                                        <button
-                                          className="calendar-info-button"
+                                      {shouldShowInfoIcon(date, '14-16') && (
+                                      <button
+                                        className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '14-16')}
-                                          title="Voir les réservations"
-                                        >
-                                          <InfoIcon />
-                                        </button>
-                                      )}
+                                        title="Voir les réservations"
+                                      >
+                                        <InfoIcon />
+                                      </button>
+                                    )}
                                       {isTechnicien && getBookingForDateAndSlot(date, '14-16') && (
                                         <>
                                           <button
@@ -1902,15 +2534,15 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                   >
                                     <span>16-18</span>
                                     <div className="time-slot-actions">
-                                      {slot16_18Booked && getNamesForDate(date, '16-18').length > 0 && (
-                                        <button
-                                          className="calendar-info-button"
+                                      {shouldShowInfoIcon(date, '16-18') && (
+                                      <button
+                                        className="calendar-info-button"
                           onClick={(e) => handleInfoClick(e, date, '16-18')}
-                                          title="Voir les réservations"
-                                        >
-                                          <InfoIcon />
-                                        </button>
-                                      )}
+                                        title="Voir les réservations"
+                                      >
+                                        <InfoIcon />
+                                      </button>
+                                    )}
                                       {isTechnicien && getBookingForDateAndSlot(date, '16-18') && (
                                         <>
                                           <button
@@ -1974,11 +2606,19 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
             >
               ×
             </button>
-            <div className="calendar-info-popup-title">Réservé pour:</div>
+            <div className="calendar-info-popup-title">Réservée pour:</div>
             <div className="calendar-info-popup-names">
-              {infoPopup.names.map((name, idx) => (
+              {infoPopup.bookings && infoPopup.bookings.length > 0 ? (
+                // Show client names from bookings
+                infoPopup.bookings.map((booking, idx) => (
+                  <div key={idx}>{booking.name}</div>
+                ))
+              ) : (
+                // Fallback to names array if bookings not available
+                infoPopup.names.map((name, idx) => (
                 <div key={idx}>{name}</div>
-              ))}
+                ))
+              )}
             </div>
             {/* Edit/Delete buttons for user's own bookings */}
             {isRegularUser && infoPopup && getUserBookingForDateAndSlot(infoPopup.date, infoPopup.timeSlot) && (
@@ -2064,6 +2704,119 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         </div>
       )}
 
+      {/* Booking Selection Popup for multiple bookings on same date */}
+      {bookingSelectPopup && (
+        <div 
+          className="booking-select-popup"
+          style={{
+            position: 'fixed',
+            left: Math.min(bookingSelectPopup.x, window.innerWidth - 280),
+            top: bookingSelectPopup.y,
+            zIndex: 10000,
+            backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+            border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+            borderRadius: '12px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)',
+            padding: '12px',
+            minWidth: '250px',
+            maxWidth: '350px'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{
+            fontSize: '14px',
+            fontWeight: 600,
+            color: isDarkMode ? '#ffffff' : '#111827',
+            marginBottom: '12px',
+            paddingBottom: '8px',
+            borderBottom: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`
+          }}>
+            {bookingSelectPopup.action === 'edit' ? '✏️ Sélectionner une réservation à modifier' : '🗑️ Sélectionner une réservation à supprimer'}
+          </div>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            maxHeight: '300px',
+            overflowY: 'auto'
+          }}>
+            {bookingSelectPopup.bookings
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((booking, index) => (
+                <button
+                  key={booking.id || index}
+                  onClick={() => handleBookingSelect(booking)}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    gap: '4px',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    backgroundColor: isDarkMode ? '#0a0a0a' : '#f9fafb',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    width: '100%',
+                    textAlign: 'left'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f0f0f0'
+                    e.currentTarget.style.borderColor = '#fa541c'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#0a0a0a' : '#f9fafb'
+                    e.currentTarget.style.borderColor = isDarkMode ? '#333333' : '#e5e7eb'
+                  }}
+                >
+                  <div style={{
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: isDarkMode ? '#ffffff' : '#111827'
+                  }}>
+                    👤 {booking.name}
+                  </div>
+                  <div style={{
+                    fontSize: '12px',
+                    color: isDarkMode ? '#9ca3af' : '#6b7280'
+                  }}>
+                    📞 {booking.phone}
+                  </div>
+                  <div style={{
+                    fontSize: '11px',
+                    color: isDarkMode ? '#6b7280' : '#9ca3af'
+                  }}>
+                    🎨 Concepteur: {booking.designer}
+                  </div>
+                </button>
+              ))}
+          </div>
+          <button
+            onClick={() => setBookingSelectPopup(null)}
+            style={{
+              marginTop: '12px',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+              backgroundColor: 'transparent',
+              color: isDarkMode ? '#9ca3af' : '#6b7280',
+              cursor: 'pointer',
+              fontSize: '13px',
+              width: '100%',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f0f0f0'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+            }}
+          >
+            Annuler
+          </button>
+        </div>
+      )}
+
       {/* Edit Modal for Technicien */}
       {isEditModalOpen && editingBooking && (
         <BookingModal
@@ -2081,6 +2834,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
             designer: editingBooking.designer,
             message: editingBooking.message,
           }}
+          users={isAdmin ? usersList : []}
         />
       )}
     </div>

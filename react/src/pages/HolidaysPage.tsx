@@ -182,7 +182,36 @@ function HolidaysPage() {
     navigate('/')
   }
 
-  const orangeColor = '#fa541c'
+  const [orangeColor, setOrangeColor] = useState<string>(() => {
+    const saved = localStorage.getItem('accentColor')
+    return saved || '#fa541c'
+  })
+
+  // Listen for settings updates
+  useEffect(() => {
+    const handleSettingsUpdate = () => {
+      const saved = localStorage.getItem('accentColor')
+      if (saved) {
+        setOrangeColor(saved)
+        document.documentElement.style.setProperty('--accent-color', saved)
+      }
+    }
+    
+    window.addEventListener('settingsUpdated', handleSettingsUpdate)
+    window.addEventListener('storage', handleSettingsUpdate)
+    
+    // Check on mount
+    const saved = localStorage.getItem('accentColor')
+    if (saved) {
+      setOrangeColor(saved)
+      document.documentElement.style.setProperty('--accent-color', saved)
+    }
+    
+    return () => {
+      window.removeEventListener('settingsUpdated', handleSettingsUpdate)
+      window.removeEventListener('storage', handleSettingsUpdate)
+    }
+  }, [])
   const bgColor = isDarkMode ? '#000000' : '#f5f5f5'
   const textColor = isDarkMode ? '#ffffff' : '#111827'
   const textSecondary = isDarkMode ? '#9ca3af' : '#6b7280'

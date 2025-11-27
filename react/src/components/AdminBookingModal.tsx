@@ -2,12 +2,20 @@ import React, { useState, useEffect } from 'react'
 import { CALENDAR_CONFIGS } from '../services/bookingService'
 import './AdminBookingModal.css'
 
+interface UserOption {
+  id: number
+  name: string
+  email: string
+  role: string
+}
+
 interface AdminBookingModalProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (data: AdminBookingFormData) => void
   booking?: any // Existing booking for edit mode
   isDarkMode?: boolean
+  users?: UserOption[] // List of users for designer selection (admin only)
 }
 
 export interface AdminBookingFormData {
@@ -25,7 +33,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
   onClose,
   onSubmit,
   booking,
-  isDarkMode = true
+  isDarkMode = true,
+  users = []
 }) => {
   const [formData, setFormData] = useState<AdminBookingFormData>({
     calendar_id: CALENDAR_CONFIGS['calendar1'],
@@ -233,14 +242,31 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
 
           <div className="form-group">
             <label htmlFor="designer_name">Nom du concepteur *</label>
-            <input
-              type="text"
-              id="designer_name"
-              name="designer_name"
-              value={formData.designer_name}
-              onChange={handleInputChange}
-              className={errors.designer_name ? 'error' : ''}
-            />
+            {users.length > 0 ? (
+              <select
+                id="designer_name"
+                name="designer_name"
+                value={formData.designer_name}
+                onChange={handleInputChange}
+                className={errors.designer_name ? 'error' : ''}
+              >
+                <option value="">Sélectionner un concepteur</option>
+                {users.filter(user => user.role !== 'admin').map(user => (
+                  <option key={user.id} value={user.name}>
+                    {user.name} (Technicien)
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                id="designer_name"
+                name="designer_name"
+                value={formData.designer_name}
+                onChange={handleInputChange}
+                className={errors.designer_name ? 'error' : ''}
+              />
+            )}
             {errors.designer_name && <span className="error-message">{errors.designer_name}</span>}
           </div>
 

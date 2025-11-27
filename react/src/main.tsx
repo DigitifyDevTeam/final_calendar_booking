@@ -2,7 +2,6 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
-import ProtectedAdminRoute from './components/ProtectedAdminRoute'
 import ProtectedRoute from './components/ProtectedRoute'
 import RoleBasedRoute from './components/RoleBasedRoute'
 import CalendarRoute from './components/CalendarRoute'
@@ -11,6 +10,7 @@ import PoseRoute from './components/PoseRoute'
 import SavRoute from './components/SavRoute'
 import LoginPage from './pages/LoginPage'
 import DashbordPage from './pages/DashbordPage'
+import AdminPage from './pages/AdminPage'
 import UtilisateursPage from './pages/UtilisateursPage'
 import SettingsPage from './pages/SettingsPage'
 import HolidaysPage from './pages/HolidaysPage'
@@ -24,7 +24,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/login" element={<LoginPage />} />
         <Route path="/calendrier" element={<ProtectedRoute><CalendarRoute /></ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute requireAdmin={true}><DashbordPage /></ProtectedRoute>} />
-        <Route path="/réservation" element={<ProtectedAdminRoute />} />
+        <Route path="/réservation" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
         <Route path="/jours-feries" element={<ProtectedRoute requireAdmin={true}><HolidaysPage /></ProtectedRoute>} />
         <Route path="/utilisateurs" element={<ProtectedRoute requireAdmin={true}><UtilisateursPage /></ProtectedRoute>} />
         <Route path="/parametres" element={<ProtectedRoute requireAdmin={true}><SettingsPage /></ProtectedRoute>} />

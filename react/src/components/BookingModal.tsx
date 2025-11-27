@@ -11,6 +11,13 @@ interface BookingData {
   timeSlot?: string
 }
 
+interface UserOption {
+  id: number
+  name: string
+  email: string
+  role: string
+}
+
 interface BookingModalProps {
   selectedDate: Date
   selectedTimeSlot?: string
@@ -23,6 +30,7 @@ interface BookingModalProps {
     designer?: string
     message?: string
   }
+  users?: UserOption[] // List of users for designer selection (admin only)
 }
 
 interface FormData {
@@ -38,9 +46,10 @@ interface FormErrors {
   designer?: string
 }
 
-const BookingModal: React.FC<BookingModalProps> = ({ selectedDate, selectedTimeSlot, onClose, onSubmit, isDarkMode = false, initialData }) => {
+const BookingModal: React.FC<BookingModalProps> = ({ selectedDate, selectedTimeSlot, onClose, onSubmit, isDarkMode = false, initialData, users = [] }) => {
   // Get user info from localStorage to auto-fill designer for techniciens
   const [technicienName, setTechnicienName] = useState<string>('')
+  const [isAdmin, setIsAdmin] = useState<boolean>(false)
   
   useEffect(() => {
     const user = localStorage.getItem('user')
@@ -49,6 +58,9 @@ const BookingModal: React.FC<BookingModalProps> = ({ selectedDate, selectedTimeS
         const userData = JSON.parse(user)
         if (userData.role === 'technicien' && userData.name) {
           setTechnicienName(userData.name)
+        }
+        if (userData.role === 'admin') {
+          setIsAdmin(true)
         }
       } catch (error) {
         console.error('Error parsing user data:', error)
@@ -214,23 +226,40 @@ const BookingModal: React.FC<BookingModalProps> = ({ selectedDate, selectedTimeS
 
           <div className="form-group">
             <label htmlFor="designer">Nom du concepteur *</label>
-            <input
-              type="text"
-              id="designer"
-              name="designer"
-              value={formData.designer}
-              onChange={handleInputChange}
-              className={errors.designer ? 'error' : ''}
-              placeholder="Entrez le nom du concepteur"
-              readOnly={!!technicienName}
-              style={technicienName ? { 
-                backgroundColor: isDarkMode ? '#555' : '#f5f5f5', 
-                cursor: 'not-allowed',
-                opacity: 0.8
-              } : {}}
-            />
+            {isAdmin && users.length > 0 ? (
+              <select
+                id="designer"
+                name="designer"
+                value={formData.designer}
+                onChange={handleInputChange}
+                className={errors.designer ? 'error' : ''}
+              >
+                <option value="">Sélectionner un concepteur</option>
+                {users.filter(user => user.role !== 'admin').map(user => (
+                  <option key={user.id} value={user.name}>
+                    {user.name} (Technicien)
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                id="designer"
+                name="designer"
+                value={formData.designer}
+                onChange={handleInputChange}
+                className={errors.designer ? 'error' : ''}
+                placeholder="Entrez le nom du concepteur"
+                readOnly={!!technicienName}
+                style={technicienName ? { 
+                  backgroundColor: isDarkMode ? '#555' : '#f5f5f5', 
+                  cursor: 'not-allowed',
+                  opacity: 0.8
+                } : {}}
+              />
+            )}
             {errors.designer && <span className="error-message">{errors.designer}</span>}
-            {technicienName && (
+            {technicienName && !isAdmin && (
               <small style={{ color: '#666', fontSize: '12px', marginTop: '4px', display: 'block' }}>
                 ✓ Automatiquement rempli avec votre nom (non modifiable)
               </small>
