@@ -94,7 +94,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof AdminBookingFormData, string>> = {}
 
-    if (!formData.calendar_id.trim()) {
+    // Only validate calendar_id when creating a new booking (not editing)
+    if (!booking && !formData.calendar_id.trim()) {
       newErrors.calendar_id = 'Le calendrier est requis'
     }
 
@@ -103,8 +104,10 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
     }
 
     // For time slot calendars (SAV and Metré), time is required
+    // Use the calendar_id from formData if creating, or from booking if editing
+    const currentCalendarId = booking ? (booking.calendarId || formData.calendar_id) : formData.calendar_id
     const timeSlotCalendars = [CALENDAR_CONFIGS['calendar2'], CALENDAR_CONFIGS['calendar3']]
-    if (timeSlotCalendars.includes(formData.calendar_id) && !formData.booking_time.trim()) {
+    if (timeSlotCalendars.includes(currentCalendarId) && !formData.booking_time.trim()) {
       newErrors.booking_time = 'Le créneau horaire est requis pour ce calendrier'
     }
 
@@ -130,17 +133,25 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
     e.preventDefault()
     
     if (validateForm()) {
+      // Determine the calendar_id to use
+      const currentCalendarId = booking ? (booking.calendarId || formData.calendar_id) : formData.calendar_id
+      const isPoseCalendar = currentCalendarId === CALENDAR_CONFIGS['calendar1']
+      
       // For Pose calendar, use default time if not provided
+      // For other calendars, keep the time as is (it's required and validated)
       const bookingData = {
         ...formData,
-        booking_time: formData.booking_time || '21h00'
+        calendar_id: currentCalendarId, // Always include calendar_id for backend validation
+        booking_time: isPoseCalendar && !formData.booking_time ? '21h00' : (formData.booking_time || '')
       }
+      
       onSubmit(bookingData)
     }
   }
 
   const getTimeSlotOptions = (): string[] => {
-    const calendarId = formData.calendar_id
+    // Use booking's calendar_id if editing, otherwise use formData.calendar_id
+    const calendarId = booking ? (booking.calendarId || formData.calendar_id) : formData.calendar_id
     if (calendarId === CALENDAR_CONFIGS['calendar2']) {
       // SAV calendar time slots
       return ['9h00', '10h30', '14h00']
@@ -165,21 +176,23 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="admin-booking-modal-form">
-          <div className="form-group">
-            <label htmlFor="calendar_id">Calendrier *</label>
-            <select
-              id="calendar_id"
-              name="calendar_id"
-              value={formData.calendar_id}
-              onChange={handleInputChange}
-              className={errors.calendar_id ? 'error' : ''}
-            >
-              <option value={CALENDAR_CONFIGS['calendar1']}>Pose</option>
-              <option value={CALENDAR_CONFIGS['calendar2']}>SAV</option>
-              <option value={CALENDAR_CONFIGS['calendar3']}>Metré</option>
-            </select>
-            {errors.calendar_id && <span className="error-message">{errors.calendar_id}</span>}
-          </div>
+          {!booking && (
+            <div className="form-group">
+              <label htmlFor="calendar_id">Calendrier *</label>
+              <select
+                id="calendar_id"
+                name="calendar_id"
+                value={formData.calendar_id}
+                onChange={handleInputChange}
+                className={errors.calendar_id ? 'error' : ''}
+              >
+                <option value={CALENDAR_CONFIGS['calendar1']}>Pose</option>
+                <option value={CALENDAR_CONFIGS['calendar2']}>SAV</option>
+                <option value={CALENDAR_CONFIGS['calendar3']}>Metré</option>
+              </select>
+              {errors.calendar_id && <span className="error-message">{errors.calendar_id}</span>}
+            </div>
+          )}
 
           <div className="form-group">
             <label htmlFor="booking_date">Date *</label>

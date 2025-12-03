@@ -148,7 +148,34 @@ export interface BookingData {
 
 // Request cache to prevent duplicate API calls (especially from React StrictMode)
 const requestCache = new Map<string, { promise: Promise<any>; timestamp: number }>()
-const CACHE_DURATION = 1000 // 1 second cache to prevent duplicate calls from StrictMode
+const CACHE_DURATION = 30000 // 30 seconds cache to reduce API load
+
+// Clear cache after mutations (create/update/delete)
+export const clearBookingsCache = (calendarId?: string) => {
+  const keysToDelete: string[] = []
+  requestCache.forEach((_, key) => {
+    if (key.startsWith('bookings_')) {
+      if (!calendarId || key.includes(calendarId)) {
+        keysToDelete.push(key)
+      }
+    }
+  })
+  keysToDelete.forEach(key => requestCache.delete(key))
+  console.log(`[Cache] Cleared ${keysToDelete.length} bookings cache entries`)
+}
+
+export const clearHolidaysCache = (calendarId?: string) => {
+  const keysToDelete: string[] = []
+  requestCache.forEach((_, key) => {
+    if (key.startsWith('holidays_')) {
+      if (!calendarId || key.includes(calendarId)) {
+        keysToDelete.push(key)
+      }
+    }
+  })
+  keysToDelete.forEach(key => requestCache.delete(key))
+  console.log(`[Cache] Cleared ${keysToDelete.length} holidays cache entries`)
+}
 
 // Get all bookings scoped per calendar (optionally filtered by date range)
 export const getAllBookings = async (
@@ -344,6 +371,9 @@ export const addBooking = async (bookingData: BookingData, binId?: string, maxBo
       body: JSON.stringify(bookingPayload),
     })
 
+    // Clear cache after successful booking creation
+    clearBookingsCache(targetBinId)
+    
     return true
   } catch (error) {
     console.error('Error adding booking:', error)
@@ -426,6 +456,9 @@ export const updateBooking = async (bookingId: string, bookingData: {
       body: JSON.stringify(bookingData),
     })
 
+    // Clear cache after successful update
+    clearBookingsCache(bookingData.calendar_id)
+
     return toBookingRecord(response)
   } catch (error) {
     console.error('Error updating booking:', error)
@@ -434,13 +467,16 @@ export const updateBooking = async (bookingId: string, bookingData: {
 }
 
 // Delete a booking
-export const deleteBooking = async (bookingId: string): Promise<boolean> => {
+export const deleteBooking = async (bookingId: string, calendarId?: string): Promise<boolean> => {
   try {
     console.log('[deleteBooking] Deleting booking:', bookingId)
     
     await apiRequest(`/bookings/${bookingId}/`, {
       method: 'DELETE',
     })
+
+    // Clear cache after successful deletion
+    clearBookingsCache(calendarId)
 
     return true
   } catch (error) {
@@ -548,6 +584,9 @@ export const addHoliday = async (
       body: JSON.stringify(holidayPayload),
     })
 
+    // Clear cache after successful holiday creation
+    clearHolidaysCache(targetBinId)
+
     return toHolidayRecord(response)
   } catch (error) {
     console.error('Error adding holiday:', error)
@@ -584,11 +623,14 @@ export const updateHoliday = async (
 }
 
 // Delete a holiday
-export const deleteHoliday = async (holidayId: number): Promise<boolean> => {
+export const deleteHoliday = async (holidayId: number, calendarId?: string): Promise<boolean> => {
   try {
     await apiRequest(`/holidays/${holidayId}/`, {
       method: 'DELETE',
     })
+
+    // Clear cache after successful deletion
+    clearHolidaysCache(calendarId)
 
     return true
   } catch (error) {

@@ -18,7 +18,9 @@ import {
   Users,
   ChevronDown,
   Minus,
-  RefreshCw
+  RefreshCw,
+  Menu,
+  X
 } from 'lucide-react'
 import './AdminPage.css'
 
@@ -36,6 +38,8 @@ function AdminPage() {
     return saved ? JSON.parse(saved) : true
   })
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
   const [editingBooking, setEditingBooking] = useState<any | null>(null)
   const [calendarsExpanded, setCalendarsExpanded] = useState<boolean>(true)
@@ -72,6 +76,37 @@ function AdminPage() {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light')
   }, [isDarkMode])
 
+  // Handle responsive detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768)
+      if (window.innerWidth > 768) {
+        setMobileMenuOpen(false)
+      }
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // Close mobile menu on navigation
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [location.pathname])
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileMenuOpen])
+
   useEffect(() => {
     filterBookings()
   }, [bookings, selectedCalendar, searchTerm, dateFilter, currentUser, isAdmin])
@@ -89,8 +124,8 @@ function AdminPage() {
 
   useEffect(() => {
     loadNotifications()
-    // Refresh notifications every 30 seconds
-    const interval = setInterval(loadNotifications, 30000)
+    // Refresh notifications every 60 seconds (reduced from 30s to lower API load)
+    const interval = setInterval(loadNotifications, 60000)
     // Listen for custom refresh events
     const handleRefresh = () => loadNotifications()
     window.addEventListener('notificationRefresh', handleRefresh)
@@ -339,8 +374,21 @@ function AdminPage() {
   const handleModalSubmit = async (formData: AdminBookingFormData) => {
     try {
       if (editingBooking) {
-        // Update existing booking
-        await updateBooking(editingBooking.id, formData)
+        // Update existing booking - include calendar_id for backend validation
+        // Use the existing booking's calendar_id to prevent changing calendar
+        const existingCalendarId = editingBooking.calendarId || formData.calendar_id
+        const isPoseCalendar = existingCalendarId === CALENDAR_CONFIGS['calendar1']
+        
+        const updateData = {
+          calendar_id: existingCalendarId,
+          booking_date: formData.booking_date,
+          booking_time: isPoseCalendar && !formData.booking_time ? '21h00' : (formData.booking_time || ''),
+          client_name: formData.client_name,
+          client_phone: formData.client_phone,
+          designer_name: formData.designer_name,
+          message: formData.message || ''
+        }
+        await updateBooking(editingBooking.id, updateData)
         alert('Réservation modifiée avec succès')
       } else {
         // Create new booking
@@ -369,21 +417,119 @@ function AdminPage() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', width: '100%', backgroundColor: bgColor }}>
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="mobile-menu-overlay active"
+          onClick={() => setMobileMenuOpen(false)}
+          style={{
+            display: isMobile ? 'block' : 'none',
+            position: 'fixed',
+            top: '60px', // Start below the header
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 998
+          }}
+        />
+      )}
+      
+      {/* Mobile Header */}
+      {isMobile && (
+        <div 
+          className="mobile-header"
+          style={{
+            display: 'flex',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '60px',
+            backgroundColor: isDarkMode ? '#000000' : '#ffffff',
+            zIndex: 1000, // Higher than overlay to ensure buttons are always clickable
+            padding: '0 16px',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: `1px solid ${borderColor}`,
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              style={{
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                borderRadius: '8px',
+                color: textColor,
+                zIndex: 1001, // Ensure button is always on top
+                position: 'relative'
+              }}
+              aria-label={mobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+            >
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: `linear-gradient(135deg, ${orangeColor} 0%, #ff6b35 100%)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Calendar style={{ width: '16px', height: '16px', color: '#ffffff' }} />
+            </div>
+            <span style={{ fontSize: '16px', fontWeight: 600, color: textColor }}>Réservations</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={toggleDarkMode}
+              style={{
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                color: textSecondary,
+                cursor: 'pointer'
+              }}
+            >
+              {isDarkMode ? <Sun style={{ width: '18px', height: '18px' }} /> : <Moon style={{ width: '18px', height: '18px' }} />}
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Sidebar */}
       <nav
+        className={`dashboard-sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`}
         style={{
-          position: 'sticky',
-          top: 0,
-          height: '100vh',
-          width: sidebarOpen ? '256px' : '64px',
+          position: isMobile ? 'fixed' : 'sticky',
+          top: isMobile ? '60px' : 0, // Start below mobile header
+          left: 0,
+          height: isMobile ? 'calc(100vh - 60px)' : '100vh', // Adjust height for mobile header
+          width: isMobile ? '280px' : (sidebarOpen ? '256px' : '64px'),
           borderRight: `1px solid ${borderColor}`,
           backgroundColor: isDarkMode ? '#000000' : '#ffffff',
           padding: '8px',
           paddingBottom: '60px',
-          transition: 'width 0.3s ease',
+          transition: 'width 0.3s ease, transform 0.3s ease',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          transform: isMobile ? (mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
+          zIndex: 999
         }}
       >
         {/* Logo Section */}
@@ -650,7 +796,7 @@ function AdminPage() {
         </button>
       </nav>
       
-      <div style={{ flex: 1, overflow: 'auto', backgroundColor: bgColor }}>
+      <div style={{ flex: 1, overflow: 'auto', backgroundColor: bgColor, paddingTop: isMobile ? '60px' : '0' }}>
         <div className={`admin-page ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
           <header className="admin-header">
             <div className="header-content">

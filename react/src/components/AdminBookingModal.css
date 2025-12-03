@@ -211,3 +211,92 @@
   transform: translateY(0);
 }
 
+/* Responsive styles */
+@media (max-width: 768px) {
+  .admin-booking-modal-overlay {
+    padding: 12px;
+    align-items: flex-start;
+    padding-top: 20px;
+  }
+
+  .admin-booking-modal {
+    max-width: 100%;
+    border-radius: 12px;
+    max-height: 90vh;
+  }
+
+  .admin-booking-modal-header {
+    padding: 16px 20px;
+  }
+
+  .admin-booking-modal-header h2 {
+    font-size: 1.3rem;
+  }
+
+  .admin-booking-modal-form {
+    padding: 20px;
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    padding: 12px;
+    font-size: 16px; /* Prevent zoom on iOS */
+  }
+
+  .form-group textarea {
+    min-height: 80px;
+  }
+
+  .form-actions {
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 20px;
+  }
+
+  .cancel-button,
+  .submit-button {
+    width: 100%;
+    padding: 14px 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-booking-modal-overlay {
+    padding: 8px;
+    padding-top: 16px;
+  }
+
+  .admin-booking-modal {
+    border-radius: 10px;
+  }
+
+  .admin-booking-modal-header {
+    padding: 14px 16px;
+  }
+
+  .admin-booking-modal-header h2 {
+    font-size: 1.2rem;
+  }
+
+  .admin-booking-modal-form {
+    padding: 16px;
+  }
+
+  .form-group label {
+    font-size: 0.85rem;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    padding: 10px;
+    border-radius: 6px;
+  }
+}
+

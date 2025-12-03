@@ -16,7 +16,7 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('DB_NAME', 'calendar'),
+        'NAME': os.environ.get('DB_NAME', 'Booking_calendar'),
         'USER': os.environ.get('DB_USER', 'root'),
         'PASSWORD': os.environ.get('DB_PASSWORD', 'root'),
         'HOST': os.environ.get('DB_HOST', 'localhost'),

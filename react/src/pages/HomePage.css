@@ -290,34 +290,141 @@
 
 /* Responsive design */
 @media (max-width: 768px) {
+  .home-page {
+    padding: 12px;
+  }
+
   .header-content {
-    padding-left: 60px;
-    padding-right: 60px;
+    padding-left: 50px;
+    padding-right: 50px;
+    flex-wrap: wrap;
+    gap: 12px;
   }
   
   .calendar-buttons-container {
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 16px;
+    padding: 0 8px;
   }
   
   .calendar-button {
-    padding: 35px 30px;
+    padding: 30px 24px;
   }
   
   .button-content h2 {
-    font-size: 2rem;
+    font-size: 1.8rem;
   }
   
   .button-content p {
-    font-size: 1rem;
+    font-size: 0.95rem;
   }
   
   .home-header h1 {
-    font-size: 2rem;
+    font-size: 1.8rem;
   }
   
   .home-header p {
-    font-size: 1rem;
+    font-size: 0.95rem;
+  }
+
+  .home-header {
+    margin-bottom: 30px;
+  }
+
+  .home-main {
+    padding: 12px;
+    min-height: 40vh;
+  }
+
+  .home-button,
+  .theme-toggle {
+    width: 44px;
+    height: 44px;
+    font-size: 1.3rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-page {
+    padding: 8px;
+  }
+
+  .header-content {
+    padding-left: 0;
+    padding-right: 0;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .header-content > div:first-child {
+    order: 2;
+    width: 100%;
+  }
+
+  .home-button {
+    position: static !important;
+    transform: none !important;
+    order: 1;
+  }
+
+  .theme-toggle {
+    position: static !important;
+    transform: none !important;
+    order: 3;
+  }
+
+  .admin-button {
+    position: static !important;
+    transform: none !important;
+    order: 4;
+    right: auto !important;
+  }
+  
+  .calendar-buttons-container {
+    gap: 12px;
+    padding: 0;
+  }
+  
+  .calendar-button {
+    padding: 24px 20px;
+    border-radius: 16px;
+  }
+  
+  .button-content h2 {
+    font-size: 1.5rem;
+  }
+  
+  .button-content p {
+    font-size: 0.9rem;
+  }
+  
+  .home-header h1 {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+  }
+  
+  .home-header p {
+    font-size: 0.9rem;
+  }
+
+  .home-main {
+    padding: 8px;
+  }
+}
+
+/* Landscape mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+  .home-main {
+    min-height: 30vh;
+  }
+  
+  .calendar-buttons-container {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+  
+  .calendar-button {
+    padding: 24px 20px;
   }
 }
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Calendar from '../components/Calendar'
 import BookingModal from '../components/BookingModal'
 import NoelDecorations from '../components/NoelDecorations'
-import { addBooking, getBinId as getBinIdFromConfig, type BookingData } from '../services/bookingService'
+import { addBooking, getBinId as getBinIdFromConfig, type BookingData, getAllBookings, getAllHolidays, BookingRecord, HolidayRecord } from '../services/bookingService'
 import { getAllUsers, UserRecord } from '../services/userService'
 import '../App.css'
 
@@ -25,6 +25,8 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
   })
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [usersList, setUsersList] = useState<UserRecord[]>([])
+  const [existingBookings, setExistingBookings] = useState<BookingRecord[]>([])
+  const [holidays, setHolidays] = useState<HolidayRecord[]>([])
 
   // Get the bin ID for calendar1 - ensures it uses its own data
   const binId = getBinIdFromConfig('calendar1')
@@ -53,6 +55,24 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
   useEffect(() => {
     setRefreshTrigger(prev => prev + 1)
   }, [binId])
+
+  // Load bookings and holidays for duration availability calculation
+  const loadBookingsAndHolidays = async () => {
+    try {
+      const [bookings, holidaysData] = await Promise.all([
+        getAllBookings(binId),
+        getAllHolidays(binId)
+      ])
+      setExistingBookings(bookings)
+      setHolidays(holidaysData)
+    } catch (error) {
+      console.error('Error loading bookings/holidays:', error)
+    }
+  }
+
+  useEffect(() => {
+    loadBookingsAndHolidays()
+  }, [binId, refreshTrigger])
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode))
@@ -102,6 +122,82 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
     setSelectedDate(null)
   }
 
+  // Helper function to add days to a date
+  const addDays = (date: Date, days: number): Date => {
+    const result = new Date(date)
+    result.setDate(result.getDate() + days)
+    return result
+  }
+
+  // Helper function to format date as YYYY-MM-DD
+  const formatDateString = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  // Calculate which dates to book based on duration and availability
+  const calculateBookingDates = (startDate: Date, duration: number): string[] => {
+    const maxBookingsPerDay = 2
+    const dates: string[] = []
+    
+    // Helper to count existing bookings for a date
+    const getBookingCountForDate = (date: Date): number => {
+      const dateStr = formatDateString(date)
+      return existingBookings.filter(b => b.date === dateStr).length
+    }
+
+    // Helper to check if date is a holiday
+    const isHoliday = (date: Date): boolean => {
+      const dateStr = formatDateString(date)
+      return holidays.some(h => h.holiday_date === dateStr)
+    }
+
+    // Helper to check if date is Sunday (dimanche)
+    const isSunday = (date: Date): boolean => {
+      return date.getDay() === 0
+    }
+
+    // Helper to check if date is invalid (holiday or Sunday)
+    const isInvalidDay = (date: Date): boolean => {
+      return isHoliday(date) || isSunday(date)
+    }
+
+    // Get the next valid day (skipping holidays and Sundays)
+    const getNextValidDay = (startDate: Date, skipCount: number = 1): Date => {
+      let currentDate = addDays(startDate, skipCount)
+      let attempts = 0
+      const maxAttempts = 14 // Prevent infinite loop
+      
+      while (isInvalidDay(currentDate) && attempts < maxAttempts) {
+        currentDate = addDays(currentDate, 1)
+        attempts++
+      }
+      
+      return currentDate
+    }
+
+    if (duration === 1) {
+      // Duration 1: 1 reservation on current day
+      dates.push(formatDateString(startDate))
+    } else if (duration === 2) {
+      // Duration 2: 1 reservation on current day + 1 reservation on next valid day (skipping holidays and Sundays)
+      dates.push(formatDateString(startDate))
+      const nextValidDay = getNextValidDay(startDate, 1)
+      dates.push(formatDateString(nextValidDay))
+    } else if (duration === 3) {
+      // Duration 3: 1 reservation on current day + 1 on next valid day + 1 on day after next valid day (skipping holidays and Sundays)
+      dates.push(formatDateString(startDate))
+      const nextValidDay = getNextValidDay(startDate, 1)
+      dates.push(formatDateString(nextValidDay))
+      const dayAfterNextValid = getNextValidDay(nextValidDay, 1)
+      dates.push(formatDateString(dayAfterNextValid))
+    }
+
+    return dates
+  }
+
   const handleBookingSubmit = async (bookingData: BookingData) => {
     console.log('Booking submitted:', bookingData)
     
@@ -109,16 +205,36 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
       // Show loading state
       setLoadingNotification('Traitement de votre réservation...')
       
-      // Persist the booking locally for this calendar
-      await addBooking(bookingData, binId)
+      const duration = parseInt(bookingData.duree) || 1
       
-      // Wait a bit to ensure API has processed the booking
+      if (duration === 1) {
+        // Single booking - existing logic
+        await addBooking(bookingData, binId)
+      } else {
+        // Multiple bookings based on duration
+        const bookingDates = calculateBookingDates(bookingData.selectedDate, duration)
+        console.log(`[Calendar1Page] Creating ${bookingDates.length} bookings for duration ${duration}:`, bookingDates)
+        
+        // Create all bookings sequentially
+        for (const dateStr of bookingDates) {
+          const bookingForDate = {
+            ...bookingData,
+            date: dateStr
+          }
+          await addBooking(bookingForDate, binId)
+          // Small delay between bookings to avoid race conditions
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+      }
+      
+      // Wait a bit to ensure API has processed all bookings
       await new Promise(resolve => setTimeout(resolve, 500))
       
       // Clear loading notification
       setLoadingNotification(null)
       
-      setNotificationMessage('✅ Réservation confirmée. ⚠️ ATTENTION cette réservation ne remplace pas l\'envoi du dossier via smart')
+      const durationText = duration > 1 ? ` (${duration} réservations créées)` : ''
+      setNotificationMessage(`✅ Réservation confirmée${durationText}. ⚠️ ATTENTION cette réservation ne remplace pas l\'envoi du dossier via smart`)
       
       // Force calendar refresh to show updated booking count (without reloading page)
       // Add a small delay to ensure the API has fully processed the booking
@@ -206,6 +322,10 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
           onSubmit={handleBookingSubmit}
           isDarkMode={isDarkMode}
           users={isAdmin ? usersList : []}
+          existingBookings={existingBookings.map(b => ({ date: b.date }))}
+          holidays={holidays.map(h => ({ holiday_date: h.holiday_date }))}
+          maxBookingsPerDay={2}
+          showDurationField={true}
         />
       )}
 

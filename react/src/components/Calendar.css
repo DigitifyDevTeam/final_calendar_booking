@@ -10,11 +10,19 @@
 
 @media (max-width: 768px) {
   .calendar {
-    padding: 20px 10px;
-    border-radius: 16px;
+    padding: 16px 8px;
+    border-radius: 12px;
     overflow-x: hidden;
     max-width: 100%;
     box-sizing: border-box;
+    margin: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .calendar {
+    padding: 12px 6px;
+    border-radius: 10px;
   }
 }
 
@@ -39,9 +47,18 @@
 
 @media (max-width: 768px) {
   .calendar-header {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     flex-wrap: wrap;
     gap: 10px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .calendar-header {
+    margin-bottom: 12px;
+    gap: 8px;
+    padding: 0 4px;
   }
 }
 
@@ -188,6 +205,14 @@
   }
 }
 
+@media (max-width: 480px) {
+  .day-header-cell {
+    font-size: 0.55rem;
+    padding: 6px 1px;
+    border-radius: 8px;
+  }
+}
+
 .calendar.dark-mode .day-header-cell {
   background: #000000;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
@@ -267,9 +292,17 @@
 
 @media (max-width: 768px) {
   .date-number {
-    font-size: 1.2rem;
-    width: 36px;
-    height: 36px;
+    font-size: 1.1rem;
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (max-width: 480px) {
+  .date-number {
+    font-size: 0.95rem;
+    width: 28px;
+    height: 28px;
   }
 }
 
@@ -301,6 +334,15 @@
     font-size: 0.7rem;
     min-height: 40px;
     border-radius: 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .time-slot {
+    padding: 4px 2px;
+    font-size: 0.6rem;
+    min-height: 35px;
+    border-radius: 4px;
   }
 }
 
@@ -494,8 +536,7 @@
 }
 
 /* Info button styles */
-.calendar-info-button,
-.calendar-info-button-pose {
+.calendar-info-button {
   position: absolute;
   right: 4px;
   top: 50%;
@@ -515,6 +556,51 @@
   color: white;
   filter: brightness(0) invert(1);
   font-weight: bold;
+}
+
+/* Pose calendar info icon - dark mode: white, light mode: black */
+.calendar-info-button-pose {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+  font-weight: bold;
+}
+
+.dark-mode .calendar-info-button-pose {
+  filter: brightness(0) invert(1);
+}
+
+.light-mode .calendar-info-button-pose {
+  filter: brightness(0);
+}
+
+/* Ensure info icon in fully-booked date numbers has the same color as normal info icons */
+.date-number.fully-booked-number .calendar-info-button,
+.date-number.fully-booked-number .calendar-info-button-pose {
+  color: white !important;
+}
+
+.dark-mode .date-number.fully-booked-number .calendar-info-button,
+.dark-mode .date-number.fully-booked-number .calendar-info-button-pose {
+  filter: brightness(0) invert(1) !important;
+}
+
+.light-mode .date-number.fully-booked-number .calendar-info-button,
+.light-mode .date-number.fully-booked-number .calendar-info-button-pose {
+  filter: brightness(0) !important;
 }
 
 .calendar-info-button:hover,

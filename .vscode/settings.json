@@ -43,6 +43,40 @@
   
   // Terminal Copy/Paste
   "terminal.integrated.copyOnSelection": false,
-  "terminal.integrated.rightClickBehavior": "default"
+  "terminal.integrated.rightClickBehavior": "default",
+  
+  // Editor Cursor Settings
+  "editor.cursorColor": "#fa541c",
+  "editor.cursorStyle": "line",
+  "editor.cursorWidth": 2,
+  "editor.cursorBlinking": "smooth",
+  
+  // Diff Editor Colors (for showing changes)
+  "diffEditor.insertedTextBackground": "#10b98120",
+  "diffEditor.insertedTextBorder": "#10b98140",
+  "diffEditor.removedTextBackground": "#ef444430",
+  "diffEditor.removedTextBorder": "#ef4444",
+  "diffEditor.removedTextForeground": "#ef4444",
+  "diffEditor.modifiedTextBackground": "#fa541c20",
+  "diffEditor.modifiedTextBorder": "#fa541c40",
+  
+  // Git Colors (for change indicators)
+  "git.decorations.addedResourceForeground": "#10b981",
+  "git.decorations.modifiedResourceForeground": "#fa541c",
+  "git.decorations.deletedResourceForeground": "#ef4444",
+  
+  // Editor Selection Colors
+  "editor.selectionBackground": "#fa541c40",
+  "editor.selectionHighlightBackground": "#fa541c20",
+  "editor.wordHighlightBackground": "#fa541c15",
+  "editor.wordHighlightStrongBackground": "#fa541c25",
+  
+  // Workbench Colors for Diff (more reliable)
+  "workbench.colorCustomizations": {
+    "diffEditor.removedTextBackground": "#ef444430",
+    "diffEditor.removedTextBorder": "#ef4444",
+    "diffEditor.removed": "#ef4444",
+    "diffEditor.removedLineBackground": "#ef444420"
+  }
 }
 

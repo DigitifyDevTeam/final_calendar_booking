@@ -22,8 +22,11 @@ import {
   ClipboardList,
   ChevronDown,
   Minus,
-  Percent
+  Percent,
+  Menu,
+  X
 } from 'lucide-react'
+import './DashbordPage.css'
 
 function DashbordPage() {
   const navigate = useNavigate()
@@ -33,6 +36,8 @@ function DashbordPage() {
     return saved ? JSON.parse(saved) : true
   })
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [chartAnimation, setChartAnimation] = useState(false)
   const [recentBookings, setRecentBookings] = useState<BookingRecord[]>([])
@@ -46,12 +51,19 @@ function DashbordPage() {
   const [savBookings, setSavBookings] = useState<number>(0)
   const [poseBookings, setPoseBookings] = useState<number>(0)
   const [metreBookings, setMetreBookings] = useState<number>(0)
-  const [chartData, setChartData] = useState<Array<{ month: string; Metré: number; Pose: number; SAV: number }>>([])
+  const [chartData, setChartData] = useState<Array<{ month: string; Metré: number; Pose: number; SAV: number; day?: number; cumulMetré?: number; cumulPose?: number; cumulSAV?: number }>>([])
+  const [allBookingsForChart, setAllBookingsForChart] = useState<BookingRecord[]>([])
   const [bookingRate, setBookingRate] = useState<number>(0)
+  const [poseRate, setPoseRate] = useState<number>(0)
+  const [metreRate, setMetreRate] = useState<number>(0)
+  const [savRate, setSavRate] = useState<number>(0)
   const [hoveredMonth, setHoveredMonth] = useState<number | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false)
   const [unreadCount, setUnreadCount] = useState<number>(0)
   const [allNotifications, setAllNotifications] = useState<NotificationItem[]>([])
+  const [chartViewMode, setChartViewMode] = useState<'month' | 'week'>('month')
+  const [monthOffset, setMonthOffset] = useState<number>(0) // 0 = current month, -1 = previous, +1 = next
+  const [weekOffset, setWeekOffset] = useState<number>(0) // 0 = current week, -1 = previous, +1 = next
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode))
@@ -73,6 +85,37 @@ function DashbordPage() {
     }, 300)
     return () => clearTimeout(timer)
   }, [])
+
+  // Handle responsive detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768)
+      if (window.innerWidth > 768) {
+        setMobileMenuOpen(false)
+      }
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // Close mobile menu on navigation
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [location.pathname])
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileMenuOpen])
 
   // Load bookings data once and use it for both recent bookings and top clients
   useEffect(() => {
@@ -106,107 +149,50 @@ function DashbordPage() {
         setSavBookings(savCount)
         setMetreBookings(metreCount)
 
-        // Calculate booking rate (percentage of days with bookings in current month)
+        // Calculate booking rate (Taux d'engorgement) based on capacity
         const now = new Date()
         const currentMonth = now.getMonth()
         const currentYear = now.getFullYear()
-        const daysPassed = now.getDate()
+        // Get total days in current month
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
         
-        const bookingsThisMonth = allBookings.filter(booking => {
+        // Filter bookings for current month by calendar
+        const poseBookingsThisMonth = bookingArrays[0]?.filter(booking => {
           const bookingDate = new Date(booking.date)
           return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear
-        })
+        }) || []
         
-        // Calculate unique days with bookings
-        const uniqueDaysWithBookings = new Set(
-          bookingsThisMonth.map(b => b.date)
-        ).size
+        const savBookingsThisMonth = bookingArrays[1]?.filter(booking => {
+          const bookingDate = new Date(booking.date)
+          return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear
+        }) || []
         
-        const rate = daysPassed > 0 ? Math.round((uniqueDaysWithBookings / daysPassed) * 100) : 0
+        const metreBookingsThisMonth = bookingArrays[2]?.filter(booking => {
+          const bookingDate = new Date(booking.date)
+          return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear
+        }) || []
+        
+        // Calculate rates based on capacity
+        // Pose: 2 slots per day, Metré: 1 slot per day, SAV: 1 slot per day
+        const poseCapacity = daysInMonth * 2
+        const metreCapacity = daysInMonth * 1
+        const savCapacity = daysInMonth * 1
+        const totalCapacity = daysInMonth * 4 // 2 + 1 + 1
+        
+        const calculatedPoseRate = poseCapacity > 0 ? Math.round((poseBookingsThisMonth.length / poseCapacity) * 100) : 0
+        const calculatedMetreRate = metreCapacity > 0 ? Math.round((metreBookingsThisMonth.length / metreCapacity) * 100) : 0
+        const calculatedSavRate = savCapacity > 0 ? Math.round((savBookingsThisMonth.length / savCapacity) * 100) : 0
+        
+        const totalBookingsThisMonth = poseBookingsThisMonth.length + metreBookingsThisMonth.length + savBookingsThisMonth.length
+        const rate = totalCapacity > 0 ? Math.round((totalBookingsThisMonth / totalCapacity) * 100) : 0
+        
+        setPoseRate(calculatedPoseRate)
+        setMetreRate(calculatedMetreRate)
+        setSavRate(calculatedSavRate)
         setBookingRate(rate)
 
-        // Generate chart data from real bookings (from first to last booking date)
-        const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
-        const chartMonths: Array<{ month: string; Metré: number; Pose: number; SAV: number }> = []
-        
-        if (allBookings.length === 0) {
-          setChartData([])
-        } else {
-          // Find the earliest and latest booking dates
-          let earliestDate: Date | null = null
-          let latestDate: Date | null = null
-          
-          allBookings.forEach(booking => {
-            const dateParts = booking.date.split('-')
-            if (dateParts.length === 3) {
-              const bookingDate = new Date(
-                parseInt(dateParts[0], 10),
-                parseInt(dateParts[1], 10) - 1,
-                parseInt(dateParts[2], 10)
-              )
-              if (!earliestDate || bookingDate < earliestDate) {
-                earliestDate = bookingDate
-              }
-              if (!latestDate || bookingDate > latestDate) {
-                latestDate = bookingDate
-              }
-            }
-          })
-          
-          if (earliestDate !== null && latestDate !== null) {
-            // Generate months from earliest to latest
-            const firstDate = earliestDate as Date
-            const lastDate = latestDate as Date
-            const startMonth = firstDate.getMonth()
-            const startYear = firstDate.getFullYear()
-            const endMonth = lastDate.getMonth()
-            const endYear = lastDate.getFullYear()
-            
-            // Calculate total months to display
-            let currentMonth = startMonth
-            let currentYear = startYear
-            
-            while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
-              const month = currentMonth
-              const year = currentYear
-              
-              const monthBookings = allBookings.filter(booking => {
-                const dateParts = booking.date.split('-')
-                if (dateParts.length === 3) {
-                  const bookingYear = parseInt(dateParts[0], 10)
-                  const bookingMonth = parseInt(dateParts[1], 10) - 1
-                  return bookingMonth === month && bookingYear === year
-                }
-                return false
-              })
-              
-              const metreMonthCount = monthBookings.filter(b => (b as any).calendarId === 'calendar3').length
-              const poseMonthCount = monthBookings.filter(b => (b as any).calendarId === 'calendar1').length
-              const savMonthCount = monthBookings.filter(b => (b as any).calendarId === 'calendar2').length
-              
-              // Show month with year if spanning multiple years
-              const monthLabel = startYear !== endYear 
-                ? `${monthNames[month]} ${year.toString().slice(-2)}`
-                : monthNames[month]
-              
-              chartMonths.push({
-                month: monthLabel,
-                Metré: metreMonthCount,
-                Pose: poseMonthCount,
-                SAV: savMonthCount
-              })
-              
-              // Move to next month
-              currentMonth++
-              if (currentMonth > 11) {
-                currentMonth = 0
-                currentYear++
-              }
-            }
-          }
-          
-          setChartData(chartMonths)
-        }
+        // Store all bookings for chart generation
+        setAllBookingsForChart(allBookings)
 
         // Process recent bookings (top 5 most recent)
         const sortedBookings = allBookings
@@ -214,9 +200,10 @@ function DashbordPage() {
           .slice(0, 5)
         setRecentBookings(sortedBookings)
 
-        // Process top clients (real data only)
+        // Process top clients (SAV calendar only)
+        const savBookingsOnly = allBookings.filter(booking => (booking as any).calendarId === 'calendar2')
         const clientCounts: { [key: string]: number } = {}
-        allBookings.forEach(booking => {
+        savBookingsOnly.forEach(booking => {
           const clientName = booking.name
           if (clientName) {
             clientCounts[clientName] = (clientCounts[clientName] || 0) + 1
@@ -241,6 +228,128 @@ function DashbordPage() {
 
     loadBookingsData()
   }, [])
+
+  // Generate chart data based on view mode (month or week)
+  useEffect(() => {
+    if (allBookingsForChart.length === 0) {
+      setChartData([])
+      return
+    }
+
+    const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+    const chartDataPoints: Array<{ month: string; Metré: number; Pose: number; SAV: number; day?: number; cumulMetré?: number; cumulPose?: number; cumulSAV?: number }> = []
+
+    // Get target month based on offset (for month view) or current month (for week view)
+    const now = new Date()
+    const targetDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
+    const targetMonth = targetDate.getMonth()
+    const targetYear = targetDate.getFullYear()
+    const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate()
+
+    if (chartViewMode === 'month') {
+      // Generate daily data for the target month with cumulative totals
+      let cumulMetré = 0
+      let cumulPose = 0
+      let cumulSAV = 0
+      
+      for (let day = 1; day <= daysInTargetMonth; day++) {
+        const dayBookings = allBookingsForChart.filter(booking => {
+          const dateParts = booking.date.split('-')
+          if (dateParts.length === 3) {
+            const bookingYear = parseInt(dateParts[0], 10)
+            const bookingMonth = parseInt(dateParts[1], 10) - 1
+            const bookingDay = parseInt(dateParts[2], 10)
+            return bookingMonth === targetMonth && bookingYear === targetYear && bookingDay === day
+          }
+          return false
+        })
+        
+        const metreDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar3').length
+        const poseDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar1').length
+        const savDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar2').length
+        
+        // Accumulate totals
+        cumulMetré += metreDayCount
+        cumulPose += poseDayCount
+        cumulSAV += savDayCount
+        
+        // Only show label for first and last day
+        const label = (day === 1 || day === daysInTargetMonth)
+          ? `${day} ${monthNames[targetMonth]}`
+          : ''
+        
+        chartDataPoints.push({
+          month: label,
+          Metré: metreDayCount,
+          Pose: poseDayCount,
+          SAV: savDayCount,
+          day: day,
+          cumulMetré: cumulMetré,
+          cumulPose: cumulPose,
+          cumulSAV: cumulSAV
+        })
+      }
+    } else {
+      // Generate data for the current week (7 days)
+      // Get the current date and find the Monday of the current week
+      const today = new Date()
+      const currentWeekStart = new Date(today)
+      const dayOfWeek = today.getDay()
+      const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek // Adjust to Monday
+      currentWeekStart.setDate(today.getDate() + diff + (weekOffset * 7))
+      currentWeekStart.setHours(0, 0, 0, 0)
+      
+      // Generate 7 days of the week
+      let cumulMetré = 0
+      let cumulPose = 0
+      let cumulSAV = 0
+      
+      for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+        const currentDay = new Date(currentWeekStart)
+        currentDay.setDate(currentWeekStart.getDate() + dayOffset)
+        
+        const dayBookings = allBookingsForChart.filter(booking => {
+          const dateParts = booking.date.split('-')
+          if (dateParts.length === 3) {
+            const bookingYear = parseInt(dateParts[0], 10)
+            const bookingMonth = parseInt(dateParts[1], 10) - 1
+            const bookingDay = parseInt(dateParts[2], 10)
+            return bookingMonth === currentDay.getMonth() && 
+                   bookingYear === currentDay.getFullYear() && 
+                   bookingDay === currentDay.getDate()
+          }
+          return false
+        })
+        
+        const metreDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar3').length
+        const poseDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar1').length
+        const savDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar2').length
+        
+        // Accumulate totals
+        cumulMetré += metreDayCount
+        cumulPose += poseDayCount
+        cumulSAV += savDayCount
+        
+        // Create label with day number and month abbreviation (e.g., "1 Déc", "2 Déc")
+        const dayNumber = currentDay.getDate()
+        const monthAbbr = monthNames[currentDay.getMonth()]
+        const dayLabel = `${dayNumber} ${monthAbbr}`
+        
+        chartDataPoints.push({
+          month: dayLabel,
+          Metré: metreDayCount,
+          Pose: poseDayCount,
+          SAV: savDayCount,
+          day: dayNumber, // Store day number for tooltip
+          cumulMetré: cumulMetré,
+          cumulPose: cumulPose,
+          cumulSAV: cumulSAV
+        })
+      }
+    }
+
+    setChartData(chartDataPoints)
+  }, [allBookingsForChart, chartViewMode, monthOffset, weekOffset])
 
   // Load users count
   useEffect(() => {
@@ -269,8 +378,8 @@ function DashbordPage() {
 
   useEffect(() => {
     loadNotifications()
-    // Refresh notifications every 30 seconds
-    const interval = setInterval(loadNotifications, 30000)
+    // Refresh notifications every 60 seconds (reduced from 30s to lower API load)
+    const interval = setInterval(loadNotifications, 60000)
     // Listen for custom refresh events
     const handleRefresh = () => loadNotifications()
     window.addEventListener('notificationRefresh', handleRefresh)
@@ -292,10 +401,12 @@ function DashbordPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [notificationsOpen])
 
-  // Calculate max value for chart
-  const maxValue = chartData.length > 0 
-    ? Math.max(...chartData.flatMap(d => [d.Metré, d.Pose, d.SAV]), 1) + 2 
-    : 10
+  // Calculate max value for chart - ensure minimum of 5 for clean Y-axis labels
+  const rawMaxValue = chartData.length > 0 
+    ? Math.max(...chartData.flatMap(d => [d.Metré, d.Pose, d.SAV]), 1) 
+    : 5
+  // Round up to nearest multiple of 5 for cleaner labels (5, 10, 15, 20, etc.)
+  const maxValue = Math.max(5, Math.ceil(rawMaxValue / 5) * 5)
 
   // Helper function to calculate time ago
   const getTimeAgo = (timestamp: number): string => {
@@ -361,7 +472,135 @@ function DashbordPage() {
   const borderColor = isDarkMode ? '#333333' : '#e5e7eb'
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', width: '100%', backgroundColor: bgColor }}>
+    <div className="dashboard-container" style={{ display: 'flex', minHeight: '100vh', width: '100%', backgroundColor: bgColor }}>
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="mobile-menu-overlay active"
+          onClick={() => setMobileMenuOpen(false)}
+          style={{
+            display: isMobile ? 'block' : 'none',
+            position: 'fixed',
+            top: '60px', // Start below the header
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 998
+          }}
+        />
+      )}
+      
+      {/* Mobile Header */}
+      {isMobile && (
+        <div 
+          className="mobile-header"
+          style={{
+            display: 'flex',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '60px',
+            backgroundColor: isDarkMode ? '#000000' : '#ffffff',
+            zIndex: 1000, // Higher than overlay to ensure buttons are always clickable
+            padding: '0 16px',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: `1px solid ${borderColor}`,
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              style={{
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                borderRadius: '8px',
+                color: textColor,
+                zIndex: 1001, // Ensure button is always on top
+                position: 'relative'
+              }}
+              aria-label={mobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+            >
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: `linear-gradient(135deg, ${orangeColor} 0%, #ff6b35 100%)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Calendar style={{ width: '16px', height: '16px', color: '#ffffff' }} />
+            </div>
+            <span style={{ fontSize: '16px', fontWeight: 600, color: textColor }}>Tableau de Bord</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button 
+              data-notifications-dropdown
+              onClick={() => setNotificationsOpen(!notificationsOpen)}
+              style={{
+                position: 'relative',
+                padding: '8px',
+                borderRadius: '8px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                color: textSecondary,
+                cursor: 'pointer'
+              }}
+            >
+              <Bell style={{ width: '20px', height: '20px' }} />
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: '2px',
+                  right: '2px',
+                  minWidth: '16px',
+                  height: '16px',
+                  backgroundColor: '#ef4444',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  color: '#ffffff'
+                }}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={toggleDarkMode}
+              style={{
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                color: textSecondary,
+                cursor: 'pointer'
+              }}
+            >
+              {isDarkMode ? <Sun style={{ width: '18px', height: '18px' }} /> : <Moon style={{ width: '18px', height: '18px' }} />}
+            </button>
+          </div>
+        </div>
+      )}
+      
       <style>{`
         @keyframes fadeInUp {
           from {
@@ -414,19 +653,23 @@ function DashbordPage() {
       `}</style>
       {/* Sidebar */}
       <nav
+        className={`dashboard-sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`}
         style={{
-          position: 'sticky',
-          top: 0,
-          height: '100vh',
-          width: sidebarOpen ? '256px' : '64px',
+          position: isMobile ? 'fixed' : 'sticky',
+          top: isMobile ? '60px' : 0, // Start below mobile header
+          left: 0,
+          height: isMobile ? 'calc(100vh - 60px)' : '100vh', // Adjust height for mobile header
+          width: isMobile ? '280px' : (sidebarOpen ? '256px' : '64px'),
           borderRight: `1px solid ${borderColor}`,
           backgroundColor: isDarkMode ? '#000000' : '#ffffff',
           padding: '8px',
-                paddingBottom: '60px',
-          transition: 'width 0.3s ease',
+          paddingBottom: '60px',
+          transition: 'width 0.3s ease, transform 0.3s ease',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          transform: isMobile ? (mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
+          zIndex: 999
         }}
       >
         {/* Logo Section */}
@@ -700,13 +943,17 @@ function DashbordPage() {
       </nav>
 
       {/* Main Content */}
-      <div style={{
-        flex: 1,
-        overflow: 'auto',
-        backgroundColor: bgColor,
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
+      <div 
+        className="dashboard-main"
+        style={{
+          flex: 1,
+          overflow: 'auto',
+          backgroundColor: bgColor,
+          display: 'flex',
+          flexDirection: 'column',
+          paddingTop: isMobile ? '60px' : 0
+        }}
+      >
         {location.pathname === '/calendrier' ? (
           <HomePage disableAnimations={true} isAdminView={true} />
         ) : location.pathname === '/metre' ? (
@@ -716,21 +963,29 @@ function DashbordPage() {
         ) : location.pathname === '/sav' ? (
           <Calendar2Page disableAnimations={true} isAdminView={true} />
         ) : (
-          <div style={{
-            padding: '24px',
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: 0
-      }}>
+          <div 
+            className="dashboard-content"
+            style={{
+              padding: isMobile ? '16px' : '24px',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0
+            }}
+          >
         {/* Header */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-              marginBottom: '32px',
-              animation: 'fadeInDown 0.5s ease-out'
-        }}>
+        <div 
+          className="dashboard-header"
+          style={{
+            display: 'flex',
+            alignItems: isMobile ? 'flex-start' : 'center',
+            justifyContent: 'space-between',
+            marginBottom: isMobile ? '20px' : '32px',
+            animation: 'fadeInDown 0.5s ease-out',
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: isMobile ? '16px' : '0'
+          }}
+        >
           <div>
             <h1 style={{
               fontSize: '30px',
@@ -748,7 +1003,10 @@ function DashbordPage() {
               Bienvenue sur votre tableau de bord
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', position: 'relative' }}>
+          <div 
+            className="header-actions"
+            style={{ display: isMobile ? 'none' : 'flex', alignItems: 'center', gap: '16px', position: 'relative' }}
+          >
             <button 
               data-notifications-dropdown
               onClick={() => setNotificationsOpen(!notificationsOpen)}
@@ -801,15 +1059,17 @@ function DashbordPage() {
             {notificationsOpen && (
               <div 
                 data-notifications-dropdown
+                className="notifications-dropdown"
                 style={{
-                  position: 'absolute',
-                  top: '50px',
-                  right: '0',
-                  width: '380px',
-                  maxHeight: '500px',
+                  position: isMobile ? 'fixed' : 'absolute',
+                  top: isMobile ? '60px' : '50px',
+                  right: isMobile ? '0' : '0',
+                  left: isMobile ? '0' : 'auto',
+                  width: isMobile ? '100%' : '380px',
+                  maxHeight: isMobile ? 'calc(100vh - 60px)' : '500px',
                   backgroundColor: cardBg,
-                  border: `1px solid ${borderColor}`,
-                  borderRadius: '12px',
+                  border: isMobile ? 'none' : `1px solid ${borderColor}`,
+                  borderRadius: isMobile ? '0' : '12px',
                   boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
                   zIndex: 1000,
                   overflow: 'hidden',
@@ -1062,17 +1322,20 @@ function DashbordPage() {
         </div>
 
         {/* Stats Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-          gap: '24px',
-          marginBottom: '32px',
-          animation: 'fadeInUp 0.6s ease-out'
-        }}>
+        <div 
+          className="stats-grid"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: isMobile ? '12px' : '24px',
+            marginBottom: isMobile ? '20px' : '32px',
+            animation: 'fadeInUp 0.6s ease-out'
+          }}
+        >
           <StatCardContent
-            title="Taux de réservation"
+            title="Taux d'engorgement"
             value={`${bookingRate} %`}
-            change="Jours avec réservations ce mois"
+            change={`Pose: ${poseRate}% | Metré: ${metreRate}% | SAV: ${savRate}%`}
             Icon={Percent}
             iconBg={isDarkMode ? `${orangeColor}30` : `${orangeColor}20`}
             iconColor={orangeColor}
@@ -1120,15 +1383,18 @@ function DashbordPage() {
         </div>
 
         {/* Content Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '2fr 1fr',
-          gridTemplateRows: 'auto auto',
-          gap: '32px',
-          animation: 'fadeInUp 0.8s ease-out',
-          flex: 1,
-          minHeight: 0
-        }}>
+        <div 
+          className="content-grid"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
+            gridTemplateRows: 'auto auto',
+            gap: isMobile ? '16px' : '32px',
+            animation: 'fadeInUp 0.8s ease-out',
+            flex: 1,
+            minHeight: 0
+          }}
+        >
           {/* Chart Section - Top Left */}
           <div style={{
             backgroundColor: cardBg,
@@ -1154,63 +1420,437 @@ function DashbordPage() {
             e.currentTarget.style.borderColor = borderColor
           }}
           >
-            <h3 style={{
-              fontSize: '20px',
-              fontWeight: 600,
-              color: textColor,
-              marginBottom: '20px'
-            }}>
-              Évolution des Réservations
-            </h3>
+            <div 
+              className="chart-header"
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: isMobile ? 'flex-start' : 'center',
+                marginBottom: '20px',
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: isMobile ? '12px' : '0'
+              }}
+            >
+              <h3 style={{
+                fontSize: isMobile ? '16px' : '20px',
+                fontWeight: 600,
+                color: textColor,
+                margin: 0
+              }}>
+                Évolution des Réservations
+              </h3>
+              <div 
+                className="chart-controls"
+                style={{
+                  display: 'flex',
+                  gap: '8px',
+                  backgroundColor: isDarkMode ? '#1a1a1a' : '#f5f5f5',
+                  borderRadius: '8px',
+                  padding: '4px',
+                  border: `1px solid ${borderColor}`,
+                  width: isMobile ? '100%' : 'auto',
+                  justifyContent: isMobile ? 'center' : 'flex-start'
+                }}
+              >
+                <button
+                  onClick={() => setChartViewMode('month')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: chartViewMode === 'month' 
+                      ? orangeColor 
+                      : 'transparent',
+                    color: chartViewMode === 'month' 
+                      ? '#ffffff' 
+                      : textSecondary,
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: chartViewMode === 'month' ? 600 : 500,
+                    transition: 'all 0.2s',
+                    whiteSpace: 'nowrap'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (chartViewMode !== 'month') {
+                      e.currentTarget.style.backgroundColor = isDarkMode ? '#2a2a2a' : '#e5e7eb'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (chartViewMode !== 'month') {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                    }
+                  }}
+                >
+                  Par mois
+                </button>
+                <button
+                  onClick={() => {
+                    setChartViewMode('week')
+                    setMonthOffset(0) // Reset to current month when switching to week view
+                    setWeekOffset(0) // Reset to current week when switching to week view
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: chartViewMode === 'week' 
+                      ? orangeColor 
+                      : 'transparent',
+                    color: chartViewMode === 'week' 
+                      ? '#ffffff' 
+                      : textSecondary,
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: chartViewMode === 'week' ? 600 : 500,
+                    transition: 'all 0.2s',
+                    whiteSpace: 'nowrap'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (chartViewMode !== 'week') {
+                      e.currentTarget.style.backgroundColor = isDarkMode ? '#2a2a2a' : '#e5e7eb'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (chartViewMode !== 'week') {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                    }
+                  }}
+                >
+                  Par semaine
+                </button>
+              </div>
+            </div>
             
-            {/* Legend */}
-            <div style={{
-              display: 'flex',
-              gap: '24px',
-              marginBottom: '20px',
-              flexWrap: 'wrap'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Month Navigation - only show in month view */}
+            {chartViewMode === 'month' && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+                marginBottom: '20px'
+              }}>
+                <button
+                  onClick={() => setMonthOffset(prev => prev - 1)}
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    border: `1px solid ${borderColor}`,
+                    backgroundColor: isDarkMode ? '#262626' : '#ffffff',
+                    color: textSecondary,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s',
+                    fontSize: '18px',
+                    fontWeight: 500
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = orangeColor
+                    e.currentTarget.style.color = '#ffffff'
+                    e.currentTarget.style.borderColor = orangeColor
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#262626' : '#ffffff'
+                    e.currentTarget.style.color = textSecondary
+                    e.currentTarget.style.borderColor = borderColor
+                  }}
+                >
+                  ‹
+                </button>
                 <div style={{
-                  width: '12px',
-                  height: '12px',
+                  minWidth: '180px',
+                  textAlign: 'center',
+                  fontSize: '15px',
+                  fontWeight: 600,
+                  color: textColor,
+                  padding: '8px 20px',
+                  borderRadius: '20px',
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                  border: `1px solid ${borderColor}`
+                }}>
+                  {(() => {
+                    const fullMonthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
+                    const now = new Date()
+                    const targetDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
+                    return `${fullMonthNames[targetDate.getMonth()]} ${targetDate.getFullYear()}`
+                  })()}
+                </div>
+                <button
+                  onClick={() => setMonthOffset(prev => prev + 1)}
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    border: `1px solid ${borderColor}`,
+                    backgroundColor: isDarkMode ? '#262626' : '#ffffff',
+                    color: textSecondary,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s',
+                    fontSize: '18px',
+                    fontWeight: 500
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = orangeColor
+                    e.currentTarget.style.color = '#ffffff'
+                    e.currentTarget.style.borderColor = orangeColor
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#262626' : '#ffffff'
+                    e.currentTarget.style.color = textSecondary
+                    e.currentTarget.style.borderColor = borderColor
+                  }}
+                >
+                  ›
+                </button>
+                {monthOffset !== 0 && (
+                  <button
+                    onClick={() => setMonthOffset(0)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      border: 'none',
+                      backgroundColor: orangeColor,
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      transition: 'all 0.2s',
+                      marginLeft: '4px',
+                      boxShadow: `0 2px 8px ${orangeColor}40`
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'scale(1.05)'
+                      e.currentTarget.style.boxShadow = `0 4px 12px ${orangeColor}60`
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)'
+                      e.currentTarget.style.boxShadow = `0 2px 8px ${orangeColor}40`
+                    }}
+                  >
+                    Ce mois
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Week Navigation - only show in week view */}
+            {chartViewMode === 'week' && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+                marginBottom: '20px'
+              }}>
+                <button
+                  onClick={() => setWeekOffset(prev => prev - 1)}
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    border: `1px solid ${borderColor}`,
+                    backgroundColor: isDarkMode ? '#262626' : '#ffffff',
+                    color: textSecondary,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s',
+                    fontSize: '18px',
+                    fontWeight: 500
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = orangeColor
+                    e.currentTarget.style.color = '#ffffff'
+                    e.currentTarget.style.borderColor = orangeColor
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#262626' : '#ffffff'
+                    e.currentTarget.style.color = textSecondary
+                    e.currentTarget.style.borderColor = borderColor
+                  }}
+                >
+                  ‹
+                </button>
+                <div style={{
+                  minWidth: '180px',
+                  textAlign: 'center',
+                  fontSize: '15px',
+                  fontWeight: 600,
+                  color: textColor,
+                  padding: '8px 20px',
+                  borderRadius: '20px',
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                  border: `1px solid ${borderColor}`
+                }}>
+                  {(() => {
+                    const today = new Date()
+                    const currentWeekStart = new Date(today)
+                    const dayOfWeek = today.getDay()
+                    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+                    currentWeekStart.setDate(today.getDate() + diff + (weekOffset * 7))
+                    const weekEnd = new Date(currentWeekStart)
+                    weekEnd.setDate(currentWeekStart.getDate() + 6)
+                    
+                    const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
+                    const startDay = currentWeekStart.getDate()
+                    const endDay = weekEnd.getDate()
+                    const startMonth = monthNames[currentWeekStart.getMonth()]
+                    const endMonth = monthNames[weekEnd.getMonth()]
+                    
+                    if (startMonth === endMonth) {
+                      return `${startDay}-${endDay} ${startMonth}`
+                    } else {
+                      return `${startDay} ${startMonth} - ${endDay} ${endMonth}`
+                    }
+                  })()}
+                </div>
+                <button
+                  onClick={() => setWeekOffset(prev => prev + 1)}
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    border: `1px solid ${borderColor}`,
+                    backgroundColor: isDarkMode ? '#262626' : '#ffffff',
+                    color: textSecondary,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s',
+                    fontSize: '18px',
+                    fontWeight: 500
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = orangeColor
+                    e.currentTarget.style.color = '#ffffff'
+                    e.currentTarget.style.borderColor = orangeColor
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#262626' : '#ffffff'
+                    e.currentTarget.style.color = textSecondary
+                    e.currentTarget.style.borderColor = borderColor
+                  }}
+                >
+                  ›
+                </button>
+                {weekOffset !== 0 && (
+                  <button
+                    onClick={() => setWeekOffset(0)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      border: 'none',
+                      backgroundColor: orangeColor,
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      transition: 'all 0.2s',
+                      marginLeft: '4px',
+                      boxShadow: `0 2px 8px ${orangeColor}40`
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'scale(1.05)'
+                      e.currentTarget.style.boxShadow = `0 4px 12px ${orangeColor}60`
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)'
+                      e.currentTarget.style.boxShadow = `0 2px 8px ${orangeColor}40`
+                    }}
+                  >
+                    Cette semaine
+                  </button>
+                )}
+              </div>
+            )}
+            
+            {/* Professional Legend */}
+            <div 
+              className="chart-legend"
+              style={{
+                display: 'flex',
+                gap: isMobile ? '8px' : '16px',
+                marginBottom: isMobile ? '16px' : '24px',
+                flexWrap: 'wrap',
+                justifyContent: isMobile ? 'center' : 'flex-start'
+              }}
+            >
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                padding: '6px 12px',
+                borderRadius: '20px',
+                backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.08)',
+                border: '1px solid rgba(59, 130, 246, 0.2)'
+              }}>
+                <div style={{
+                  width: '8px',
+                  height: '8px',
                   borderRadius: '50%',
                   backgroundColor: '#3b82f6',
-                  boxShadow: '0 0 8px rgba(59, 130, 246, 0.5)'
+                  boxShadow: '0 0 6px rgba(59, 130, 246, 0.6)'
                 }}></div>
-                <span style={{ fontSize: '14px', color: textSecondary }}>Metré</span>
+                <span style={{ fontSize: '13px', fontWeight: 500, color: '#3b82f6' }}>Metré</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                padding: '6px 12px',
+                borderRadius: '20px',
+                backgroundColor: isDarkMode ? `${orangeColor}15` : `${orangeColor}10`,
+                border: `1px solid ${orangeColor}30`
+              }}>
                 <div style={{
-                  width: '12px',
-                  height: '12px',
+                  width: '8px',
+                  height: '8px',
                   borderRadius: '50%',
                   backgroundColor: orangeColor,
-                  boxShadow: `0 0 8px ${orangeColor}50`
+                  boxShadow: `0 0 6px ${orangeColor}80`
                 }}></div>
-                <span style={{ fontSize: '14px', color: textSecondary }}>Pose</span>
+                <span style={{ fontSize: '13px', fontWeight: 500, color: orangeColor }}>Pose</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                padding: '6px 12px',
+                borderRadius: '20px',
+                backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.08)',
+                border: '1px solid rgba(16, 185, 129, 0.2)'
+              }}>
                 <div style={{
-                  width: '12px',
-                  height: '12px',
+                  width: '8px',
+                  height: '8px',
                   borderRadius: '50%',
                   backgroundColor: '#10b981',
-                  boxShadow: '0 0 8px rgba(16, 185, 129, 0.5)'
+                  boxShadow: '0 0 6px rgba(16, 185, 129, 0.6)'
                 }}></div>
-                <span style={{ fontSize: '14px', color: textSecondary }}>SAV</span>
+                <span style={{ fontSize: '13px', fontWeight: 500, color: '#10b981' }}>SAV</span>
               </div>
             </div>
 
             {/* Chart */}
-            <div style={{ position: 'relative', width: '100%', flex: 1, minHeight: '400px' }}>
+            <div 
+              className="chart-container"
+              style={{ position: 'relative', width: '100%', flex: 1, minHeight: isMobile ? '300px' : '420px', overflow: 'visible' }}
+            >
               {chartData.length === 0 ? (
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   height: '100%',
-                  minHeight: '400px',
+                  minHeight: '420px',
                   color: textSecondary,
                   fontSize: '16px',
                   flexDirection: 'column',
@@ -1220,8 +1860,8 @@ function DashbordPage() {
                   <span>Aucune réservation pour afficher le graphique</span>
                 </div>
               ) : (
-              <svg width="100%" height="100%" style={{ overflow: 'visible' }} viewBox="0 0 900 400" preserveAspectRatio="xMidYMid meet">
-                {/* Grid lines */}
+              <svg width="100%" height="100%" style={{ overflow: 'visible' }} viewBox="0 0 900 430" preserveAspectRatio="xMidYMid meet">
+                {/* Subtle grid lines - horizontal */}
                 {[0, 1, 2, 3, 4, 5].map((i) => {
                   const y = (i / 5) * 380 + 10
                   return (
@@ -1231,314 +1871,611 @@ function DashbordPage() {
                       y1={y}
                       x2="860"
                       y2={y}
-                      stroke={borderColor}
+                      stroke={isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}
                       strokeWidth="1"
-                      strokeDasharray="4 4"
-                      opacity="0.3"
                       style={{
-                        animation: chartAnimation ? `fadeIn 0.5s ease-out ${i * 0.1}s both` : 'none'
+                        animation: chartAnimation ? `fadeIn 0.5s ease-out ${i * 0.05}s both` : 'none'
                       }}
                     />
                   )
                 })}
 
-                {/* Y-axis labels */}
+                {/* Y-axis labels with background */}
                 {[0, 1, 2, 3, 4, 5].map((i) => {
                   const value = Math.round((maxValue / 5) * (5 - i))
                   const y = (i / 5) * 380 + 10
                   return (
-                    <text
-                      key={`y-label-${i}`}
-                      x="55"
-                      y={y + 4}
-                      textAnchor="end"
-                      fontSize="12"
-                      fill={textSecondary}
-                      style={{
-                        animation: chartAnimation ? `fadeIn 0.5s ease-out ${i * 0.1}s both` : 'none'
-                      }}
-                    >
-                      {value}
-                    </text>
+                    <g key={`y-label-${i}`}>
+                      <text
+                        x="50"
+                        y={y + 4}
+                        textAnchor="end"
+                        fontSize="11"
+                        fontWeight="500"
+                        fill={textSecondary}
+                        style={{
+                          animation: chartAnimation ? `fadeIn 0.5s ease-out ${i * 0.05}s both` : 'none'
+                        }}
+                      >
+                        {value}
+                      </text>
+                    </g>
                   )
                 })}
 
+                {/* Gradient definitions for area fills */}
+                <defs>
+                  <linearGradient id="metreGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
+                  </linearGradient>
+                  <linearGradient id="poseGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor={orangeColor} stopOpacity="0.3" />
+                    <stop offset="100%" stopColor={orangeColor} stopOpacity="0.02" />
+                  </linearGradient>
+                  <linearGradient id="savGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+                  </linearGradient>
+                </defs>
+
                 {/* Chart area */}
                 <g transform="translate(60, 10)">
+                  {/* X-axis labels - only first and last day */}
                   {chartData.length > 0 && chartData.map((data, index) => {
                     const chartWidth = 800
                     const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
                     const x = (index / divisor) * chartWidth
                     
+                    // Only render if there's a label (first or last day)
+                    if (!data.month) return null
+                    
                     return (
-                      <g key={`month-${index}`}>
-                        {/* X-axis labels */}
-                        <text
-                          x={x}
-                          y="395"
-                          textAnchor="middle"
-                          fontSize="13"
-                          fill={textSecondary}
-                          style={{
-                            animation: chartAnimation ? `fadeInUp 0.5s ease-out ${0.6 + index * 0.1}s both` : 'none'
-                          }}
-                        >
-                          {data.month}
-                        </text>
-                      </g>
+                      <text
+                        key={`x-label-${index}`}
+                        x={x}
+                        y="395"
+                        textAnchor="middle"
+                        fontSize="12"
+                        fontWeight="500"
+                        fill={textSecondary}
+                        style={{
+                          animation: chartAnimation ? `fadeInUp 0.5s ease-out 0.6s both` : 'none'
+                        }}
+                      >
+                        {data.month}
+                      </text>
                     )
                   })}
 
-                  {/* Metré line - offset up when overlapping */}
+                  {/* Metré area fill with smooth curve */}
                   {chartData.length > 0 && (
                     <path
                       d={(() => {
                         const chartWidth = 800
                         const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
-                        const points = chartData.map((data, index) => {
-                          const x = (index / divisor) * chartWidth
-                          const baseY = 380 - (data.Metré / maxValue) * 380
-                          // Add offset when overlapping with other values
-                          let offset = 0
-                          if (data.Metré === data.Pose || data.Metré === data.SAV) offset = -8
-                          const y = Math.max(5, baseY + offset)
-                          return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
-                        }).join(' ')
-                        return points || 'M 0 380'
+                        const points: {x: number, y: number}[] = chartData.map((data, index) => ({
+                          x: (index / divisor) * chartWidth,
+                          y: 380 - (data.Metré / maxValue) * 380
+                        }))
+                        
+                        // Create smooth curve using cardinal spline
+                        let path = `M ${points[0].x} 380 L ${points[0].x} ${points[0].y}`
+                        for (let i = 0; i < points.length - 1; i++) {
+                          const p0 = points[Math.max(0, i - 1)]
+                          const p1 = points[i]
+                          const p2 = points[i + 1]
+                          const p3 = points[Math.min(points.length - 1, i + 2)]
+                          
+                          const cp1x = p1.x + (p2.x - p0.x) / 6
+                          const cp1y = p1.y + (p2.y - p0.y) / 6
+                          const cp2x = p2.x - (p3.x - p1.x) / 6
+                          const cp2y = p2.y - (p3.y - p1.y) / 6
+                          
+                          path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
+                        }
+                        path += ` L ${points[points.length - 1].x} 380 Z`
+                        return path
+                      })()}
+                      fill="url(#metreGradient)"
+                      style={{
+                        opacity: chartAnimation ? 1 : 0,
+                        transition: 'opacity 1s ease-out 0.5s'
+                      }}
+                    />
+                  )}
+
+                  {/* Pose area fill with smooth curve */}
+                  {chartData.length > 0 && (
+                    <path
+                      d={(() => {
+                        const chartWidth = 800
+                        const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
+                        const points: {x: number, y: number}[] = chartData.map((data, index) => ({
+                          x: (index / divisor) * chartWidth,
+                          y: 380 - (data.Pose / maxValue) * 380
+                        }))
+                        
+                        let path = `M ${points[0].x} 380 L ${points[0].x} ${points[0].y}`
+                        for (let i = 0; i < points.length - 1; i++) {
+                          const p0 = points[Math.max(0, i - 1)]
+                          const p1 = points[i]
+                          const p2 = points[i + 1]
+                          const p3 = points[Math.min(points.length - 1, i + 2)]
+                          
+                          const cp1x = p1.x + (p2.x - p0.x) / 6
+                          const cp1y = p1.y + (p2.y - p0.y) / 6
+                          const cp2x = p2.x - (p3.x - p1.x) / 6
+                          const cp2y = p2.y - (p3.y - p1.y) / 6
+                          
+                          path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
+                        }
+                        path += ` L ${points[points.length - 1].x} 380 Z`
+                        return path
+                      })()}
+                      fill="url(#poseGradient)"
+                      style={{
+                        opacity: chartAnimation ? 1 : 0,
+                        transition: 'opacity 1s ease-out 0.7s'
+                      }}
+                    />
+                  )}
+
+                  {/* SAV area fill with smooth curve */}
+                  {chartData.length > 0 && (
+                    <path
+                      d={(() => {
+                        const chartWidth = 800
+                        const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
+                        const points: {x: number, y: number}[] = chartData.map((data, index) => ({
+                          x: (index / divisor) * chartWidth,
+                          y: 380 - (data.SAV / maxValue) * 380
+                        }))
+                        
+                        let path = `M ${points[0].x} 380 L ${points[0].x} ${points[0].y}`
+                        for (let i = 0; i < points.length - 1; i++) {
+                          const p0 = points[Math.max(0, i - 1)]
+                          const p1 = points[i]
+                          const p2 = points[i + 1]
+                          const p3 = points[Math.min(points.length - 1, i + 2)]
+                          
+                          const cp1x = p1.x + (p2.x - p0.x) / 6
+                          const cp1y = p1.y + (p2.y - p0.y) / 6
+                          const cp2x = p2.x - (p3.x - p1.x) / 6
+                          const cp2y = p2.y - (p3.y - p1.y) / 6
+                          
+                          path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
+                        }
+                        path += ` L ${points[points.length - 1].x} 380 Z`
+                        return path
+                      })()}
+                      fill="url(#savGradient)"
+                      style={{
+                        opacity: chartAnimation ? 1 : 0,
+                        transition: 'opacity 1s ease-out 0.9s'
+                      }}
+                    />
+                  )}
+
+                  {/* Metré smooth line */}
+                  {chartData.length > 0 && (
+                    <path
+                      d={(() => {
+                        const chartWidth = 800
+                        const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
+                        const points: {x: number, y: number}[] = chartData.map((data, index) => ({
+                          x: (index / divisor) * chartWidth,
+                          y: 380 - (data.Metré / maxValue) * 380
+                        }))
+                        
+                        let path = `M ${points[0].x} ${points[0].y}`
+                        for (let i = 0; i < points.length - 1; i++) {
+                          const p0 = points[Math.max(0, i - 1)]
+                          const p1 = points[i]
+                          const p2 = points[i + 1]
+                          const p3 = points[Math.min(points.length - 1, i + 2)]
+                          
+                          const cp1x = p1.x + (p2.x - p0.x) / 6
+                          const cp1y = p1.y + (p2.y - p0.y) / 6
+                          const cp2x = p2.x - (p3.x - p1.x) / 6
+                          const cp2y = p2.y - (p3.y - p1.y) / 6
+                          
+                          path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
+                        }
+                        return path
                       })()}
                       fill="none"
                       stroke="#3b82f6"
-                      strokeWidth="3"
+                      strokeWidth="2.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       style={{
-                        strokeDasharray: chartAnimation ? '1000' : '0',
-                        strokeDashoffset: chartAnimation ? '0' : '1000',
-                        transition: 'stroke-dashoffset 2s ease-out',
-                        filter: 'drop-shadow(0 0 4px rgba(59, 130, 246, 0.5))'
+                        strokeDasharray: chartAnimation ? '2000' : '0',
+                        strokeDashoffset: chartAnimation ? '0' : '2000',
+                        transition: 'stroke-dashoffset 1.5s ease-out',
+                        filter: 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.3))'
                       }}
                     />
                   )}
 
-                  {/* Pose line - no offset (middle) */}
+                  {/* Pose smooth line */}
                   {chartData.length > 0 && (
                     <path
                       d={(() => {
                         const chartWidth = 800
                         const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
-                        const points = chartData.map((data, index) => {
-                          const x = (index / divisor) * chartWidth
-                          const y = 380 - (data.Pose / maxValue) * 380
-                          return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
-                        }).join(' ')
-                        return points || 'M 0 380'
+                        const points: {x: number, y: number}[] = chartData.map((data, index) => ({
+                          x: (index / divisor) * chartWidth,
+                          y: 380 - (data.Pose / maxValue) * 380
+                        }))
+                        
+                        let path = `M ${points[0].x} ${points[0].y}`
+                        for (let i = 0; i < points.length - 1; i++) {
+                          const p0 = points[Math.max(0, i - 1)]
+                          const p1 = points[i]
+                          const p2 = points[i + 1]
+                          const p3 = points[Math.min(points.length - 1, i + 2)]
+                          
+                          const cp1x = p1.x + (p2.x - p0.x) / 6
+                          const cp1y = p1.y + (p2.y - p0.y) / 6
+                          const cp2x = p2.x - (p3.x - p1.x) / 6
+                          const cp2y = p2.y - (p3.y - p1.y) / 6
+                          
+                          path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
+                        }
+                        return path
                       })()}
                       fill="none"
                       stroke={orangeColor}
-                      strokeWidth="3"
+                      strokeWidth="2.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       style={{
-                        strokeDasharray: chartAnimation ? '1000' : '0',
-                        strokeDashoffset: chartAnimation ? '0' : '1000',
-                        transition: 'stroke-dashoffset 2s ease-out 0.3s',
-                        filter: `drop-shadow(0 0 4px ${orangeColor}50)`
+                        strokeDasharray: chartAnimation ? '2000' : '0',
+                        strokeDashoffset: chartAnimation ? '0' : '2000',
+                        transition: 'stroke-dashoffset 1.5s ease-out 0.2s',
+                        filter: `drop-shadow(0 2px 4px ${orangeColor}40)`
                       }}
                     />
                   )}
 
-                  {/* SAV line - offset down when overlapping */}
+                  {/* SAV smooth line */}
                   {chartData.length > 0 && (
                     <path
                       d={(() => {
                         const chartWidth = 800
                         const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
-                        const points = chartData.map((data, index) => {
-                          const x = (index / divisor) * chartWidth
-                          const baseY = 380 - (data.SAV / maxValue) * 380
-                          // Add offset when overlapping with other values
-                          let offset = 0
-                          if (data.SAV === data.Pose || data.SAV === data.Metré) offset = 8
-                          const y = Math.min(378, baseY + offset)
-                          return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
-                        }).join(' ')
-                        return points || 'M 0 380'
+                        const points: {x: number, y: number}[] = chartData.map((data, index) => ({
+                          x: (index / divisor) * chartWidth,
+                          y: 380 - (data.SAV / maxValue) * 380
+                        }))
+                        
+                        let path = `M ${points[0].x} ${points[0].y}`
+                        for (let i = 0; i < points.length - 1; i++) {
+                          const p0 = points[Math.max(0, i - 1)]
+                          const p1 = points[i]
+                          const p2 = points[i + 1]
+                          const p3 = points[Math.min(points.length - 1, i + 2)]
+                          
+                          const cp1x = p1.x + (p2.x - p0.x) / 6
+                          const cp1y = p1.y + (p2.y - p0.y) / 6
+                          const cp2x = p2.x - (p3.x - p1.x) / 6
+                          const cp2y = p2.y - (p3.y - p1.y) / 6
+                          
+                          path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
+                        }
+                        return path
                       })()}
                       fill="none"
                       stroke="#10b981"
-                      strokeWidth="3"
+                      strokeWidth="2.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       style={{
-                        strokeDasharray: chartAnimation ? '1000' : '0',
-                        strokeDashoffset: chartAnimation ? '0' : '1000',
-                        transition: 'stroke-dashoffset 2s ease-out 0.6s',
-                        filter: 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.5))'
+                        strokeDasharray: chartAnimation ? '2000' : '0',
+                        strokeDashoffset: chartAnimation ? '0' : '2000',
+                        transition: 'stroke-dashoffset 1.5s ease-out 0.4s',
+                        filter: 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.3))'
                       }}
                     />
                   )}
 
-                  {/* Data points with combined hover */}
+                  {/* Data points and hover zones */}
                   {chartData.length > 0 && chartData.map((data, index) => {
                     const chartWidth = 800
                     const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
                     const x = (index / divisor) * chartWidth
-                    const delay = 0.8 + index * 0.1
                     const isHovered = hoveredMonth === index
+                    const hasData = data.Metré > 0 || data.Pose > 0 || data.SAV > 0
                     
-                    // Calculate Y positions with offsets for overlapping values
+                    // Calculate Y positions for tooltip positioning
                     const metreY = 380 - (data.Metré / maxValue) * 380
                     const poseY = 380 - (data.Pose / maxValue) * 380
                     const savY = 380 - (data.SAV / maxValue) * 380
-                    
-                    // Offset points when overlapping
-                    const metreOffset = (data.Metré === data.Pose || data.Metré === data.SAV) ? -8 : 0
-                    const savOffset = (data.SAV === data.Pose || data.SAV === data.Metré) ? 8 : 0
                     
                     return (
                       <g 
                         key={`points-${index}`}
                         onMouseEnter={() => setHoveredMonth(index)}
                         onMouseLeave={() => setHoveredMonth(null)}
-                        style={{ cursor: 'pointer' }}
+                        style={{ cursor: hasData ? 'pointer' : 'default' }}
                       >
                         {/* Invisible hover zone for the entire column */}
                         <rect
-                          x={x - 30}
+                          x={x - 15}
                           y={0}
-                          width={60}
+                          width={30}
                           height={380}
                           fill="transparent"
                         />
                         
-                        {/* Vertical hover line */}
-                        {isHovered && (
+                        {/* Metré point - only show if there's data */}
+                        {data.Metré > 0 && (
+                          <g>
+                            {/* Outer glow ring on hover */}
+                            {isHovered && (
+                              <circle
+                                cx={x}
+                                cy={metreY}
+                                r="12"
+                                fill="none"
+                                stroke="#3b82f6"
+                                strokeWidth="2"
+                                opacity="0.3"
+                              />
+                            )}
+                            <circle
+                              cx={x}
+                              cy={metreY}
+                              r={isHovered ? 6 : 4}
+                              fill="#3b82f6"
+                              stroke={isDarkMode ? '#1a1a1a' : '#ffffff'}
+                              strokeWidth="2"
+                              style={{
+                                transition: 'r 0.2s ease-out',
+                                filter: isHovered 
+                                  ? 'drop-shadow(0 0 8px rgba(59, 130, 246, 0.8))' 
+                                  : 'drop-shadow(0 0 4px rgba(59, 130, 246, 0.5))'
+                              }}
+                            />
+                          </g>
+                        )}
+                        
+                        {/* Pose point - only show if there's data */}
+                        {data.Pose > 0 && (
+                          <g>
+                            {isHovered && (
+                              <circle
+                                cx={x}
+                                cy={poseY}
+                                r="12"
+                                fill="none"
+                                stroke={orangeColor}
+                                strokeWidth="2"
+                                opacity="0.3"
+                              />
+                            )}
+                            <circle
+                              cx={x}
+                              cy={poseY}
+                              r={isHovered ? 6 : 4}
+                              fill={orangeColor}
+                              stroke={isDarkMode ? '#1a1a1a' : '#ffffff'}
+                              strokeWidth="2"
+                              style={{
+                                transition: 'r 0.2s ease-out',
+                                filter: isHovered 
+                                  ? `drop-shadow(0 0 8px ${orangeColor}cc)` 
+                                  : `drop-shadow(0 0 4px ${orangeColor}80)`
+                              }}
+                            />
+                          </g>
+                        )}
+                        
+                        {/* SAV point - only show if there's data */}
+                        {data.SAV > 0 && (
+                          <g>
+                            {isHovered && (
+                              <circle
+                                cx={x}
+                                cy={savY}
+                                r="12"
+                                fill="none"
+                                stroke="#10b981"
+                                strokeWidth="2"
+                                opacity="0.3"
+                              />
+                            )}
+                            <circle
+                              cx={x}
+                              cy={savY}
+                              r={isHovered ? 6 : 4}
+                              fill="#10b981"
+                              stroke={isDarkMode ? '#1a1a1a' : '#ffffff'}
+                              strokeWidth="2"
+                              style={{
+                                transition: 'r 0.2s ease-out',
+                                filter: isHovered 
+                                  ? 'drop-shadow(0 0 8px rgba(16, 185, 129, 0.8))' 
+                                  : 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.5))'
+                              }}
+                            />
+                          </g>
+                        )}
+                        
+                        {/* Vertical hover line - elegant gradient */}
+                        {isHovered && hasData && (
                           <line
                             x1={x}
-                            y1={10}
+                            y1={Math.min(metreY, poseY, savY) - 5}
                             x2={x}
                             y2={380}
-                            stroke={isDarkMode ? '#ffffff20' : '#00000015'}
-                            strokeWidth="2"
-                            strokeDasharray="4 4"
+                            stroke={isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'}
+                            strokeWidth="1"
+                            strokeDasharray="4 2"
                           />
                         )}
                         
-                        {/* Metré point */}
-                        <circle
-                          cx={x}
-                          cy={Math.max(5, metreY + metreOffset)}
-                          r={isHovered ? 8 : 6}
-                          fill="#3b82f6"
-                          stroke={isHovered ? '#ffffff' : 'none'}
-                          strokeWidth="2"
-                          style={{
-                            opacity: chartAnimation ? 1 : 0,
-                            transform: chartAnimation ? 'scale(1)' : 'scale(0)',
-                            transformOrigin: 'center',
-                            transition: `all 0.3s ease-out ${delay}s`,
-                            filter: isHovered 
-                              ? 'drop-shadow(0 0 10px rgba(59, 130, 246, 1))' 
-                              : 'drop-shadow(0 0 6px rgba(59, 130, 246, 0.8))'
-                          }}
-                        />
-                        
-                        {/* Pose point */}
-                        <circle
-                          cx={x}
-                          cy={poseY}
-                          r={isHovered ? 8 : 6}
-                          fill={orangeColor}
-                          stroke={isHovered ? '#ffffff' : 'none'}
-                          strokeWidth="2"
-                          style={{
-                            opacity: chartAnimation ? 1 : 0,
-                            transform: chartAnimation ? 'scale(1)' : 'scale(0)',
-                            transformOrigin: 'center',
-                            transition: `all 0.3s ease-out ${delay + 0.1}s`,
-                            filter: isHovered 
-                              ? `drop-shadow(0 0 10px ${orangeColor})` 
-                              : `drop-shadow(0 0 6px ${orangeColor}80)`
-                          }}
-                        />
-                        
-                        {/* SAV point */}
-                        <circle
-                          cx={x}
-                          cy={Math.min(378, savY + savOffset)}
-                          r={isHovered ? 8 : 6}
-                          fill="#10b981"
-                          stroke={isHovered ? '#ffffff' : 'none'}
-                          strokeWidth="2"
-                          style={{
-                            opacity: chartAnimation ? 1 : 0,
-                            transform: chartAnimation ? 'scale(1)' : 'scale(0)',
-                            transformOrigin: 'center',
-                            transition: `all 0.3s ease-out ${delay + 0.2}s`,
-                            filter: isHovered 
-                              ? 'drop-shadow(0 0 10px rgba(16, 185, 129, 1))' 
-                              : 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.8))'
-                          }}
-                        />
-                        
-                        {/* Combined tooltip */}
-                        {isHovered && (
+                        {/* Day/Week label on X-axis when hovering */}
+                        {isHovered && hasData && data.day && (
                           <g>
-                            {/* Tooltip background */}
+                            {/* Background pill */}
                             <rect
-                              x={x - 70}
-                              y={Math.min(metreY, poseY, savY) - 90}
-                              width={140}
-                              height={80}
-                              rx="8"
-                              fill={isDarkMode ? '#1a1a1a' : '#ffffff'}
-                              stroke={isDarkMode ? '#333333' : '#e5e7eb'}
-                              strokeWidth="1"
-                              style={{
-                                filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15))'
-                              }}
+                              x={chartViewMode === 'week' ? x - 28 : x - 16}
+                              y={385}
+                              width={chartViewMode === 'week' ? 56 : 32}
+                              height={20}
+                              rx="10"
+                              fill={orangeColor}
                             />
-                            {/* Month title */}
                             <text
                               x={x}
-                              y={Math.min(metreY, poseY, savY) - 68}
+                              y="399"
                               textAnchor="middle"
-                              fontSize="12"
+                              fontSize="11"
                               fontWeight="600"
-                              fill={isDarkMode ? '#ffffff' : '#111827'}
+                              fill="#ffffff"
                             >
-                              {data.month}
+                              {chartViewMode === 'week' ? data.month : data.day}
                             </text>
-                            {/* Metré value */}
-                            <text
-                              x={x - 55}
-                              y={Math.min(metreY, poseY, savY) - 48}
-                              fontSize="11"
-                              fill="#3b82f6"
-                              fontWeight="500"
-                            >
-                              ● Metré: {data.Metré}
-                            </text>
-                            {/* Pose value */}
-                            <text
-                              x={x - 55}
-                              y={Math.min(metreY, poseY, savY) - 32}
-                              fontSize="11"
-                              fill={orangeColor}
-                              fontWeight="500"
-                            >
-                              ● Pose: {data.Pose}
-                            </text>
-                            {/* SAV value */}
-                            <text
-                              x={x - 55}
-                              y={Math.min(metreY, poseY, savY) - 16}
-                              fontSize="11"
-                              fill="#10b981"
-                              fontWeight="500"
-                            >
-                              ● SAV: {data.SAV}
-                            </text>
+                          </g>
+                        )}
+                        
+                        {/* Professional tooltip - only show if there's data */}
+                        {isHovered && hasData && (
+                          <g style={{ pointerEvents: 'none' }}>
+                            {/* Calculate smart tooltip position to avoid clipping */}
+                            {(() => {
+                              const tooltipWidth = 130
+                              const tooltipHeight = 95
+                              const minY = Math.min(
+                                data.Metré > 0 ? metreY : 380,
+                                data.Pose > 0 ? poseY : 380,
+                                data.SAV > 0 ? savY : 380
+                              )
+                              let tooltipX = x - tooltipWidth / 2
+                              let tooltipY = minY - tooltipHeight - 15
+                              
+                              // Adjust X if near edges
+                              if (tooltipX < 5) tooltipX = 5
+                              if (tooltipX + tooltipWidth > 795) tooltipX = 795 - tooltipWidth
+                              
+                              // Adjust Y if too high
+                              if (tooltipY < 5) tooltipY = minY + 20
+                              
+                              return (
+                                <g>
+                                  {/* Tooltip arrow */}
+                                  <path
+                                    d={`M ${x - 6} ${tooltipY + tooltipHeight} L ${x} ${tooltipY + tooltipHeight + 8} L ${x + 6} ${tooltipY + tooltipHeight} Z`}
+                                    fill={isDarkMode ? '#262626' : '#ffffff'}
+                                  />
+                                  {/* Tooltip background with shadow */}
+                                  <rect
+                                    x={tooltipX}
+                                    y={tooltipY}
+                                    width={tooltipWidth}
+                                    height={tooltipHeight}
+                                    rx="10"
+                                    fill={isDarkMode ? '#262626' : '#ffffff'}
+                                    stroke={isDarkMode ? '#404040' : '#e5e7eb'}
+                                    strokeWidth="1"
+                                    style={{
+                                      filter: 'drop-shadow(0 4px 16px rgba(0, 0, 0, 0.2))'
+                                    }}
+                                  />
+                                  {/* Day title with accent bar */}
+                                  <rect
+                                    x={tooltipX}
+                                    y={tooltipY}
+                                    width={tooltipWidth}
+                                    height={28}
+                                    rx="10"
+                                    fill={orangeColor}
+                                    style={{ clipPath: 'inset(0 0 50% 0 round 10px)' }}
+                                  />
+                                  <rect
+                                    x={tooltipX}
+                                    y={tooltipY + 14}
+                                    width={tooltipWidth}
+                                    height={14}
+                                    fill={orangeColor}
+                                  />
+                                  <text
+                                    x={tooltipX + tooltipWidth / 2}
+                                    y={tooltipY + 18}
+                                    textAnchor="middle"
+                                    fontSize="12"
+                                    fontWeight="600"
+                                    fill="#ffffff"
+                                  >
+                                    {chartViewMode === 'week' 
+                                      ? data.month || `Jour ${data.day}`
+                                      : (data.day ? `Jour ${data.day}` : data.month)}
+                                  </text>
+                                  {/* Metré value - show cumulative for both month and week view */}
+                                  <circle cx={tooltipX + 15} cy={tooltipY + 42} r="4" fill="#3b82f6" />
+                                  <text
+                                    x={tooltipX + 25}
+                                    y={tooltipY + 46}
+                                    fontSize="11"
+                                    fill={isDarkMode ? '#e5e7eb' : '#374151'}
+                                  >
+                                    Metré
+                                  </text>
+                                  <text
+                                    x={tooltipX + tooltipWidth - 10}
+                                    y={tooltipY + 46}
+                                    textAnchor="end"
+                                    fontSize="11"
+                                    fontWeight="600"
+                                    fill="#3b82f6"
+                                  >
+                                    {data.cumulMetré !== undefined ? data.cumulMetré : data.Metré}
+                                  </text>
+                                  {/* Pose value - show cumulative for both month and week view */}
+                                  <circle cx={tooltipX + 15} cy={tooltipY + 60} r="4" fill={orangeColor} />
+                                  <text
+                                    x={tooltipX + 25}
+                                    y={tooltipY + 64}
+                                    fontSize="11"
+                                    fill={isDarkMode ? '#e5e7eb' : '#374151'}
+                                  >
+                                    Pose
+                                  </text>
+                                  <text
+                                    x={tooltipX + tooltipWidth - 10}
+                                    y={tooltipY + 64}
+                                    textAnchor="end"
+                                    fontSize="11"
+                                    fontWeight="600"
+                                    fill={orangeColor}
+                                  >
+                                    {data.cumulPose !== undefined ? data.cumulPose : data.Pose}
+                                  </text>
+                                  {/* SAV value - show cumulative for both month and week view */}
+                                  <circle cx={tooltipX + 15} cy={tooltipY + 78} r="4" fill="#10b981" />
+                                  <text
+                                    x={tooltipX + 25}
+                                    y={tooltipY + 82}
+                                    fontSize="11"
+                                    fill={isDarkMode ? '#e5e7eb' : '#374151'}
+                                  >
+                                    SAV
+                                  </text>
+                                  <text
+                                    x={tooltipX + tooltipWidth - 10}
+                                    y={tooltipY + 82}
+                                    textAnchor="end"
+                                    fontSize="11"
+                                    fontWeight="600"
+                                    fill="#10b981"
+                                  >
+                                    {data.cumulSAV !== undefined ? data.cumulSAV : data.SAV}
+                                  </text>
+                                </g>
+                              )
+                            })()}
                           </g>
                         )}
                       </g>
@@ -1546,27 +2483,14 @@ function DashbordPage() {
                   })}
                 </g>
 
-                {/* Y-axis */}
-                <line
-                  x1="60"
-                  y1="10"
-                  x2="60"
-                  y2="390"
-                  stroke={borderColor}
-                  strokeWidth="2"
-                  style={{
-                    animation: chartAnimation ? 'fadeIn 0.5s ease-out' : 'none'
-                  }}
-                />
-
-                {/* X-axis */}
+                {/* X-axis - subtle bottom line */}
                 <line
                   x1="60"
                   y1="390"
                   x2="860"
                   y2="390"
-                  stroke={borderColor}
-                  strokeWidth="2"
+                  stroke={isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}
+                  strokeWidth="1"
                   style={{
                     animation: chartAnimation ? 'fadeIn 0.5s ease-out 0.3s both' : 'none'
                   }}
@@ -1601,9 +2525,6 @@ function DashbordPage() {
           }}
           >
             <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
               marginBottom: '16px'
             }}>
               <h3 style={{
@@ -1611,22 +2532,8 @@ function DashbordPage() {
                 fontWeight: 600,
                 color: textColor
               }}>
-                Top 10 Clients
+                Top 10 Clients SAV
               </h3>
-              <button style={{
-                fontSize: '12px',
-                color: orangeColor,
-                fontWeight: 500,
-                backgroundColor: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'color 0.2s'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.color = '#ff6b35'}
-              onMouseLeave={(e) => e.currentTarget.style.color = orangeColor}
-              >
-                Voir tout
-              </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1' }}>
               {isLoadingTopClients ? (

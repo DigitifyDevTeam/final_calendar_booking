@@ -26,7 +26,9 @@ import {
   Trash2,
   Download,
   Upload,
-  ClipboardList
+  ClipboardList,
+  Menu,
+  X
 } from 'lucide-react'
 import './SettingsPage.css'
 
@@ -102,6 +104,8 @@ function SettingsPage() {
     return saved ? JSON.parse(saved) : true
   })
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const [calendarsExpanded, setCalendarsExpanded] = useState<boolean>(true)
   const [activeSection, setActiveSection] = useState<string>('general')
   const [saving, setSaving] = useState(false)
@@ -145,6 +149,37 @@ function SettingsPage() {
       return
     }
   }, [navigate])
+
+  // Handle responsive detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768)
+      if (window.innerWidth > 768) {
+        setMobileMenuOpen(false)
+      }
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // Close mobile menu on navigation
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [location.pathname])
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileMenuOpen])
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode)
@@ -243,20 +278,119 @@ function SettingsPage() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', width: '100%', backgroundColor: bgColor }}>
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="mobile-menu-overlay active"
+          onClick={() => setMobileMenuOpen(false)}
+          style={{
+            display: isMobile ? 'block' : 'none',
+            position: 'fixed',
+            top: '60px', // Start below the header
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 998
+          }}
+        />
+      )}
+      
+      {/* Mobile Header */}
+      {isMobile && (
+        <div 
+          className="mobile-header"
+          style={{
+            display: 'flex',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '60px',
+            backgroundColor: isDarkMode ? '#000000' : '#ffffff',
+            zIndex: 1000, // Higher than overlay to ensure buttons are always clickable
+            padding: '0 16px',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: `1px solid ${borderColor}`,
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              style={{
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                borderRadius: '8px',
+                color: textColor,
+                zIndex: 1001, // Ensure button is always on top
+                position: 'relative'
+              }}
+              aria-label={mobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+            >
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: `linear-gradient(135deg, ${accentColor} 0%, #ff6b35 100%)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Calendar style={{ width: '16px', height: '16px', color: '#ffffff' }} />
+            </div>
+            <span style={{ fontSize: '16px', fontWeight: 600, color: textColor }}>Paramètres</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={toggleDarkMode}
+              style={{
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                color: textSecondary,
+                cursor: 'pointer'
+              }}
+            >
+              {isDarkMode ? <Sun style={{ width: '18px', height: '18px' }} /> : <Moon style={{ width: '18px', height: '18px' }} />}
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Sidebar */}
       <nav
+        className={`dashboard-sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`}
         style={{
-          position: 'sticky',
-          top: 0,
-          height: '100vh',
-          width: sidebarOpen ? '256px' : '64px',
+          position: isMobile ? 'fixed' : 'sticky',
+          top: isMobile ? '60px' : 0, // Start below mobile header
+          left: 0,
+          height: isMobile ? 'calc(100vh - 60px)' : '100vh', // Adjust height for mobile header
+          width: isMobile ? '280px' : (sidebarOpen ? '256px' : '64px'),
           borderRight: `1px solid ${borderColor}`,
           backgroundColor: isDarkMode ? '#000000' : '#ffffff',
           padding: '8px',
-          transition: 'width 0.3s ease',
+          paddingBottom: '60px',
+          transition: 'width 0.3s ease, transform 0.3s ease',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          transform: isMobile ? (mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
+          zIndex: 999
         }}
       >
         {/* Logo Section */}
@@ -484,7 +618,8 @@ function SettingsPage() {
           />
         </div>
 
-        {/* Toggle Button */}
+        {/* Toggle Button - Hidden on mobile */}
+        {!isMobile && (
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
           style={{
@@ -520,9 +655,18 @@ function SettingsPage() {
             <span style={{ fontSize: '14px', fontWeight: 500 }}>Masquer</span>
           )}
         </button>
+        )}
       </nav>
       
-      <div style={{ flex: 1, overflow: 'auto', backgroundColor: bgColor }}>
+      <div 
+        className="dashboard-main"
+        style={{ 
+          flex: 1, 
+          overflow: 'auto', 
+          backgroundColor: bgColor,
+          paddingTop: isMobile ? '60px' : 0 // Add padding for mobile header
+        }}
+      >
         <div className={`settings-page ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
           {/* Header */}
           <header className="settings-header">

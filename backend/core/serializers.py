@@ -100,9 +100,24 @@ class BookingSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
     def validate(self, attrs):
+        # For updates, use instance's calendar_id if not provided in attrs
         calendar_id = attrs.get('calendar_id')
+        if not calendar_id and self.instance:
+            calendar_id = self.instance.calendar_id
+        
         booking_date = attrs.get('booking_date')
-        booking_time = attrs.get('booking_time') or ''
+        if not booking_date and self.instance:
+            booking_date = self.instance.booking_date
+        
+        booking_time = attrs.get('booking_time')
+        if booking_time is None and self.instance:
+            booking_time = self.instance.booking_time or ''
+        booking_time = booking_time or ''
+        
+        # For Pose calendar, set default time if empty
+        if calendar_id and calendar_id in ['calendar1', '1'] and not booking_time:
+            booking_time = '21h00'
+            attrs['booking_time'] = booking_time
 
         if not calendar_id or not booking_date:
             return attrs

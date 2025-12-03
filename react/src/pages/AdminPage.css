@@ -814,23 +814,143 @@
 }
 
 @media (max-width: 768px) {
+  .admin-page {
+    padding: 12px;
+  }
+
   .admin-filters {
     flex-direction: column;
+    padding: 16px !important;
+    gap: 16px !important;
   }
 
   .filter-group {
     width: 100%;
+    min-width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+  }
+
+  .filter-group label {
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
   }
 
   .header-content {
     flex-direction: column;
-    gap: 20px;
-    align-items: flex-start;
+    gap: 16px;
+    align-items: center;
+    text-align: center;
+    padding: 0 8px;
+  }
+
+  .header-content > div:first-child {
+    width: 100%;
   }
 
   .header-actions {
     width: 100%;
-    justify-content: space-between;
+    justify-content: center;
+    position: static !important;
+    transform: none !important;
+    right: auto !important;
+    top: auto !important;
+  }
+
+  .admin-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .admin-header p {
+    font-size: 0.9rem;
+  }
+
+  .home-button {
+    position: static !important;
+    transform: none !important;
+    width: 44px;
+    height: 44px;
+  }
+
+  .theme-toggle {
+    position: static !important;
+    transform: none !important;
+    width: 44px;
+    height: 44px;
+  }
+
+  .bookings-table-container {
+    border-radius: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .bookings-table {
+    min-width: 900px;
+    font-size: 0.85rem;
+  }
+
+  .bookings-table th,
+  .bookings-table td {
+    padding: 10px 8px;
+  }
+
+  .message-cell {
+    max-width: 150px;
+  }
+
+  .refresh-button,
+  .create-button {
+    padding: 8px 14px;
+    font-size: 0.9rem;
+  }
+
+  .holiday-management-section {
+    padding: 16px;
+  }
+
+  .holiday-management-section h2 {
+    font-size: 1.4rem;
+  }
+
+  .holiday-add-form {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-page {
+    padding: 8px;
+  }
+
+  .admin-header h1 {
+    font-size: 1.3rem;
+  }
+
+  .admin-filters {
+    padding: 12px !important;
+    gap: 12px !important;
+  }
+
+  .bookings-table {
+    font-size: 0.8rem;
+  }
+
+  .bookings-table th,
+  .bookings-table td {
+    padding: 8px 6px;
+  }
+
+  .calendar-badge {
+    padding: 3px 8px;
+    font-size: 0.75rem;
+  }
+
+  .edit-button,
+  .delete-button {
+    padding: 4px 6px;
+    font-size: 1rem;
   }
 }
 

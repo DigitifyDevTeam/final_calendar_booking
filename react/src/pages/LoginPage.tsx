@@ -206,14 +206,6 @@ function LoginPage() {
               {errors.password && <span className="error-message">{errors.password}</span>}
             </div>
 
-            <div className="form-options">
-              <label className="checkbox-wrapper">
-                <input type="checkbox" className="checkbox-input" />
-                <span className="checkbox-label">Remember me</span>
-              </label>
-              <a href="#" className="forgot-password">Forgot password?</a>
-            </div>
-
             <button
               type="submit"
               className={`login-button ${isLoading ? 'loading' : ''}`}
@@ -234,13 +226,6 @@ function LoginPage() {
               )}
             </button>
           </form>
-
-          <div className="login-footer">
-            <p>
-              Don't have an account?{' '}
-              <a href="#" className="signup-link">Sign up</a>
-            </p>
-          </div>
         </div>
       </div>
     </div>
