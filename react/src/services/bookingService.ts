@@ -140,6 +140,7 @@ export interface BookingData {
   name: string;
   phone: string;
   designer: string;
+  duree?: string;
   message: string;
   date: string;
   selectedDate: Date;

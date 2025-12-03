@@ -139,14 +139,7 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
 
   // Calculate which dates to book based on duration and availability
   const calculateBookingDates = (startDate: Date, duration: number): string[] => {
-    const maxBookingsPerDay = 2
     const dates: string[] = []
-    
-    // Helper to count existing bookings for a date
-    const getBookingCountForDate = (date: Date): number => {
-      const dateStr = formatDateString(date)
-      return existingBookings.filter(b => b.date === dateStr).length
-    }
 
     // Helper to check if date is a holiday
     const isHoliday = (date: Date): boolean => {
@@ -205,7 +198,7 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
       // Show loading state
       setLoadingNotification('Traitement de votre réservation...')
       
-      const duration = parseInt(bookingData.duree) || 1
+      const duration = parseInt(bookingData.duree || '1') || 1
       
       if (duration === 1) {
         // Single booking - existing logic
