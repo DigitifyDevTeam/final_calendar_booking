@@ -3,13 +3,13 @@ Django settings with environment-based configuration.
 
 
 Usage:
-- Local: DJANGO_ENV=local python manage.py runserver
+- Local: DJANGO_ENV=local python manage.py runserver (default)
 - Production: DJANGO_ENV=production python manage.py runserver
-- Default: Uses 'production' if not specified
+- Default: Uses 'local' if not specified
 """
 import os
 
-# Determine environment (default to 'production' for deployment)
+# Determine environment (default to 'production')
 ENV = os.environ.get('DJANGO_ENV', 'production').lower()
 
 if ENV == 'production':

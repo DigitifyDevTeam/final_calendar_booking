@@ -1,29 +1,9 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
-  
-  # Try mod_proxy first (if available)
-  RewriteCond %{REQUEST_URI} ^/api/
-  RewriteCond %{REQUEST_METHOD} ^(GET|POST|PUT|DELETE|PATCH|OPTIONS)$
-  RewriteRule ^api/(.*)$ http://127.0.0.1:8000/api/$1 [P,L]
-  
-  # Fallback: If mod_proxy doesn't work, use PHP proxy (uncomment if needed)
-  # RewriteCond %{REQUEST_URI} ^/api/
-  # RewriteRule ^api/(.*)$ api-proxy.php?path=$1 [QSA,L]
-  
-  # Don't rewrite static and media files
-  RewriteCond %{REQUEST_URI} ^/static/ [OR]
-  RewriteCond %{REQUEST_URI} ^/media/
-  RewriteRule ^ - [L]
-  
-  # Don't rewrite if the request is for index.html
   RewriteRule ^index\.html$ - [L]
-  
-  # Don't rewrite if the file or directory exists
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-  
-  # Rewrite everything else to index.html for React Router
   RewriteRule . /index.html [L]
 </IfModule>
 
