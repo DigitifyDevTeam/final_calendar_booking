@@ -3,7 +3,7 @@ import AdminPage from '../pages/AdminPage'
 
 function ProtectedAdminRoute() {
   // Check if user is authenticated and is admin
-  const user = localStorage.getItem('user')
+  const user = sessionStorage.getItem('user')
   
   if (!user) {
     return <Navigate to="/login" replace />

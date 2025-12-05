@@ -6,7 +6,7 @@ function RoleBasedRoute() {
   const [component, setComponent] = useState<React.ReactNode>(null)
 
   useEffect(() => {
-    const user = localStorage.getItem('user')
+    const user = sessionStorage.getItem('user')
     
     if (!user) {
       setComponent(<Navigate to="/login" replace />)

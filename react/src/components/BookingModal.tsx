@@ -79,7 +79,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   
   useEffect(() => {
-    const user = localStorage.getItem('user')
+    const user = sessionStorage.getItem('user')
     if (user) {
       try {
         const userData = JSON.parse(user)

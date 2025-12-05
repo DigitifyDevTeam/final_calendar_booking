@@ -30,7 +30,7 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
 
   // Get user information
   useEffect(() => {
-    const user = localStorage.getItem('user')
+    const user = sessionStorage.getItem('user')
     if (user) {
       try {
         const userData = JSON.parse(user)
@@ -47,7 +47,7 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('user')
+    sessionStorage.removeItem('user')
     navigate('/login')
   }
 

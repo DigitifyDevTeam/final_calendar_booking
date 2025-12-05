@@ -1,6 +1,14 @@
-import { useState, FormEvent } from 'react'
+import { useState, FormEvent, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import './LoginPage.css'
+
+const MAX_LOGIN_ATTEMPTS = 5
+const LOCKOUT_DURATION = 30 * 60 * 1000 // 30 minutes in milliseconds
+
+interface LoginAttempts {
+  attempts: number
+  lockoutUntil?: number
+}
 
 function LoginPage() {
   const navigate = useNavigate()
@@ -14,6 +22,135 @@ function LoginPage() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null)
+  const [isLocked, setIsLocked] = useState(false)
+  const [lockoutTime, setLockoutTime] = useState<number | null>(null)
+
+  // Helper functions for managing login attempts
+  const getLoginAttempts = (email: string): LoginAttempts => {
+    const key = `loginAttempts_${email.toLowerCase()}`
+    const stored = localStorage.getItem(key)
+    if (stored) {
+      const data = JSON.parse(stored)
+      // Check if lockout has expired
+      if (data.lockoutUntil && Date.now() < data.lockoutUntil) {
+        return data
+      } else if (data.lockoutUntil && Date.now() >= data.lockoutUntil) {
+        // Lockout expired, reset attempts
+        localStorage.removeItem(key)
+        return { attempts: 0 }
+      }
+      return data
+    }
+    return { attempts: 0 }
+  }
+
+  const setLoginAttempts = (email: string, attempts: LoginAttempts): void => {
+    const key = `loginAttempts_${email.toLowerCase()}`
+    if (attempts.attempts === 0 && !attempts.lockoutUntil) {
+      localStorage.removeItem(key)
+    } else {
+      localStorage.setItem(key, JSON.stringify(attempts))
+    }
+  }
+
+  const incrementLoginAttempts = (email: string): number => {
+    const current = getLoginAttempts(email)
+    const newAttempts = current.attempts + 1
+    
+    if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+      // Lock the account for 30 minutes
+      const lockoutUntil = Date.now() + LOCKOUT_DURATION
+      setLoginAttempts(email, { attempts: newAttempts, lockoutUntil })
+      setIsLocked(true)
+      setLockoutTime(lockoutUntil)
+      return newAttempts
+    } else {
+      setLoginAttempts(email, { attempts: newAttempts })
+      setRemainingAttempts(MAX_LOGIN_ATTEMPTS - newAttempts)
+      return newAttempts
+    }
+  }
+
+  const resetLoginAttempts = (email: string): void => {
+    setLoginAttempts(email, { attempts: 0 })
+    setRemainingAttempts(null)
+    setIsLocked(false)
+    setLockoutTime(null)
+  }
+
+  const checkLoginStatus = (email: string): { canLogin: boolean; message?: string } => {
+    if (!email) return { canLogin: true }
+    
+    const attempts = getLoginAttempts(email)
+    
+    if (attempts.lockoutUntil && Date.now() < attempts.lockoutUntil) {
+      const minutesLeft = Math.ceil((attempts.lockoutUntil - Date.now()) / (60 * 1000))
+      return {
+        canLogin: false,
+        message: `Trop de tentatives échouées. Veuillez réessayer dans ${minutesLeft} minute${minutesLeft > 1 ? 's' : ''}.`
+      }
+    }
+    
+    if (attempts.attempts >= MAX_LOGIN_ATTEMPTS) {
+      return {
+        canLogin: false,
+        message: 'Trop de tentatives échouées. Veuillez réessayer plus tard.'
+      }
+    }
+    
+    return { canLogin: true }
+  }
+
+  // Check login status when email changes
+  useEffect(() => {
+    if (formData.email && validateEmail(formData.email)) {
+      const status = checkLoginStatus(formData.email)
+      setIsLocked(!status.canLogin)
+      if (status.message) {
+        setErrors(prev => ({ ...prev, password: status.message || '' }))
+      }
+      
+      const attempts = getLoginAttempts(formData.email)
+      if (attempts.lockoutUntil && Date.now() < attempts.lockoutUntil) {
+        setLockoutTime(attempts.lockoutUntil)
+        setRemainingAttempts(0)
+      } else if (attempts.attempts > 0) {
+        setRemainingAttempts(MAX_LOGIN_ATTEMPTS - attempts.attempts)
+      } else {
+        setRemainingAttempts(null)
+      }
+    } else {
+      setIsLocked(false)
+      setRemainingAttempts(null)
+      setLockoutTime(null)
+    }
+  }, [formData.email])
+
+  // Update lockout countdown
+  useEffect(() => {
+    if (!isLocked || !lockoutTime) return
+
+    const interval = setInterval(() => {
+      const now = Date.now()
+      if (now >= lockoutTime) {
+        setIsLocked(false)
+        setLockoutTime(null)
+        setRemainingAttempts(null)
+        if (formData.email) {
+          resetLoginAttempts(formData.email)
+        }
+      } else {
+        const minutesLeft = Math.ceil((lockoutTime - now) / (60 * 1000))
+        setErrors(prev => ({
+          ...prev,
+          password: `Trop de tentatives échouées. Veuillez réessayer dans ${minutesLeft} minute${minutesLeft > 1 ? 's' : ''}.`
+        }))
+      }
+    }, 1000) // Update every second
+
+    return () => clearInterval(interval)
+  }, [isLocked, lockoutTime, formData.email])
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -63,6 +200,17 @@ function LoginPage() {
       return
     }
 
+    // Check if account is locked
+    const loginStatus = checkLoginStatus(formData.email)
+    if (!loginStatus.canLogin) {
+      setErrors({
+        email: '',
+        password: loginStatus.message || 'Trop de tentatives échouées. Veuillez réessayer plus tard.',
+      })
+      setIsLoading(false)
+      return
+    }
+
     setIsLoading(true)
 
     try {
@@ -84,8 +232,11 @@ function LoginPage() {
       const data = await response.json()
 
       if (response.ok) {
-        // Store user info in localStorage
-        localStorage.setItem('user', JSON.stringify({
+        // Reset login attempts on successful login
+        resetLoginAttempts(formData.email)
+        
+        // Store user info in sessionStorage (clears when browser tab closes)
+        sessionStorage.setItem('user', JSON.stringify({
           id: data.id,
           name: data.name,
           email: data.email,
@@ -97,18 +248,44 @@ function LoginPage() {
         // Navigate to home page on successful login
         navigate('/')
       } else {
+        // Increment failed login attempts
+        const attempts = incrementLoginAttempts(formData.email)
+        const remaining = MAX_LOGIN_ATTEMPTS - attempts
+        
+        let errorMessage = data.detail || 'Email ou mot de passe incorrect. Veuillez réessayer.'
+        
+        if (attempts >= MAX_LOGIN_ATTEMPTS) {
+          errorMessage = `Trop de tentatives échouées. Votre compte est verrouillé pendant 30 minutes.`
+          setIsLocked(true)
+          const lockoutUntil = Date.now() + LOCKOUT_DURATION
+          setLockoutTime(lockoutUntil)
+        } else if (remaining > 0) {
+          errorMessage += ` (${remaining} tentative${remaining > 1 ? 's' : ''} restante${remaining > 1 ? 's' : ''})`
+        }
+        
         setErrors({
           email: '',
-          password: data.detail || 'Email ou mot de passe incorrect. Veuillez réessayer.',
+          password: errorMessage,
         })
+        setRemainingAttempts(remaining > 0 ? remaining : 0)
         setIsLoading(false)
       }
     } catch (error) {
       console.error('Login error:', error)
+      // Increment failed login attempts on network error too
+      const attempts = incrementLoginAttempts(formData.email)
+      const remaining = MAX_LOGIN_ATTEMPTS - attempts
+      
+      let errorMessage = 'Une erreur s\'est produite. Veuillez réessayer.'
+      if (remaining > 0 && remaining < MAX_LOGIN_ATTEMPTS) {
+        errorMessage += ` (${remaining} tentative${remaining > 1 ? 's' : ''} restante${remaining > 1 ? 's' : ''})`
+      }
+      
       setErrors({
         email: '',
-        password: 'Une erreur s\'est produite. Veuillez réessayer.',
+        password: errorMessage,
       })
+      setRemainingAttempts(remaining > 0 ? remaining : 0)
       setIsLoading(false)
     }
   }
@@ -206,10 +383,20 @@ function LoginPage() {
               {errors.password && <span className="error-message">{errors.password}</span>}
             </div>
 
+            {remainingAttempts !== null && remainingAttempts < MAX_LOGIN_ATTEMPTS && !isLocked && (
+              <div className="attempts-warning">
+                <span className="attempts-text">
+                  {remainingAttempts > 0 
+                    ? `${remainingAttempts} tentative${remainingAttempts > 1 ? 's' : ''} restante${remainingAttempts > 1 ? 's' : ''}`
+                    : 'Aucune tentative restante'}
+                </span>
+              </div>
+            )}
+
             <button
               type="submit"
-              className={`login-button ${isLoading ? 'loading' : ''}`}
-              disabled={isLoading}
+              className={`login-button ${isLoading ? 'loading' : ''} ${isLocked ? 'disabled' : ''}`}
+              disabled={isLoading || isLocked}
             >
               {isLoading ? (
                 <>

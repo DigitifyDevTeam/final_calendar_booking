@@ -7,7 +7,7 @@ function MetreRoute() {
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
   useEffect(() => {
-    const user = localStorage.getItem('user')
+    const user = sessionStorage.getItem('user')
     if (user) {
       try {
         const userData = JSON.parse(user)

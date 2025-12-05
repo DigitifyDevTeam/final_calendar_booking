@@ -51,7 +51,7 @@ function UtilisateursPage() {
 
   useEffect(() => {
     // Check if user is admin
-    const user = localStorage.getItem('user')
+    const user = sessionStorage.getItem('user')
     if (!user) {
       navigate('/login')
       return
@@ -220,7 +220,7 @@ function UtilisateursPage() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('user')
+    sessionStorage.removeItem('user')
     navigate('/')
   }
 

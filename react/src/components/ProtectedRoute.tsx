@@ -12,7 +12,7 @@ function ProtectedRoute({ children, requireAdmin = false, requireUser = false }:
   const [shouldRender, setShouldRender] = useState(false)
 
   useEffect(() => {
-    const user = localStorage.getItem('user')
+    const user = sessionStorage.getItem('user')
     if (!user) {
       setShouldRender(false)
       setIsLoading(false)

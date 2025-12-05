@@ -32,7 +32,7 @@ function Calendar2Page({ disableAnimations = false, isAdminView = false }: Calen
 
   // Check if user is admin and load users list
   useEffect(() => {
-    const user = localStorage.getItem('user')
+    const user = sessionStorage.getItem('user')
     if (user) {
       const userData = JSON.parse(user)
       if (userData.role === 'admin') {

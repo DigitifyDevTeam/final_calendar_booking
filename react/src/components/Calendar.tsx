@@ -99,7 +99,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
 
   // Check if user is admin, Technicien, or regular user
   useEffect(() => {
-    const user = localStorage.getItem('user')
+    const user = sessionStorage.getItem('user')
     if (user) {
       const userData = JSON.parse(user)
       setIsAdmin(userData.role === 'admin')

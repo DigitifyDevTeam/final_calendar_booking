@@ -53,7 +53,7 @@ function AdminPage() {
 
   useEffect(() => {
     // Check if user is logged in (admin or regular user)
-    const user = localStorage.getItem('user')
+    const user = sessionStorage.getItem('user')
     if (!user) {
       navigate('/login')
       return
@@ -299,7 +299,7 @@ function AdminPage() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('user')
+    sessionStorage.removeItem('user')
     navigate('/')
   }
 

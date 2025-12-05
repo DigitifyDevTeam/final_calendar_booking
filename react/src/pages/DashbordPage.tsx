@@ -70,7 +70,7 @@ function DashbordPage() {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light')
     
     // Check if user is admin
-    const user = localStorage.getItem('user')
+    const user = sessionStorage.getItem('user')
     if (user) {
       const userData = JSON.parse(user)
       setIsAdmin(userData.role === 'admin')
@@ -431,7 +431,7 @@ function DashbordPage() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('user')
+    sessionStorage.removeItem('user')
     navigate('/')
   }
 

@@ -295,6 +295,30 @@
   animation: fadeIn 0.3s ease;
 }
 
+.attempts-warning {
+  margin-top: 8px;
+  margin-bottom: 4px;
+  padding: 8px 12px;
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-radius: 8px;
+  animation: fadeIn 0.3s ease;
+}
+
+.attempts-text {
+  font-size: 13px;
+  color: #ff9800;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.attempts-text::before {
+  content: '⚠️';
+  font-size: 14px;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -390,10 +414,13 @@
   transform: translateY(0);
 }
 
-.login-button:disabled {
+.login-button:disabled,
+.login-button.disabled {
   opacity: 0.7;
   cursor: not-allowed;
   transform: none;
+  background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+  box-shadow: 0 4px 16px rgba(156, 163, 175, 0.3);
 }
 
 .login-button.loading {

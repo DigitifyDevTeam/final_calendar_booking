@@ -6,7 +6,7 @@ function AuthRoute() {
   const navigate = useNavigate()
   
   // Check if user is authenticated
-  const user = localStorage.getItem('user')
+  const user = sessionStorage.getItem('user')
   const isAuthenticated = user ? JSON.parse(user).isAuthenticated : false
 
   useEffect(() => {
