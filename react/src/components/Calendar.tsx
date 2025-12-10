@@ -1045,7 +1045,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                 const isFullyBooked = bookingStatus.isFullyBooked
                 const isDisabled = bookingStatus.isDisabled // This includes both past dates and fully booked dates
                 return (
-                  <div key={index} className={`date-header ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked' : ''}`}>
+                  <div key={index} className={`date-header ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked' : ''} ${!usesTimeSlots(binId) && shouldShowInfoIcon(date) ? 'has-info-icon' : ''}`}>
+                    {/* Info icon on the left side for Pose calendar */}
                     {!usesTimeSlots(binId) && shouldShowInfoIcon(date) && (
                       <div className="date-header-info-left">
                         <button
@@ -2021,23 +2022,27 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                 const bookingStatus = getBookingStatus(date)
                 const isFullyBooked = bookingStatus.isFullyBooked
                 const isDisabled = bookingStatus.isDisabled // This includes both past dates and fully booked dates
+                const hasInfoIcon = !usesTimeSlots(binId) && shouldShowInfoIcon(date)
                 return (
-                  <div key={`fifth-${index}`} className={`date-header ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked' : ''}`}>
+                  <div key={`fifth-${index}`} className={`date-header ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked' : ''} ${hasInfoIcon ? 'has-info-icon' : ''}`}>
+                    {/* Info icon on the left side for Pose calendar */}
+                    {hasInfoIcon && (
+                      <div className="date-header-info-left">
+                        <button
+                          className="calendar-info-button-pose"
+                          onClick={(e) => handleInfoClick(e, date)}
+                          title="Voir les réservations"
+                        >
+                          <InfoIcon />
+                        </button>
+                      </div>
+                    )}
                     <div 
                       className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''}`}
                       onClick={isDateNumberClickable ? (() => !isDisabled && !isFullyBooked && handleDateClick(date)) : undefined}
                       style={{ cursor: !isDateNumberClickable ? 'default' : (isDisabled || isFullyBooked ? 'not-allowed' : 'pointer') }}
                     >
                       <span>{date.getDate()}</span>
-                      {!usesTimeSlots(binId) && shouldShowInfoIcon(date) && (
-                        <button
-                          className="calendar-info-button"
-                          onClick={(e) => handleInfoClick(e, date)}
-                          title="Voir les réservations"
-                        >
-                          <InfoIcon />
-                        </button>
-                      )}
                     </div>
                     {showTimeSlots && (
                       <>

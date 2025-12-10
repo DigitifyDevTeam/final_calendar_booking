@@ -299,6 +299,7 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   position: relative;
+  overflow: visible;
 }
 
 @media (max-width: 768px) {
@@ -550,10 +551,11 @@
 
 /* Info button styles */
 .calendar-info-button {
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: absolute !important;
+  left: -28px !important;
+  right: auto !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
   background: none;
   border: none;
   cursor: pointer;
@@ -573,11 +575,11 @@
 
 /* Pose calendar info icon - dark mode: white, light mode: black */
 .calendar-info-button-pose {
-  position: relative;
-  left: auto;
-  right: auto;
-  top: auto;
-  transform: none;
+  position: absolute !important;
+  left: -28px !important;
+  right: auto !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
   background: none;
   border: none;
   cursor: pointer;
@@ -619,7 +621,7 @@
 
 .calendar-info-button:hover,
 .calendar-info-button-pose:hover {
-  transform: translateY(-50%) scale(1.2);
+  transform: translateY(-50%) scale(1.2) !important;
 }
 
 .calendar-info-button svg,
@@ -631,7 +633,8 @@
 @media (max-width: 768px) {
   .calendar-info-button,
   .calendar-info-button-pose {
-    right: 2px;
+    left: -24px !important;
+    right: auto !important;
     width: 18px;
     height: 18px;
   }
@@ -640,7 +643,8 @@
 @media (max-width: 480px) {
   .calendar-info-button,
   .calendar-info-button-pose {
-    right: 2px;
+    left: -20px !important;
+    right: auto !important;
     width: 16px;
     height: 16px;
   }
@@ -659,10 +663,11 @@
 }
 
 .date-header-info-left .calendar-info-button-pose {
-  position: relative;
-  right: auto;
-  top: auto;
-  transform: none;
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  transform: none !important;
 }
 
 /* Date header actions container for Pose calendar (edit/delete on RIGHT) */
