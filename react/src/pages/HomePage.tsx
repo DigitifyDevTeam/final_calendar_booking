@@ -103,7 +103,7 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
                   🏠
                 </button>
               )}
-              {userRole !== 'concepteur' && (
+              {userRole !== 'concepteur' && userRole !== 'technicien' && (
                 <button style={{
                 position: 'relative',
                 padding: '8px',

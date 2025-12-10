@@ -859,3 +859,29 @@
   color: #ff6b35;
 }
 
+/* Technicien clickable slots - special styling for view-only mode */
+.time-slot.technicien-clickable {
+  cursor: pointer !important;
+  position: relative;
+}
+
+.time-slot.technicien-clickable:hover {
+  background: rgba(250, 84, 28, 0.15) !important;
+  border-color: #fa541c !important;
+}
+
+.time-slot.technicien-clickable::after {
+  content: '👁️';
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.time-slot.technicien-clickable:hover::after {
+  opacity: 1;
+}
+

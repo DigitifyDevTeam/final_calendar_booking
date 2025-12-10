@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import HomePage from './HomePage'
 import Calendar3Page from './Calendar3Page'
@@ -567,6 +568,185 @@ function DashbordPage() {
   const textSecondary = isDarkMode ? '#9ca3af' : '#6b7280'
   const borderColor = isDarkMode ? '#333333' : '#e5e7eb'
 
+  // Render notifications dropdown via portal to avoid clipping/stacking issues
+  const notificationsDropdown = notificationsOpen ? createPortal(
+    <div 
+      data-notifications-dropdown
+      className="notifications-dropdown"
+      style={{
+        position: 'fixed',
+        top: isMobile ? '60px' : '72px',
+        right: isMobile ? '12px' : '24px',
+        width: isMobile ? 'min(420px, calc(100vw - 24px))' : '380px',
+        maxHeight: '70vh',
+        backgroundColor: cardBg,
+        border: `1px solid ${borderColor}`,
+        borderRadius: '12px',
+        boxShadow: '0 24px 60px rgba(0, 0, 0, 0.45)',
+        zIndex: 999999,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        isolation: 'isolate',
+        pointerEvents: 'auto'
+      }}
+    >
+      <div style={{
+        padding: '16px',
+        borderBottom: `1px solid ${borderColor}`,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <h3 style={{
+          margin: 0,
+          fontSize: '16px',
+          fontWeight: 600,
+          color: textColor
+        }}>
+          Notifications
+        </h3>
+        {unreadCount > 0 && (
+          <span style={{
+            fontSize: '12px',
+            color: '#ef4444',
+            fontWeight: 600
+          }}>
+            {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+      <div style={{
+        overflowY: 'auto',
+        maxHeight: '400px',
+        flex: 1
+      }}>
+        {allNotifications.length === 0 ? (
+          <div style={{
+            padding: '40px 20px',
+            textAlign: 'center',
+            color: textSecondary
+          }}>
+            Aucune notification
+          </div>
+        ) : (
+          allNotifications.slice(0, 10).map((notification) => {
+            const timeAgo = getNotificationTimeAgo(notification.timestamp)
+            const getNotificationDetails = () => {
+              if (notification.type === 'booking') {
+                const booking = notification.data as any
+                const calendarName = getCalendarName(booking.calendarId)
+                return {
+                  subtitle: `${booking.name} - ${calendarName}`,
+                  details: `${booking.date} ${booking.time && booking.time !== '21h00' ? `à ${booking.time}` : ''}`,
+                  onClick: () => {
+                    setNotificationsOpen(false)
+                    navigate('/réservation', { state: { highlightBookingId: booking.id, calendarId: booking.calendarId } })
+                  }
+                }
+              } else if (notification.type === 'holiday') {
+                const holiday = notification.data as any
+                const calendarName = getCalendarName(holiday.calendarId)
+                const formatDate = (dateString: string): string => {
+                  const date = new Date(dateString + 'T00:00:00')
+                  return date.toLocaleDateString('fr-FR', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })
+                }
+                const holidayDetails = holiday.date_range ? `Du ${formatDate(holiday.date_range[0])} au ${formatDate(holiday.date_range[1])}` : formatDate(holiday.date)
+                return {
+                  subtitle: `${holiday.title} - ${calendarName}`,
+                  details: holidayDetails,
+                  onClick: () => {
+                    setNotificationsOpen(false)
+                    navigate('/jours-feries')
+                  }
+                }
+              }
+              return { subtitle: '', details: '', onClick: undefined }
+            }
+            
+            const { subtitle, details, onClick } = getNotificationDetails()
+            
+            return (
+              <div 
+                key={notification.id}
+                onClick={onClick}
+                style={{
+                  padding: '14px 16px',
+                  borderBottom: `1px solid ${borderColor}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc',
+                  cursor: onClick ? 'pointer' : 'default',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = isDarkMode ? '#111827' : '#eef2ff'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = isDarkMode ? '#0f172a' : '#f8fafc'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: 700, color: textColor }}>
+                    {notification.title}
+                  </span>
+                  <span style={{ fontSize: '12px', color: textSecondary }}>
+                    {timeAgo}
+                  </span>
+                </div>
+                {subtitle && (
+                  <span style={{ color: textSecondary, fontSize: '13px' }}>
+                    {subtitle}
+                  </span>
+                )}
+                {details && (
+                  <span style={{ color: textSecondary, fontSize: '12px' }}>
+                    {details}
+                  </span>
+                )}
+                <span style={{ color: '#10b981', fontSize: '12px', fontWeight: 600 }}>
+                  Voir le détail
+                </span>
+              </div>
+            )
+          })
+        )}
+      </div>
+      <div style={{
+        padding: '12px 16px',
+        borderTop: `1px solid ${borderColor}`,
+        display: 'flex',
+        justifyContent: 'flex-end'
+      }}>
+        <button
+          onClick={() => {
+            setNotificationsOpen(false)
+            navigate('/notifications')
+          }}
+          style={{
+            padding: '10px 14px',
+            backgroundColor: isDarkMode ? '#111827' : '#f3f4f6',
+            border: `1px solid ${borderColor}`,
+            borderRadius: '8px',
+            color: textColor,
+            cursor: 'pointer',
+            fontWeight: 600,
+            fontSize: '13px'
+          }}
+        >
+          Voir toutes les notifications
+        </button>
+      </div>
+    </div>,
+    document.body
+  ) : null
+
   return (
     <div className="dashboard-container" style={{ display: 'flex', minHeight: '100vh', width: '100%', backgroundColor: bgColor }}>
       {/* Mobile Menu Overlay */}
@@ -642,6 +822,7 @@ function DashbordPage() {
             <span style={{ fontSize: '16px', fontWeight: 600, color: textColor }}>Tableau de Bord</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {!isTechnicien && (
             <button 
               data-notifications-dropdown
               onClick={() => setNotificationsOpen(!notificationsOpen)}
@@ -676,6 +857,7 @@ function DashbordPage() {
                 </span>
               )}
             </button>
+            )}
             <button
               onClick={toggleDarkMode}
               style={{
@@ -897,28 +1079,6 @@ function DashbordPage() {
           
           {(isAdmin || isTechnicien) && calendarsExpanded && (
             <div style={{ paddingLeft: '20px' }}>
-          <SidebarItem
-            Icon={Calendar}
-                title="SAV"
-                isActive={location.pathname === '/sav'}
-            open={sidebarOpen}
-                onClick={() => navigate('/sav')}
-            isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
-            textColor={textColor}
-            textSecondary={textSecondary}
-          />
-            <SidebarItem
-                Icon={Calendar}
-                title="Pose"
-                isActive={location.pathname === '/pose'}
-              open={sidebarOpen}
-                onClick={() => navigate('/pose')}
-              isDarkMode={isDarkMode}
-              orangeColor={orangeColor}
-              textColor={textColor}
-              textSecondary={textSecondary}
-            />
               <SidebarItem
                 Icon={Calendar}
                 title="Metré"
@@ -930,6 +1090,28 @@ function DashbordPage() {
                 textColor={textColor}
                 textSecondary={textSecondary}
               />
+            <SidebarItem
+                Icon={Calendar}
+                title="Pose"
+                isActive={location.pathname === '/pose'}
+              open={sidebarOpen}
+                onClick={() => navigate('/pose')}
+              isDarkMode={isDarkMode}
+              orangeColor={orangeColor}
+              textColor={textColor}
+              textSecondary={textSecondary}
+            />
+          <SidebarItem
+            Icon={Calendar}
+                title="SAV"
+                isActive={location.pathname === '/sav'}
+            open={sidebarOpen}
+                onClick={() => navigate('/sav')}
+            isDarkMode={isDarkMode}
+            orangeColor={orangeColor}
+            textColor={textColor}
+            textSecondary={textSecondary}
+          />
             </div>
           )}
         </div>
@@ -1103,6 +1285,7 @@ function DashbordPage() {
             className="header-actions"
             style={{ display: isMobile ? 'none' : 'flex', alignItems: 'center', gap: '16px', position: 'relative' }}
           >
+            {!isTechnicien && (
             <button 
               data-notifications-dropdown
               onClick={() => setNotificationsOpen(!notificationsOpen)}
@@ -1150,9 +1333,11 @@ function DashbordPage() {
                 </span>
               )}
             </button>
+            )}
             
             {/* Notifications Dropdown */}
-            {notificationsOpen && (
+            {notificationsDropdown}
+            {false && notificationsOpen && (
               <div 
                 data-notifications-dropdown
                 className="notifications-dropdown"
@@ -1165,11 +1350,12 @@ function DashbordPage() {
                   backgroundColor: cardBg,
                   border: `1px solid ${borderColor}`,
                   borderRadius: '12px',
-                  boxShadow: '0 12px 30px rgba(0, 0, 0, 0.25)',
-                  zIndex: 3000,
+                  boxShadow: '0 20px 50px rgba(0, 0, 0, 0.4)',
+                  zIndex: 99999,
                   overflow: 'hidden',
                   display: 'flex',
-                  flexDirection: 'column'
+                  flexDirection: 'column',
+                  isolation: 'isolate'
                 }}
               >
                 <div style={{

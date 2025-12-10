@@ -380,9 +380,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 className={errors.designer ? 'error' : ''}
               >
                 <option value="">Sélectionner un concepteur</option>
-                {users.filter(user => user.role !== 'admin').map(user => (
+                {users.filter(user => user.role === 'concepteur').map(user => (
                   <option key={user.id} value={user.name}>
-                    {user.name} (Concepteur)
+                    {user.name}
                   </option>
                 ))}
               </select>
