@@ -68,17 +68,21 @@ function DashbordPage() {
   const [chartViewMode, setChartViewMode] = useState<'month' | 'week'>('month')
   const [monthOffset, setMonthOffset] = useState<number>(0) // 0 = current month, -1 = previous, +1 = next
   const [weekOffset, setWeekOffset] = useState<number>(0) // 0 = current week, -1 = previous, +1 = next
-  const [topClientsView, setTopClientsView] = useState<'total' | 'month' | 'week'>('month')
+  const [topClientsView, setTopClientsView] = useState<'total' | 'year' | 'month' | 'week'>('month')
+  const [topMonthOffset, setTopMonthOffset] = useState<number>(0) // independent month offset for top concepteurs
+  const [topWeekOffset, setTopWeekOffset] = useState<number>(0) // independent week offset for top concepteurs
+  const [topYearOffset, setTopYearOffset] = useState<number>(0) // independent year offset for top concepteurs
 
   const computeTopClientsByView = (
     bookings: (BookingRecord & { calendarId?: string })[],
-    view: 'total' | 'month' | 'week'
+    view: 'total' | 'year' | 'month' | 'week'
   ) => {
     if (!bookings || bookings.length === 0) return []
 
     const now = new Date()
     const currentYear = now.getFullYear()
     const currentMonth = now.getMonth()
+    const targetYearForView = currentYear + topYearOffset
 
     const startOfWeek = new Date(now)
     const day = startOfWeek.getDay()
@@ -98,11 +102,27 @@ function DashbordPage() {
         return true
       }
 
-      if (view === 'month') {
-        return date.getFullYear() === currentYear && date.getMonth() === currentMonth
+      if (view === 'year') {
+        return date.getFullYear() === targetYearForView
       }
 
-      return date >= startOfWeek && date <= endOfWeek
+      if (view === 'month') {
+        // Apply month offset for top clients when in month view
+        const targetMonthDate = new Date(currentYear, currentMonth + topMonthOffset, 1)
+        return date.getFullYear() === targetMonthDate.getFullYear() &&
+          date.getMonth() === targetMonthDate.getMonth()
+      }
+
+      // Week view: apply week offset
+      const offsetStartOfWeek = new Date(startOfWeek)
+      offsetStartOfWeek.setDate(startOfWeek.getDate() + (topWeekOffset * 7))
+      offsetStartOfWeek.setHours(0, 0, 0, 0)
+
+      const offsetEndOfWeek = new Date(offsetStartOfWeek)
+      offsetEndOfWeek.setDate(offsetStartOfWeek.getDate() + 6)
+      offsetEndOfWeek.setHours(23, 59, 59, 999)
+
+      return date >= offsetStartOfWeek && date <= offsetEndOfWeek
     })
 
     const concepteurCounts: {
@@ -124,27 +144,6 @@ function DashbordPage() {
       .map(([name, counts]) => ({ name, ...counts }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 10)
-  }
-
-  const getCurrentWeekRangeLabel = () => {
-    const now = new Date()
-    const start = new Date(now)
-    const day = start.getDay()
-    const diffToMonday = (day === 0 ? -6 : 1) - day
-    start.setDate(start.getDate() + diffToMonday)
-    start.setHours(0, 0, 0, 0)
-
-    const end = new Date(start)
-    end.setDate(start.getDate() + 6)
-    end.setHours(23, 59, 59, 999)
-
-    const format = (d: Date) =>
-      d.toLocaleDateString('fr-FR', {
-        day: '2-digit',
-        month: '2-digit'
-      })
-
-    return `${format(start)} au ${format(end)}`
   }
 
   useEffect(() => {
@@ -437,10 +436,15 @@ function DashbordPage() {
     setChartData(chartDataPoints)
   }, [allBookingsForChart, chartViewMode, monthOffset, weekOffset])
 
-  // Recompute top concepteurs when view changes or bookings refresh
+  // Recompute top concepteurs when view or top offsets change (independent from chart offsets)
   useEffect(() => {
-    setTopClientsAll(computeTopClientsByView(allBookingsForChart as any, topClientsView))
-  }, [topClientsView, allBookingsForChart])
+    setTopClientsAll(
+      computeTopClientsByView(
+        allBookingsForChart as any,
+        topClientsView
+      )
+    )
+  }, [allBookingsForChart, topClientsView, topMonthOffset, topWeekOffset, topYearOffset])
 
   // Load users count
   useEffect(() => {
@@ -2593,41 +2597,74 @@ function DashbordPage() {
           </div>
 
           {/* Meilleurs Clients - Top Right */}
-          <div style={{
-            backgroundColor: cardBg,
-            borderRadius: '16px',
-            padding: '24px',
-            border: `1px solid ${borderColor}`,
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-            animation: 'fadeInRight 0.7s ease-out',
-            transition: 'all 0.3s ease',
-            cursor: 'pointer',
-            display: 'flex',
-            flexDirection: 'column'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-4px)'
-            e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.15)'
-            e.currentTarget.style.borderColor = borderColor === '#333333' ? '#444444' : '#d1d5db'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)'
-            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)'
-            e.currentTarget.style.borderColor = borderColor
-          }}
+          <div
+            style={{
+              background: isDarkMode
+                ? 'linear-gradient(145deg, rgba(255,108,55,0.14), rgba(16,185,129,0.10))'
+                : 'linear-gradient(145deg, rgba(255,108,55,0.10), rgba(16,185,129,0.08))',
+              borderRadius: '18px',
+              padding: '22px',
+              border: `1px solid ${borderColor}`,
+              boxShadow: '0 12px 30px rgba(0,0,0,0.14)',
+              animation: 'fadeInLeft 0.7s ease-out',
+              transition: 'all 0.3s ease',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+              flex: 1,
+              minHeight: 0
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-4px)'
+              e.currentTarget.style.boxShadow = '0 14px 34px rgba(0,0,0,0.18)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 12px 30px rgba(0,0,0,0.14)'
+            }}
           >
-            <div style={{
-              marginBottom: '16px'
-            }}>
-              <h3 style={{
-                fontSize: '18px',
-                fontWeight: 600,
-                color: textColor
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '12px',
+                  backgroundColor: isDarkMode ? `${orangeColor}25` : `${orangeColor}18`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: orangeColor
+                }}>
+                  <Calendar style={{ width: '18px', height: '18px' }} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: textColor, margin: 0 }}>
+                    Top 10 Clients SAV
+                  </h3>
+                  <p style={{ margin: 0, color: textSecondary, fontSize: '12px' }}>
+                    Les clients les plus actifs sur le SAV
+                  </p>
+                </div>
+              </div>
+              <div style={{
+                padding: '6px 10px',
+                borderRadius: '999px',
+                backgroundColor: isDarkMode ? '#0f172a' : '#eef2ff',
+                color: textSecondary,
+                fontSize: '12px',
+                border: `1px solid ${borderColor}`
               }}>
-                Top 10 Clients SAV
-              </h3>
+                Mise à jour auto
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1' }}>
+
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              flex: 1
+            }}>
               {isLoadingTopClients ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
                   Chargement...
@@ -2642,12 +2679,446 @@ function DashbordPage() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '8px 12px'
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    backgroundColor: isDarkMode ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.7)',
+                    border: `1px solid ${isDarkMode ? '#1f2937' : '#e5e7eb'}`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.06)'
                   }}>
-                    <span style={{ fontSize: '14px', color: textSecondary }}>{client.name}</span>
-                    <span style={{ fontSize: '14px', fontWeight: 500, color: textColor }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                      <div style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '10px',
+                        backgroundColor: i < 3 ? orangeColor : (isDarkMode ? '#111827' : '#e5e7eb'),
+                        color: i < 3 ? '#ffffff' : textSecondary,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 700,
+                        fontSize: '13px'
+                      }}>
+                        {i + 1}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                        <span style={{ fontSize: '14px', color: textColor, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {client.name}
+                        </span>
+                        <span style={{ fontSize: '12px', color: textSecondary }}>
+                          SAV
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{
+                      padding: '8px 12px',
+                      borderRadius: '12px',
+                      backgroundColor: isDarkMode ? 'rgba(16,185,129,0.18)' : 'rgba(16,185,129,0.14)',
+                      color: isDarkMode ? '#10b981' : '#0f9f72',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      border: `1px solid ${isDarkMode ? 'rgba(16,185,129,0.35)' : 'rgba(16,185,129,0.25)'}`
+                    }}>
                       {client.count} {client.count === 1 ? 'réservation' : 'réservations'}
-                    </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Top Clients (All Calendars) - Bottom Right */}
+          <div style={{
+            backgroundColor: cardBg,
+            borderRadius: '16px',
+            padding: '24px',
+            border: `1px solid ${borderColor}`,
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+            animation: 'fadeInRight 0.7s ease-out',
+            transition: 'all 0.3s ease',
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0
+          }}>
+            <div style={{
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 600, color: textColor }}>
+                  Top 10 Concepteurs
+                </h3>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => {
+                    setTopClientsView('total')
+                    setTopMonthOffset(0)
+                    setTopWeekOffset(0)
+                    setTopYearOffset(0)
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    border: `1px solid ${topClientsView === 'total' ? orangeColor : borderColor}`,
+                    backgroundColor: topClientsView === 'total'
+                      ? orangeColor
+                      : 'transparent',
+                    color: topClientsView === 'total' ? '#ffffff' : textSecondary,
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Total
+                </button>
+                <button
+                  onClick={() => {
+                    setTopClientsView('year')
+                    setTopMonthOffset(0)
+                    setTopWeekOffset(0)
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    border: `1px solid ${topClientsView === 'year' ? orangeColor : borderColor}`,
+                    backgroundColor: topClientsView === 'year'
+                      ? orangeColor
+                      : 'transparent',
+                    color: topClientsView === 'year' ? '#ffffff' : textSecondary,
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Par année
+                </button>
+                <button
+                  onClick={() => {
+                    setTopClientsView('month')
+                    setTopWeekOffset(0)
+                    setTopYearOffset(0)
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    border: `1px solid ${topClientsView === 'month' ? orangeColor : borderColor}`,
+                    backgroundColor: topClientsView === 'month'
+                      ? orangeColor
+                      : 'transparent',
+                    color: topClientsView === 'month' ? '#ffffff' : textSecondary,
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Par mois
+                </button>
+                <button
+                  onClick={() => {
+                    setTopClientsView('week')
+                    setTopMonthOffset(0)
+                    setTopYearOffset(0)
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '10px',
+                    border: `1px solid ${topClientsView === 'week' ? orangeColor : borderColor}`,
+                    backgroundColor: topClientsView === 'week'
+                      ? orangeColor
+                      : 'transparent',
+                    color: topClientsView === 'week' ? '#ffffff' : textSecondary,
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Par semaine
+                </button>
+              </div>
+            </div>
+
+            {topClientsView !== 'total' && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                marginTop: '8px',
+                marginBottom: '16px'
+              }}>
+                <button
+                  onClick={() => {
+                    if (topClientsView === 'month') setTopMonthOffset(prev => prev - 1)
+                    if (topClientsView === 'week') setTopWeekOffset(prev => prev - 1)
+                    if (topClientsView === 'year') setTopYearOffset(prev => prev - 1)
+                  }}
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '17px',
+                    border: `1px solid ${borderColor}`,
+                    backgroundColor: isDarkMode ? '#1f1f1f' : '#ffffff',
+                    color: textSecondary,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s',
+                    fontSize: '16px',
+                    fontWeight: 600
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = orangeColor
+                    e.currentTarget.style.color = '#ffffff'
+                    e.currentTarget.style.borderColor = orangeColor
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1f1f1f' : '#ffffff'
+                    e.currentTarget.style.color = textSecondary
+                    e.currentTarget.style.borderColor = borderColor
+                  }}
+                >
+                  ‹
+                </button>
+                <div style={{
+                  minWidth: '170px',
+                  textAlign: 'center',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: textColor,
+                  padding: '8px 16px',
+                  borderRadius: '18px',
+                  backgroundColor: isDarkMode ? '#1f1f1f' : '#f5f5f5',
+                  border: `1px solid ${borderColor}`
+                }}>
+                  {(() => {
+                    if (topClientsView === 'month') {
+                      const fullMonthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
+                      const now = new Date()
+                      const targetDate = new Date(now.getFullYear(), now.getMonth() + topMonthOffset, 1)
+                      return `${fullMonthNames[targetDate.getMonth()]} ${targetDate.getFullYear()}`
+                    }
+                    if (topClientsView === 'week') {
+                      const today = new Date()
+                      const monday = new Date(today)
+                      const dayOfWeek = monday.getDay()
+                      const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+                      monday.setDate(monday.getDate() + diff + (topWeekOffset * 7))
+                      const sunday = new Date(monday)
+                      sunday.setDate(monday.getDate() + 6)
+                      const monthNames = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
+                      const startDay = monday.getDate()
+                      const endDay = sunday.getDate()
+                      const startMonth = monthNames[monday.getMonth()]
+                      const endMonth = monthNames[sunday.getMonth()]
+                      // If week spans two months, show both; else show single month
+                      if (startMonth === endMonth) {
+                        return `${startDay}-${endDay} ${startMonth.charAt(0).toUpperCase()}${startMonth.slice(1)}`
+                      }
+                      return `${startDay} ${startMonth.charAt(0).toUpperCase()}${startMonth.slice(1)} - ${endDay} ${endMonth.charAt(0).toUpperCase()}${endMonth.slice(1)}`
+                    }
+                    return `${new Date().getFullYear() + topYearOffset}`
+                  })()}
+                </div>
+                <button
+                  onClick={() => {
+                    if (topClientsView === 'month') setTopMonthOffset(prev => prev + 1)
+                    if (topClientsView === 'week') setTopWeekOffset(prev => prev + 1)
+                    if (topClientsView === 'year') setTopYearOffset(prev => prev + 1)
+                  }}
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '17px',
+                    border: `1px solid ${borderColor}`,
+                    backgroundColor: isDarkMode ? '#1f1f1f' : '#ffffff',
+                    color: textSecondary,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s',
+                    fontSize: '16px',
+                    fontWeight: 600
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = orangeColor
+                    e.currentTarget.style.color = '#ffffff'
+                    e.currentTarget.style.borderColor = orangeColor
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1f1f1f' : '#ffffff'
+                    e.currentTarget.style.color = textSecondary
+                    e.currentTarget.style.borderColor = borderColor
+                  }}
+                >
+                  ›
+                </button>
+                {topClientsView === 'week' && topWeekOffset !== 0 && (
+                  <button
+                    onClick={() => setTopWeekOffset(0)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      backgroundColor: orangeColor,
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      transition: 'all 0.2s',
+                      boxShadow: `0 2px 8px ${orangeColor}40`
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'scale(1.05)'
+                      e.currentTarget.style.boxShadow = `0 4px 12px ${orangeColor}60`
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)'
+                      e.currentTarget.style.boxShadow = `0 2px 8px ${orangeColor}40`
+                    }}
+                  >
+                    Cette semaine
+                  </button>
+                )}
+                {topClientsView === 'month' && topMonthOffset !== 0 && (
+                  <button
+                    onClick={() => setTopMonthOffset(0)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      backgroundColor: orangeColor,
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      transition: 'all 0.2s',
+                      boxShadow: `0 2px 8px ${orangeColor}40`
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'scale(1.05)'
+                      e.currentTarget.style.boxShadow = `0 4px 12px ${orangeColor}60`
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)'
+                      e.currentTarget.style.boxShadow = `0 2px 8px ${orangeColor}40`
+                    }}
+                  >
+                    Ce mois
+                  </button>
+                )}
+                {topClientsView === 'year' && topYearOffset !== 0 && (
+                  <button
+                    onClick={() => setTopYearOffset(0)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      backgroundColor: orangeColor,
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      transition: 'all 0.2s',
+                      boxShadow: `0 2px 8px ${orangeColor}40`
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'scale(1.05)'
+                      e.currentTarget.style.boxShadow = `0 4px 12px ${orangeColor}60`
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)'
+                      e.currentTarget.style.boxShadow = `0 2px 8px ${orangeColor}40`
+                    }}
+                  >
+                    Cette année
+                  </button>
+                )}
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1' }}>
+              {isLoadingTopClients ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
+                  Chargement...
+                </div>
+              ) : topClientsAll.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
+                  Aucun client
+                </div>
+              ) : (
+                topClientsAll.map((client, i) => (
+                  <div key={i} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 12px',
+                    borderRadius: '12px',
+                    backgroundColor: isDarkMode ? '#0f1115' : '#f5f6fb',
+                    border: `1px solid ${isDarkMode ? '#1f2933' : '#e5e7eb'}`
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                      <span style={{ fontSize: '14px', color: textColor, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {client.name}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+                      <span style={{
+                        padding: '6px 12px',
+                        borderRadius: '12px',
+                        backgroundColor: isDarkMode ? `${orangeColor}25` : `${orangeColor}20`,
+                        color: orangeColor,
+                        fontSize: '13px',
+                        fontWeight: 800,
+                        letterSpacing: '0.1px'
+                      }}>
+                        Pose: {client.pose}
+                      </span>
+                      <span style={{
+                        padding: '6px 12px',
+                        borderRadius: '12px',
+                        backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.12)',
+                        color: '#10b981',
+                        fontSize: '13px',
+                        fontWeight: 800,
+                        letterSpacing: '0.1px'
+                      }}>
+                        SAV: {client.sav}
+                      </span>
+                      <span style={{
+                        padding: '6px 12px',
+                        borderRadius: '12px',
+                        backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.12)',
+                        color: '#3b82f6',
+                        fontSize: '13px',
+                        fontWeight: 800,
+                        letterSpacing: '0.1px'
+                      }}>
+                        Metré: {client.metre}
+                      </span>
+                      <span style={{
+                        padding: '6px 12px',
+                        borderRadius: '12px',
+                        backgroundColor: isDarkMode ? '#111827' : '#e5e7eb',
+                        color: textColor,
+                        fontSize: '13px',
+                        fontWeight: 800,
+                        letterSpacing: '0.1px',
+                        border: `1px solid ${borderColor}`
+                      }}>
+                        Total: {client.total}
+                      </span>
+                    </div>
                   </div>
                 ))
               )}
@@ -2787,169 +3258,8 @@ function DashbordPage() {
                     </div>
                   </div>
                 )
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Top Clients (All Calendars) - Bottom Right */}
-          <div style={{
-            backgroundColor: cardBg,
-            borderRadius: '16px',
-            padding: '24px',
-            border: `1px solid ${borderColor}`,
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-            animation: 'fadeInRight 0.7s ease-out',
-            transition: 'all 0.3s ease',
-            display: 'flex',
-            flexDirection: 'column',
-            flex: 1,
-            minHeight: 0
-          }}>
-            <div style={{
-              marginBottom: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 600, color: textColor }}>
-                Top 10 Concepteurs
-              </h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                {topClientsView === 'week' && (
-                  <span style={{ fontSize: '12px', color: textSecondary }}>
-                    Semaine du {getCurrentWeekRangeLabel()}
-                  </span>
-                )}
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button
-                    onClick={() => setTopClientsView('total')}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: '8px',
-                      border: `1px solid ${topClientsView === 'total' ? orangeColor : borderColor}`,
-                      backgroundColor: topClientsView === 'total'
-                        ? (isDarkMode ? `${orangeColor}20` : `${orangeColor}15`)
-                        : 'transparent',
-                      color: topClientsView === 'total' ? orangeColor : textSecondary,
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    Total
-                  </button>
-                  <button
-                    onClick={() => setTopClientsView('month')}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: '8px',
-                      border: `1px solid ${topClientsView === 'month' ? orangeColor : borderColor}`,
-                      backgroundColor: topClientsView === 'month'
-                        ? (isDarkMode ? `${orangeColor}20` : `${orangeColor}15`)
-                        : 'transparent',
-                      color: topClientsView === 'month' ? orangeColor : textSecondary,
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    Par mois
-                  </button>
-                  <button
-                    onClick={() => setTopClientsView('week')}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: '8px',
-                      border: `1px solid ${topClientsView === 'week' ? orangeColor : borderColor}`,
-                      backgroundColor: topClientsView === 'week'
-                        ? (isDarkMode ? `${orangeColor}20` : `${orangeColor}15`)
-                        : 'transparent',
-                      color: topClientsView === 'week' ? orangeColor : textSecondary,
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    Par semaine
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1' }}>
-              {isLoadingTopClients ? (
-                <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
-                  Chargement...
-                </div>
-              ) : topClientsAll.length === 0 ? (
-                <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
-                  Aucun client
-                </div>
-              ) : (
-                topClientsAll.map((client, i) => (
-                  <div key={i} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 12px',
-                    borderRadius: '12px',
-                    backgroundColor: isDarkMode ? '#0f1115' : '#f5f6fb',
-                    border: `1px solid ${isDarkMode ? '#1f2933' : '#e5e7eb'}`
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                      <span style={{ fontSize: '14px', color: textColor, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {client.name}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: '999px',
-                        backgroundColor: isDarkMode ? `${orangeColor}25` : `${orangeColor}20`,
-                        color: orangeColor,
-                        fontSize: '12px',
-                        fontWeight: 700
-                      }}>
-                        Pose: {client.pose}
-                      </span>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: '999px',
-                        backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.12)',
-                        color: '#10b981',
-                        fontSize: '12px',
-                        fontWeight: 700
-                      }}>
-                        SAV: {client.sav}
-                      </span>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: '999px',
-                        backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.12)',
-                        color: '#3b82f6',
-                        fontSize: '12px',
-                        fontWeight: 700
-                      }}>
-                        Metré: {client.metre}
-                      </span>
-                      <span style={{
-                        padding: '4px 10px',
-                        borderRadius: '10px',
-                        backgroundColor: isDarkMode ? '#111827' : '#e5e7eb',
-                        color: textColor,
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        border: `1px solid ${borderColor}`
-                      }}>
-                        Total: {client.total}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
+              })
+            )}
             </div>
           </div>
                   </div>

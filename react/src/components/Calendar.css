@@ -573,10 +573,11 @@
 
 /* Pose calendar info icon - dark mode: white, light mode: black */
 .calendar-info-button-pose {
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: relative;
+  left: auto;
+  right: auto;
+  top: auto;
+  transform: none;
   background: none;
   border: none;
   cursor: pointer;
@@ -633,6 +634,15 @@
     right: 2px;
     width: 18px;
     height: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .calendar-info-button,
+  .calendar-info-button-pose {
+    right: 2px;
+    width: 16px;
+    height: 16px;
   }
 }
 
