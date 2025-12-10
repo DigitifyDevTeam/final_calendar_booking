@@ -24,6 +24,11 @@ import {
 } from 'lucide-react'
 import './AdminPage.css'
 
+type NavigationState = {
+  highlightBookingId?: string
+  calendarId?: string
+}
+
 function AdminPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -49,6 +54,7 @@ function AdminPage() {
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [infoBooking, setInfoBooking] = useState<any | null>(null)
+  const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null)
   const [usersList, setUsersList] = useState<UserRecord[]>([])
 
   useEffect(() => {
@@ -110,6 +116,35 @@ function AdminPage() {
   useEffect(() => {
     filterBookings()
   }, [bookings, selectedCalendar, searchTerm, dateFilter, currentUser, isAdmin])
+
+  // Handle deep-link navigation (e.g., from dashboard recent bookings)
+  useEffect(() => {
+    const navigationState = (location.state || {}) as NavigationState
+    if (navigationState.calendarId) {
+      setSelectedCalendar(navigationState.calendarId)
+    }
+    if (navigationState.highlightBookingId) {
+      setHighlightBookingId(navigationState.highlightBookingId)
+      setSearchTerm('')
+      setDateFilter('all')
+    }
+    if (navigationState.calendarId || navigationState.highlightBookingId) {
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [location.state, location.pathname, navigate])
+
+  // Scroll to and highlight the targeted booking row
+  useEffect(() => {
+    if (!highlightBookingId) return
+
+    const row = document.getElementById(`booking-row-${highlightBookingId}`)
+    if (!row) return
+
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+    const timer = setTimeout(() => setHighlightBookingId(null), 3000)
+    return () => clearTimeout(timer)
+  }, [highlightBookingId, filteredBookings])
 
   // Load all notifications
   const loadNotifications = async () => {
@@ -288,7 +323,7 @@ function AdminPage() {
   const getRoleLabel = (role: string): string => {
     const roleLabels: { [key: string]: string } = {
       'admin': 'Administrateur',
-      'technicien': 'Technicien',
+      'concepteur': 'Concepteur',
       'user': 'Utilisateur'
     }
     return roleLabels[role] || role
@@ -1110,8 +1145,8 @@ function AdminPage() {
           >
             <option value="all">Tous les calendriers</option>
             <option value={CALENDAR_CONFIGS['calendar1']}>Pose</option>
-            <option value={CALENDAR_CONFIGS['calendar2']}>SAV</option>
-            <option value={CALENDAR_CONFIGS['calendar3']}>Metré</option>
+            <option value={CALENDAR_CONFIGS['calendar2']}>Metré</option>
+            <option value={CALENDAR_CONFIGS['calendar3']}>SAV</option>
           </select>
         </div>
 
@@ -1176,7 +1211,11 @@ function AdminPage() {
                 </thead>
                 <tbody>
                   {filteredBookings.map((booking: any) => (
-                    <tr key={booking.id}>
+                    <tr
+                      key={booking.id}
+                      id={`booking-row-${booking.id}`}
+                      className={highlightBookingId === booking.id ? 'highlighted-booking-row' : ''}
+                    >
                       <td>{formatDate(booking.date)}</td>
                       <td className="time-slot-cell">
                         {booking.time && booking.time !== '21h00' ? booking.time : '-'}

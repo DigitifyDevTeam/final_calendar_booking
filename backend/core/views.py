@@ -10,16 +10,26 @@ from rest_framework.views import APIView
 from .models import Booking, ContactMessage, Holiday, User
 from .serializers import BookingSerializer, ContactMessageSerializer, HolidaySerializer, UserSerializer
 
+CALENDAR_LABELS = {
+    'calendar1': 'Pose',
+    '1': 'Pose',
+    'calendar2': 'Metré',
+    '2': 'Metré',
+    'calendar3': 'SAV',
+    '3': 'SAV',
+}
+
 
 def _notify_booking(booking: Booking, is_update=False):
     """Send email notification for booking creation or update"""
     try:
         action = "modifiée" if is_update else "enregistrée"
-        subject = f"Réservation {action} pour {booking.calendar_id} le {booking.booking_date}"
+        calendar_label = CALENDAR_LABELS.get(booking.calendar_id, booking.calendar_id)
+        subject = f"Réservation {action} pour {calendar_label} le {booking.booking_date}"
         body_lines = [
             f"Une réservation vient d'être {action} :",
             "",
-            f"Calendrier : {booking.calendar_id}",
+            f"Calendrier : {calendar_label}",
             f"Date : {booking.booking_date}",
         ]
 
@@ -186,11 +196,12 @@ class BookingRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     def _notify_booking_deletion(self, booking_info):
         """Send email notification when a booking is deleted"""
         try:
-            subject = f"Réservation supprimée pour {booking_info['calendar_id']} le {booking_info['booking_date']}"
+            calendar_label = CALENDAR_LABELS.get(booking_info['calendar_id'], booking_info['calendar_id'])
+            subject = f"Réservation supprimée pour {calendar_label} le {booking_info['booking_date']}"
             body_lines = [
                 "Une réservation a été supprimée :",
                 "",
-                f"Calendrier : {booking_info['calendar_id']}",
+                f"Calendrier : {calendar_label}",
                 f"Date : {booking_info['booking_date']}",
                 f"Client : {booking_info['client_name']}",
                 "",
@@ -335,14 +346,17 @@ class HolidayListCreateView(generics.ListCreateAPIView):
         try:
             return super().create(request, *args, **kwargs)
         except Exception as e:
-            import traceback
             from django.db import DatabaseError
             from rest_framework.response import Response
             from rest_framework import status
+            import logging
             
             error_message = str(e)
-            print(f"Error in HolidayListCreateView.create: {e}")
-            print(traceback.format_exc())
+
+            logger = logging.getLogger(__name__)
+            # Only log unexpected errors; skip noisy traces for validation/db constraint errors
+            if not (hasattr(e, "detail") or "validation" in error_message.lower()):
+                logger.error(f"Error in HolidayListCreateView.create: {e}", exc_info=True)
             
             # Check if it's a database error (table might not exist)
             if isinstance(e, DatabaseError) or 'no such table' in error_message.lower() or 'does not exist' in error_message.lower():

@@ -82,7 +82,7 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
           </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-            {userRole === 'technicien' && userName && !isAdminView && (
+            {userRole === 'concepteur' && userName && !isAdminView && (
               <div style={{
                 fontSize: '16px',
                 fontWeight: 500,
@@ -103,39 +103,41 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
                   🏠
                 </button>
               )}
-              <button style={{
-              position: 'relative',
-              padding: '8px',
-              borderRadius: '8px',
-              backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-              border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
-              color: isDarkMode ? '#9ca3af' : '#6b7280',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
-              e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
-              e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
-            }}
-            >
-              <Bell style={{ width: '20px', height: '20px' }} />
-              <span style={{
-                position: 'absolute',
-                top: '-4px',
-                right: '-4px',
-                width: '12px',
-                height: '12px',
-                backgroundColor: '#ef4444',
-                borderRadius: '50%'
-              }}></span>
-            </button>
+              {userRole !== 'concepteur' && (
+                <button style={{
+                position: 'relative',
+                padding: '8px',
+                borderRadius: '8px',
+                backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                color: isDarkMode ? '#9ca3af' : '#6b7280',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
+                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
+                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
+              }}
+              >
+                <Bell style={{ width: '20px', height: '20px' }} />
+                <span style={{
+                  position: 'absolute',
+                  top: '-4px',
+                  right: '-4px',
+                  width: '12px',
+                  height: '12px',
+                  backgroundColor: '#ef4444',
+                  borderRadius: '50%'
+                }}></span>
+              </button>
+              )}
           <button 
               onClick={toggleDarkMode}
               style={{

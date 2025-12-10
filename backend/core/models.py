@@ -5,13 +5,14 @@ from django.contrib.auth.hashers import make_password, check_password
 class User(models.Model):
     ROLE_CHOICES = [
         ('admin', 'Administrateur'),
+        ('concepteur', 'Concepteur'),
         ('technicien', 'Technicien'),
     ]
     
     name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=50, blank=True)
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='technicien')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='concepteur')
     password = models.CharField(max_length=255)  # Store hashed password
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -13,7 +13,7 @@ This directory contains JSON files with booking data that need to be imported in
 The JSON files contain the following fields that are mapped to the database:
 
 | JSON Field | Database Field | Notes |
-|-----------|----------------|-------|
+|-----------|----------------|-------|i
 | `id` | (not used) | Auto-generated in database |
 | `date` | `booking_date` | Converted from string to date |
 | `name` | `client_name` | Client name |

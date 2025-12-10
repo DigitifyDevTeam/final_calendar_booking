@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getAllHolidays, addHoliday, updateHoliday, deleteHoliday, HolidayRecord, CALENDAR_CONFIGS, getCalendarName } from '../services/bookingService'
+import { getAllNotifications, NotificationItem, getTimeAgo as getNotificationTimeAgo } from '../services/notificationService'
 import {
   Calendar,
   CalendarCheck,
@@ -16,7 +17,8 @@ import {
   Users,
   Plus,
   Menu,
-  X
+  X,
+  Bell
 } from 'lucide-react'
 import './AdminPage.css'
 
@@ -38,6 +40,9 @@ function HolidaysPage() {
   const [editingHoliday, setEditingHoliday] = useState<HolidayRecord | null>(null)
   const [editHolidayDate, setEditHolidayDate] = useState<string>('')
   const [editHolidayCalendar, setEditHolidayCalendar] = useState<string>('')
+  const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false)
+  const [unreadCount, setUnreadCount] = useState<number>(0)
+  const [allNotifications, setAllNotifications] = useState<NotificationItem[]>([])
 
   useEffect(() => {
     // Check if user is admin
@@ -95,6 +100,29 @@ function HolidaysPage() {
   useEffect(() => {
     loadHolidays()
   }, [holidayCalendar])
+
+  // Load notifications for the header actions
+  useEffect(() => {
+    loadNotifications()
+
+    const handleNotificationRefresh = () => {
+      loadNotifications()
+    }
+    window.addEventListener('notificationRefresh', handleNotificationRefresh)
+    return () => window.removeEventListener('notificationRefresh', handleNotificationRefresh)
+  }, [])
+
+  // Close notifications dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (notificationsOpen && !target.closest('[data-notifications-dropdown]')) {
+        setNotificationsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [notificationsOpen])
 
   const loadHolidays = async () => {
     try {
@@ -215,6 +243,16 @@ function HolidaysPage() {
   const handleLogout = () => {
     sessionStorage.removeItem('user')
     navigate('/')
+  }
+
+  const loadNotifications = async () => {
+    try {
+      const notifications = await getAllNotifications()
+      setAllNotifications(notifications)
+      setUnreadCount(notifications.length)
+    } catch (error) {
+      console.error('Error loading notifications:', error)
+    }
   }
 
   const [orangeColor, setOrangeColor] = useState<string>(() => {
@@ -641,6 +679,284 @@ function HolidaysPage() {
                 <h1>Gestion des jours fériés</h1>
                 <p>Gérer les jours fériés pour tous les calendriers</p>
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', position: 'relative' }}>
+                <button 
+                  data-notifications-dropdown
+                  onClick={() => setNotificationsOpen(!notificationsOpen)}
+                  style={{
+                    position: 'relative',
+                    padding: '8px',
+                    borderRadius: '8px',
+                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    color: isDarkMode ? '#9ca3af' : '#6b7280',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
+                  }}
+                >
+                  <Bell style={{ width: '20px', height: '20px' }} />
+                  {unreadCount > 0 && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '-4px',
+                      right: '-4px',
+                      minWidth: '18px',
+                      height: '18px',
+                      backgroundColor: '#ef4444',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: '#ffffff',
+                      padding: '0 4px'
+                    }}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+                
+                {/* Notifications Dropdown */}
+                {notificationsOpen && (
+                  <div 
+                    data-notifications-dropdown
+                    style={{
+                    position: 'fixed',
+                    top: isMobile ? '60px' : '72px',
+                    right: isMobile ? '12px' : '24px',
+                    width: isMobile ? 'min(420px, calc(100vw - 24px))' : '380px',
+                    maxHeight: '70vh',
+                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    borderRadius: '12px',
+                    boxShadow: '0 12px 30px rgba(0, 0, 0, 0.25)',
+                    zIndex: 3000,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}>
+                    <div style={{
+                      padding: '16px',
+                      borderBottom: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <h3 style={{
+                        margin: 0,
+                        fontSize: '16px',
+                        fontWeight: 600,
+                        color: isDarkMode ? '#ffffff' : '#111827'
+                      }}>
+                        Notifications
+                      </h3>
+                      {unreadCount > 0 && (
+                        <span style={{
+                          fontSize: '12px',
+                          color: '#ef4444',
+                          fontWeight: 600
+                        }}>
+                          {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{
+                      overflowY: 'auto',
+                      maxHeight: '400px',
+                      flex: 1
+                    }}>
+                      {allNotifications.length === 0 ? (
+                        <div style={{
+                          padding: '40px 20px',
+                          textAlign: 'center',
+                          color: isDarkMode ? '#9ca3af' : '#6b7280'
+                        }}>
+                          Aucune notification
+                        </div>
+                      ) : (
+                        allNotifications.slice(0, 10).map((notification) => {
+                          const timeAgo = getNotificationTimeAgo(notification.timestamp)
+                          const getNotificationDetails = () => {
+                            if (notification.type === 'booking') {
+                              const booking = notification.data as any
+                              const calendarName = getCalendarName(booking.calendarId)
+                              return {
+                                title: 'Nouvelle réservation',
+                                subtitle: `${booking.name} - ${calendarName}`,
+                                details: `${booking.date} ${booking.time && booking.time !== '21h00' ? `à ${booking.time}` : ''}`,
+                                onClick: () => navigate('/réservation', { state: { highlightBookingId: booking.id, calendarId: booking.calendarId } })
+                              }
+                            } else if (notification.type === 'holiday') {
+                              const holiday = notification.data as any
+                              const calendarName = getCalendarName(holiday.calendarId)
+                              const formatDate = (dateString: string): string => {
+                                const date = new Date(dateString + 'T00:00:00')
+                                return date.toLocaleDateString('fr-FR', {
+                                  weekday: 'long',
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric'
+                                })
+                              }
+                              return {
+                                title: 'Nouveau jour férié',
+                                subtitle: `${calendarName} - ${formatDate(holiday.holiday_date)}`,
+                                details: 'Jour férié ajouté',
+                                onClick: () => navigate('/jours-feries')
+                              }
+                            } else if (notification.type === 'user') {
+                              const userNotification = notification.data as any
+                              return {
+                                title: 'Nouveau compte',
+                                subtitle: userNotification.name || 'Nouvel utilisateur',
+                                details: userNotification.role === 'admin' ? 'Administrateur' : 'Utilisateur',
+                                onClick: () => navigate('/utilisateurs')
+                              }
+                            }
+                            return {
+                              title: 'Notification',
+                              subtitle: notification.type,
+                              details: '',
+                              onClick: () => {}
+                            }
+                          }
+
+                          const { title, subtitle, details, onClick } = getNotificationDetails()
+
+                          return (
+                            <div 
+                              key={notification.id}
+                              onClick={() => {
+                                setNotificationsOpen(false)
+                                onClick()
+                              }}
+                              style={{
+                                padding: '12px 16px',
+                                borderBottom: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                                cursor: 'pointer',
+                                backgroundColor: isDarkMode ? '#111111' : '#ffffff',
+                                transition: 'background-color 0.2s'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? '#111111' : '#ffffff'}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 600, color: isDarkMode ? '#ffffff' : '#111827' }}>{title}</span>
+                                <span style={{ fontSize: '12px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>{timeAgo}</span>
+                              </div>
+                              <div style={{ fontSize: '13px', color: isDarkMode ? '#9ca3af' : '#374151', marginBottom: '2px' }}>
+                                {subtitle}
+                              </div>
+                              {details && (
+                                <div style={{ fontSize: '12px', color: isDarkMode ? '#6b7280' : '#6b7280' }}>
+                                  {details}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                    {allNotifications.length > 0 && (
+                      <div style={{
+                        padding: '12px 16px',
+                        borderTop: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                        textAlign: 'center'
+                      }}>
+                        <button
+                          onClick={() => {
+                            setNotificationsOpen(false)
+                            if (allNotifications[0]?.type === 'booking') {
+                              navigate('/réservation')
+                            } else if (allNotifications[0]?.type === 'holiday') {
+                              navigate('/jours-feries')
+                            } else {
+                              navigate('/utilisateurs')
+                            }
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#fa541c',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: 500
+                          }}
+                        >
+                          Voir toutes les notifications
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <button
+                  onClick={toggleDarkMode}
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '8px',
+                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                    color: isDarkMode ? '#9ca3af' : '#6b7280',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
+                  }}
+                >
+                  {isDarkMode ? (
+                    <Sun style={{ width: '16px', height: '16px' }} />
+                  ) : (
+                    <Moon style={{ width: '16px', height: '16px' }} />
+                  )}
+                </button>
+                <button 
+                  onClick={handleLogout}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '8px',
+                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    color: isDarkMode ? '#9ca3af' : '#6b7280',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
+                  }}
+                >
+                  <LogOut style={{ width: '20px', height: '20px' }} />
+                </button>
+              </div>
             </div>
           </header>
 
@@ -656,8 +972,8 @@ function HolidaysPage() {
                     onChange={(e) => setNewHolidayCalendar(e.target.value)}
                   >
                     <option value={CALENDAR_CONFIGS['calendar1']}>Pose</option>
-                    <option value={CALENDAR_CONFIGS['calendar2']}>SAV</option>
-                    <option value={CALENDAR_CONFIGS['calendar3']}>Metré</option>
+                    <option value={CALENDAR_CONFIGS['calendar2']}>Metré</option>
+                    <option value={CALENDAR_CONFIGS['calendar3']}>SAV</option>
                   </select>
                 </div>
                 <div className="form-group">
@@ -687,8 +1003,8 @@ function HolidaysPage() {
                 >
                   <option value="all">Tous les calendriers</option>
                   <option value={CALENDAR_CONFIGS['calendar1']}>Pose</option>
-                  <option value={CALENDAR_CONFIGS['calendar2']}>SAV</option>
-                  <option value={CALENDAR_CONFIGS['calendar3']}>Metré</option>
+                <option value={CALENDAR_CONFIGS['calendar2']}>Metré</option>
+                <option value={CALENDAR_CONFIGS['calendar3']}>SAV</option>
                 </select>
               </div>
               
@@ -724,8 +1040,8 @@ function HolidaysPage() {
                                   style={{ padding: '5px', borderRadius: '4px', border: '1px solid #ccc' }}
                                 >
                                   <option value={CALENDAR_CONFIGS['calendar1']}>Pose</option>
-                                  <option value={CALENDAR_CONFIGS['calendar2']}>SAV</option>
-                                  <option value={CALENDAR_CONFIGS['calendar3']}>Metré</option>
+                                  <option value={CALENDAR_CONFIGS['calendar2']}>Metré</option>
+                                  <option value={CALENDAR_CONFIGS['calendar3']}>SAV</option>
                                 </select>
                               </td>
                               <td className="actions-cell">

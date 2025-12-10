@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
                 ('name', models.CharField(max_length=255)),
                 ('email', models.EmailField(max_length=254, unique=True)),
                 ('phone', models.CharField(blank=True, max_length=50)),
-                ('role', models.CharField(choices=[('Admin', 'Administrateur'), ('Technicien', 'Technicien')], default='Technicien', max_length=20)),
+                ('role', models.CharField(choices=[('Admin', 'Administrateur'), ('Concepteur', 'Concepteur')], default='Concepteur', max_length=20)),
                 ('password', models.CharField(max_length=255)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),

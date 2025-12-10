@@ -97,8 +97,8 @@ const apiRequest = async <T>(path: string, options?: RequestInit): Promise<T> =>
 // Calendar name mappings
 export const CALENDAR_NAMES: { [key: string]: string } = {
   'calendar1': 'Pose',
-  'calendar2': 'SAV',
-  'calendar3': 'Metré',
+  'calendar2': 'Metré',
+  'calendar3': 'SAV',
 };
 
 // Get bin ID for a calendar (defaults to calendar1 if not found)
@@ -241,8 +241,8 @@ export const getAllBookings = async (
 // Get max bookings per day for a calendar (default: 3, calendar1: 2)
 const MAX_BOOKINGS_PER_DAY_BY_BIN: { [key: string]: number } = {
   [CALENDAR_CONFIGS['calendar1']]: 2, // Pose calendar (per-day bookings)
-  [CALENDAR_CONFIGS['calendar2']]: 3, // SAV calendar (3 distinct slots)
-  [CALENDAR_CONFIGS['calendar3']]: 8, // Métré calendar (8 distinct slots)
+  [CALENDAR_CONFIGS['calendar2']]: 8, // Metré calendar (per-day capacity for rates)
+  [CALENDAR_CONFIGS['calendar3']]: 3, // SAV calendar (per-day capacity for rates)
 };
 
 export const getMaxBookingsPerDay = (binId?: string): number => {

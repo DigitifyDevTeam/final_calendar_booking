@@ -103,7 +103,7 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
       newErrors.booking_date = 'La date est requise'
     }
 
-    // For time slot calendars (SAV and Metré), time is required
+    // For time slot calendars (Metré and SAV), time is required
     // Use the calendar_id from formData if creating, or from booking if editing
     const currentCalendarId = booking ? (booking.calendarId || formData.calendar_id) : formData.calendar_id
     const timeSlotCalendars = [CALENDAR_CONFIGS['calendar2'], CALENDAR_CONFIGS['calendar3']]
@@ -153,11 +153,11 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
     // Use booking's calendar_id if editing, otherwise use formData.calendar_id
     const calendarId = booking ? (booking.calendarId || formData.calendar_id) : formData.calendar_id
     if (calendarId === CALENDAR_CONFIGS['calendar2']) {
-      // SAV calendar time slots
+      // Metré calendar time slots
       return ['9h00', '10h30', '14h00']
     } else if (calendarId === CALENDAR_CONFIGS['calendar3']) {
-      // Metré calendar time slots
-      return ['8-10', '10-12', '14-16', '16-18']
+      // SAV calendar time slots
+      return ['8:00-11:00', '11:00-14:00', '14:00-17:00']
     }
     return []
   }
@@ -187,8 +187,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
                 className={errors.calendar_id ? 'error' : ''}
               >
                 <option value={CALENDAR_CONFIGS['calendar1']}>Pose</option>
-                <option value={CALENDAR_CONFIGS['calendar2']}>SAV</option>
-                <option value={CALENDAR_CONFIGS['calendar3']}>Metré</option>
+                <option value={CALENDAR_CONFIGS['calendar2']}>Metré</option>
+                <option value={CALENDAR_CONFIGS['calendar3']}>SAV</option>
               </select>
               {errors.calendar_id && <span className="error-message">{errors.calendar_id}</span>}
             </div>
@@ -266,7 +266,7 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
                 <option value="">Sélectionner un concepteur</option>
                 {users.filter(user => user.role !== 'admin').map(user => (
                   <option key={user.id} value={user.name}>
-                    {user.name} (Technicien)
+                    {user.name} (Concepteur)
                   </option>
                 ))}
               </select>

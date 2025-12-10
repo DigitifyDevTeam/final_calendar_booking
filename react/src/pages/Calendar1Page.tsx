@@ -5,6 +5,7 @@ import BookingModal from '../components/BookingModal'
 import NoelDecorations from '../components/NoelDecorations'
 import { addBooking, getBinId as getBinIdFromConfig, type BookingData, getAllBookings, getAllHolidays, BookingRecord, HolidayRecord } from '../services/bookingService'
 import { getAllUsers, UserRecord } from '../services/userService'
+import { Sun, Moon, LogOut } from 'lucide-react'
 import '../App.css'
 
 interface Calendar1PageProps {
@@ -110,6 +111,11 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode)
+  }
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('user')
+    navigate('/')
   }
 
   const handleDateSelect = (date: Date) => {
@@ -261,38 +267,99 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
       </div>
       )}
       <header className={`app-header ${isAdminView ? 'admin-style' : ''}`}>
-        <div className="header-content">
-          {isAdminView ? (
-            <div>
-              <h1>Administration - Pose</h1>
-              <p>Gestion des réservations Pose</p>
-            </div>
-          ) : (
-          <div>
-            <h1>Réservez Votre Rendez-vous de Pose</h1>
-            <p>Sélectionnez une date pour réserver votre rendez-vous</p>
+        <div 
+          className="header-content" 
+          style={{ 
+            display: 'grid',
+            gridTemplateColumns: 'auto 1fr auto',
+            alignItems: 'center',
+            gap: '16px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', minWidth: '80px' }}>
+            {!isAdminView && (
+              <button 
+                className="home-button"
+                onClick={() => navigate('/')}
+                aria-label="Home"
+                title="Accueil"
+              >
+                🏠
+              </button>
+            )}
           </div>
-          )}
-          {!isAdminView && (
-            <>
-          <button 
-            className="home-button"
-            onClick={() => navigate('/')}
-            aria-label="Home"
-            title="Accueil"
-          >
-            🏠
-          </button>
-          <button 
-            className="theme-toggle"
-            onClick={toggleDarkMode}
-            aria-label="Toggle dark mode"
-            title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {isDarkMode ? '🌙' : '☀️'}
-          </button>
-            </>
-          )}
+          
+          <div style={{ textAlign: 'center' }}>
+            {isAdminView ? (
+              <div>
+                <h1>Administration - Pose</h1>
+                <p>Gestion des réservations Pose</p>
+              </div>
+            ) : (
+            <div>
+              <h1>Réservez Votre Rendez-vous de Pose</h1>
+              <p>Sélectionnez une date pour réserver votre rendez-vous</p>
+            </div>
+            )}
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'flex-end', minWidth: '120px' }}>
+            <button 
+              onClick={toggleDarkMode}
+              style={{
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '8px',
+                border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                color: isDarkMode ? '#9ca3af' : '#6b7280',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
+                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
+                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
+              }}
+            >
+              {isDarkMode ? (
+                <Sun style={{ width: '16px', height: '16px' }} />
+              ) : (
+                <Moon style={{ width: '16px', height: '16px' }} />
+              )}
+            </button>
+            <button 
+              onClick={handleLogout}
+              style={{
+                padding: '8px',
+                borderRadius: '8px',
+                backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                color: isDarkMode ? '#9ca3af' : '#6b7280',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
+                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
+                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
+              }}
+            >
+              <LogOut style={{ width: '20px', height: '20px' }} />
+            </button>
+          </div>
         </div>
       </header>
       

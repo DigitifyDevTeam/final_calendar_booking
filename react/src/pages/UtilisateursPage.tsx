@@ -202,6 +202,7 @@ function UtilisateursPage() {
   const getRoleLabel = (role: string): string => {
     const roleLabels: { [key: string]: string } = {
       'admin': 'Administrateur',
+      'concepteur': 'Concepteur',
       'technicien': 'Technicien'
     }
     return roleLabels[role] || role
@@ -210,7 +211,8 @@ function UtilisateursPage() {
   const getRoleBadgeColor = (role: string): string => {
     const roleColors: { [key: string]: string } = {
       'admin': '#fa541c',
-      'technicien': '#17a2b8'
+      'concepteur': '#17a2b8',
+      'technicien': '#28a745'
     }
     return roleColors[role] || '#6c757d'
   }
@@ -1032,6 +1034,7 @@ function UtilisateursPage() {
           >
             <option value="all">Tous les rôles</option>
             <option value="admin">Administrateur</option>
+            <option value="concepteur">Concepteur</option>
             <option value="technicien">Technicien</option>
           </select>
         </div>

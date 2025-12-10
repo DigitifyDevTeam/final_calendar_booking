@@ -13,7 +13,7 @@ export interface UserFormData {
   name: string
   email: string
   phone: string
-  role: 'admin' | 'technicien'
+  role: 'admin' | 'concepteur' | 'technicien'
   password: string
   confirm_password?: string
 }
@@ -29,7 +29,7 @@ const UserModal: React.FC<UserModalProps> = ({
     name: '',
     email: '',
     phone: '',
-    role: 'technicien',
+    role: 'concepteur',
     password: ''
   })
   const [confirmPassword, setConfirmPassword] = useState<string>('')
@@ -42,7 +42,7 @@ const UserModal: React.FC<UserModalProps> = ({
         name: user.name || '',
         email: user.email || '',
         phone: user.phone || '',
-        role: user.role || 'technicien',
+        role: user.role || 'concepteur',
         password: '' // Don't populate password in edit mode
       })
       setConfirmPassword('')
@@ -52,7 +52,7 @@ const UserModal: React.FC<UserModalProps> = ({
         name: '',
         email: '',
         phone: '',
-        role: 'technicien',
+        role: 'concepteur',
         password: ''
       })
       setConfirmPassword('')
@@ -224,6 +224,7 @@ const UserModal: React.FC<UserModalProps> = ({
               onChange={handleInputChange}
               className={errors.role ? 'error' : ''}
             >
+              <option value="concepteur">Concepteur</option>
               <option value="technicien">Technicien</option>
               <option value="admin">Admin</option>
             </select>

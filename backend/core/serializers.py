@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from rest_framework import serializers
 
 from .models import Booking, ContactMessage, Holiday, User
@@ -8,6 +8,10 @@ CALENDAR_DAILY_LIMITS = {
 }
 
 TIME_SLOT_CALENDARS = {'calendar2', 'calendar3'}  # SAV and Metré use time slots
+ALLOWED_TIME_SLOTS = {
+    'calendar3': ['8:00-11:00', '11:00-14:00', '14:00-17:00'],
+    '3': ['8:00-11:00', '11:00-14:00', '14:00-17:00'],
+}
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -124,10 +128,26 @@ class BookingSerializer(serializers.ModelSerializer):
 
         # Only check bookings for future dates (exclude past dates)
         today = date.today()
+        tomorrow = today + timedelta(days=1)
         if booking_date < today:
             raise serializers.ValidationError({
                 'booking_date': 'Vous ne pouvez pas réserver une date passée.'
             })
+        
+        # For Pose calendar (calendar1): Prevent bookings for today and tomorrow
+        # Bookings can only be made from the 3rd day onwards
+        if calendar_id in ['calendar1', '1']:
+            if booking_date <= tomorrow:
+                raise serializers.ValidationError({
+                    'booking_date': 'Pour le calendrier Pose, vous ne pouvez pas réserver pour aujourd\'hui ou demain. Les réservations sont autorisées à partir du surlendemain.'
+                })
+        
+        # For SAV (calendar2) and Metré (calendar3): Prevent bookings for today and tomorrow
+        if calendar_id in ['calendar2', '2', 'calendar3', '3']:
+            if booking_date <= tomorrow:
+                raise serializers.ValidationError({
+                    'booking_date': 'Pour les calendriers SAV et Metré, vous ne pouvez pas réserver pour aujourd\'hui ou demain. Les réservations sont autorisées à partir du surlendemain.'
+                })
         
         # Check if the date is marked as a holiday/invalid day
         # Handle legacy calendar_id formats
@@ -209,6 +229,13 @@ class BookingSerializer(serializers.ModelSerializer):
 
             # Normalize time for comparison (strip whitespace, case-insensitive)
             normalized_booking_time = booking_time.strip()
+
+            # Validate allowed slots for calendars with constrained slots (e.g., Metré)
+            allowed_slots = ALLOWED_TIME_SLOTS.get(calendar_id)
+            if allowed_slots and normalized_booking_time not in allowed_slots:
+                raise serializers.ValidationError({
+                    'booking_time': f'Créneau invalide pour ce calendrier. Créneaux autorisés: {", ".join(allowed_slots)}'
+                })
             # Store normalized time
             attrs['booking_time'] = normalized_booking_time
             

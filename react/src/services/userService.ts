@@ -7,7 +7,7 @@ export interface UserRecord {
   name: string
   email: string
   phone: string
-  role: 'admin' | 'technicien'
+  role: 'admin' | 'concepteur'
   created_at: string
   updated_at: string
 }
@@ -16,7 +16,7 @@ export interface UserFormData {
   name: string
   email: string
   phone: string
-  role: 'admin' | 'technicien'
+  role: 'admin' | 'concepteur'
   password: string
   confirm_password?: string
 }
@@ -91,7 +91,7 @@ const toUserRecord = (data: UserApiResponse): UserRecord => {
     name: data.name,
     email: data.email,
     phone: data.phone || '',
-    role: data.role as 'admin' | 'technicien',
+    role: data.role as 'admin' | 'concepteur',
     created_at: data.created_at,
     updated_at: data.updated_at,
   }

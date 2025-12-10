@@ -74,8 +74,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
   maxBookingsPerDay = 2,
   showDurationField = false
 }) => {
-  // Get user info from localStorage to auto-fill designer for techniciens
-  const [technicienName, setTechnicienName] = useState<string>('')
+  // Get user info from localStorage to auto-fill designer for concepteurs
+  const [concepteurName, setConcepteurName] = useState<string>('')
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   
   useEffect(() => {
@@ -83,8 +83,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
     if (user) {
       try {
         const userData = JSON.parse(user)
-        if (userData.role === 'technicien' && userData.name) {
-          setTechnicienName(userData.name)
+        if (userData.role === 'concepteur' && userData.name) {
+          setConcepteurName(userData.name)
         }
         if (userData.role === 'admin') {
           setIsAdmin(true)
@@ -220,18 +220,18 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
   }, [selectedDate, existingBookings, holidays, maxBookingsPerDay, showDurationField])
   
-  // Update designer field when technicien name is loaded (only if not editing)
+  // Update designer field when concepteur name is loaded (only if not editing)
   useEffect(() => {
-    if (technicienName && !initialData?.designer) {
+    if (concepteurName && !initialData?.designer) {
       setFormData(prev => {
         // Only auto-fill if designer is empty
         if (!prev.designer.trim()) {
-          return { ...prev, designer: technicienName }
+          return { ...prev, designer: concepteurName }
         }
         return prev
       })
     }
-  }, [technicienName, initialData?.designer])
+  }, [concepteurName, initialData?.designer])
 
   // Update form data when initialData changes (for editing)
   useEffect(() => {
@@ -382,7 +382,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 <option value="">Sélectionner un concepteur</option>
                 {users.filter(user => user.role !== 'admin').map(user => (
                   <option key={user.id} value={user.name}>
-                    {user.name} (Technicien)
+                    {user.name} (Concepteur)
                   </option>
                 ))}
               </select>
@@ -395,8 +395,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 onChange={handleInputChange}
                 className={errors.designer ? 'error' : ''}
                 placeholder="Entrez le nom du concepteur"
-                readOnly={!!technicienName}
-                style={technicienName ? { 
+                readOnly={!!concepteurName}
+                style={concepteurName ? { 
                   backgroundColor: isDarkMode ? '#555' : '#f5f5f5', 
                   cursor: 'not-allowed',
                   opacity: 0.8
@@ -404,7 +404,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
               />
             )}
             {errors.designer && <span className="error-message">{errors.designer}</span>}
-            {technicienName && !isAdmin && (
+            {concepteurName && !isAdmin && (
               <small style={{ color: '#666', fontSize: '12px', marginTop: '4px', display: 'block' }}>
                 ✓ Automatiquement rempli avec votre nom (non modifiable)
               </small>

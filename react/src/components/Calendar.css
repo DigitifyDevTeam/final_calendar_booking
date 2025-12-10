@@ -244,7 +244,7 @@
 
 .date-header {
   text-align: center;
-  padding: 16px 12px;
+  padding: 16px 28px; /* extra horizontal room for left/right absolute icons */
   border: 1px solid #646464;
   border-radius: 12px;
   backdrop-filter: blur(10px);
@@ -254,13 +254,24 @@
   gap: 12px;
   min-width: 0;
   overflow: hidden;
+  position: relative; /* anchor absolute-positioned info icon inside the date box */
+}
+
+.date-header.has-info-icon {
+  padding-left: 44px;
+  padding-right: 24px;
 }
 
 @media (max-width: 768px) {
   .date-header {
-    padding: 8px 2px;
+    padding: 8px 20px; /* keep room for icons on small screens */
     gap: 6px;
     border-radius: 8px;
+  }
+  
+  .date-header.has-info-icon {
+    padding-left: 36px;
+    padding-right: 16px;
   }
 }
 
@@ -385,14 +396,16 @@
 
 .calendar.dark-mode .time-slot.disabled {
   background: #1a1a1a !important;
-  color: #666666 !important;
+  color: #ffffff !important;
   border-color: #333333 !important;
+  opacity: 1 !important; /* keep reserved text readable in dark mode */
 }
 
 .calendar.light-mode .time-slot.disabled {
   background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%) !important;
-  color: #94a3b8 !important;
+  color: #1a1a1a !important;
   border-color: #cbd5e1 !important;
+  opacity: 1 !important; /* keep reserved text readable in light mode */
 }
 
 .day-name {
@@ -626,9 +639,9 @@
 /* Date header info button container on LEFT side for Pose calendar */
 .date-header-info-left {
   position: absolute;
-  left: 4px;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 10px;
+  top: 12px;
+  transform: none;
   display: flex;
   align-items: center;
   z-index: 10;
@@ -656,7 +669,7 @@
   pointer-events: auto;
 }
 
-/* Edit and Delete buttons for Pose calendar (technicien) */
+/* Edit and Delete buttons for Pose calendar (concepteur) */
 .calendar-edit-button-pose,
 .calendar-delete-button-pose {
   background: none;
@@ -713,7 +726,7 @@
   z-index: 10;
 }
 
-/* Edit and Delete buttons for Metré and SAV calendars (technicien) */
+/* Edit and Delete buttons for Metré and SAV calendars (concepteur) */
 .calendar-edit-button,
 .calendar-delete-button {
   background: none;

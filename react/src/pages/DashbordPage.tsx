@@ -39,6 +39,7 @@ function DashbordPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
+  const [isTechnicien, setIsTechnicien] = useState<boolean>(false)
   const [chartAnimation, setChartAnimation] = useState(false)
   const [recentBookings, setRecentBookings] = useState<BookingRecord[]>([])
   const [isLoadingBookings, setIsLoadingBookings] = useState(true)
@@ -52,6 +53,9 @@ function DashbordPage() {
   const [poseBookings, setPoseBookings] = useState<number>(0)
   const [metreBookings, setMetreBookings] = useState<number>(0)
   const [chartData, setChartData] = useState<Array<{ month: string; Metré: number; Pose: number; SAV: number; day?: number; cumulMetré?: number; cumulPose?: number; cumulSAV?: number }>>([])
+  const [topClientsAll, setTopClientsAll] = useState<
+    Array<{ name: string; pose: number; sav: number; metre: number; total: number }>
+  >([])
   const [allBookingsForChart, setAllBookingsForChart] = useState<BookingRecord[]>([])
   const [bookingRate, setBookingRate] = useState<number>(0)
   const [poseRate, setPoseRate] = useState<number>(0)
@@ -64,16 +68,95 @@ function DashbordPage() {
   const [chartViewMode, setChartViewMode] = useState<'month' | 'week'>('month')
   const [monthOffset, setMonthOffset] = useState<number>(0) // 0 = current month, -1 = previous, +1 = next
   const [weekOffset, setWeekOffset] = useState<number>(0) // 0 = current week, -1 = previous, +1 = next
+  const [topClientsView, setTopClientsView] = useState<'total' | 'month' | 'week'>('month')
+
+  const computeTopClientsByView = (
+    bookings: (BookingRecord & { calendarId?: string })[],
+    view: 'total' | 'month' | 'week'
+  ) => {
+    if (!bookings || bookings.length === 0) return []
+
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth()
+
+    const startOfWeek = new Date(now)
+    const day = startOfWeek.getDay()
+    const diffToMonday = (day === 0 ? -6 : 1) - day
+    startOfWeek.setDate(startOfWeek.getDate() + diffToMonday)
+    startOfWeek.setHours(0, 0, 0, 0)
+
+    const endOfWeek = new Date(startOfWeek)
+    endOfWeek.setDate(startOfWeek.getDate() + 6)
+    endOfWeek.setHours(23, 59, 59, 999)
+
+    const filtered = bookings.filter((booking: any) => {
+      const date = new Date(booking.date + 'T00:00:00')
+      if (Number.isNaN(date.getTime())) return false
+
+      if (view === 'total') {
+        return true
+      }
+
+      if (view === 'month') {
+        return date.getFullYear() === currentYear && date.getMonth() === currentMonth
+      }
+
+      return date >= startOfWeek && date <= endOfWeek
+    })
+
+    const concepteurCounts: {
+      [key: string]: { pose: number; sav: number; metre: number; total: number }
+    } = {}
+
+    filtered.forEach((booking: any) => {
+      const concepteurName = booking.designer || booking.name || 'Inconnu'
+      const entry = concepteurCounts[concepteurName] || { pose: 0, sav: 0, metre: 0, total: 0 }
+      const calendarId = booking.calendarId
+      if (calendarId === 'calendar1') entry.pose += 1
+      else if (calendarId === 'calendar2') entry.metre += 1
+      else if (calendarId === 'calendar3') entry.sav += 1
+      entry.total = entry.pose + entry.sav + entry.metre
+      concepteurCounts[concepteurName] = entry
+    })
+
+    return Object.entries(concepteurCounts)
+      .map(([name, counts]) => ({ name, ...counts }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10)
+  }
+
+  const getCurrentWeekRangeLabel = () => {
+    const now = new Date()
+    const start = new Date(now)
+    const day = start.getDay()
+    const diffToMonday = (day === 0 ? -6 : 1) - day
+    start.setDate(start.getDate() + diffToMonday)
+    start.setHours(0, 0, 0, 0)
+
+    const end = new Date(start)
+    end.setDate(start.getDate() + 6)
+    end.setHours(23, 59, 59, 999)
+
+    const format = (d: Date) =>
+      d.toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit'
+      })
+
+    return `${format(start)} au ${format(end)}`
+  }
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode))
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light')
     
-    // Check if user is admin
+    // Check if user is admin or technicien
     const user = sessionStorage.getItem('user')
     if (user) {
       const userData = JSON.parse(user)
       setIsAdmin(userData.role === 'admin')
+      setIsTechnicien(userData.role === 'technicien')
     }
   }, [isDarkMode])
 
@@ -141,8 +224,8 @@ function DashbordPage() {
 
         // Calculate real statistics
         const poseCount = bookingArrays[0]?.length || 0 // calendar1 = Pose
-        const savCount = bookingArrays[1]?.length || 0 // calendar2 = SAV
-        const metreCount = bookingArrays[2]?.length || 0 // calendar3 = Metré
+        const metreCount = bookingArrays[1]?.length || 0 // calendar2 = Metré
+        const savCount = bookingArrays[2]?.length || 0 // calendar3 = SAV
         
         setTotalBookings(allBookings.length)
         setPoseBookings(poseCount)
@@ -162,22 +245,22 @@ function DashbordPage() {
           return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear
         }) || []
         
-        const savBookingsThisMonth = bookingArrays[1]?.filter(booking => {
+        const metreBookingsThisMonth = bookingArrays[1]?.filter(booking => {
           const bookingDate = new Date(booking.date)
           return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear
         }) || []
         
-        const metreBookingsThisMonth = bookingArrays[2]?.filter(booking => {
+        const savBookingsThisMonth = bookingArrays[2]?.filter(booking => {
           const bookingDate = new Date(booking.date)
           return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear
         }) || []
         
         // Calculate rates based on capacity
-        // Pose: 2 slots per day, Metré: 1 slot per day, SAV: 1 slot per day
+        // Pose: 2 per day, Metré: 8 per day, SAV: 3 per day
         const poseCapacity = daysInMonth * 2
-        const metreCapacity = daysInMonth * 1
-        const savCapacity = daysInMonth * 1
-        const totalCapacity = daysInMonth * 4 // 2 + 1 + 1
+        const metreCapacity = daysInMonth * 8
+        const savCapacity = daysInMonth * 3
+        const totalCapacity = poseCapacity + metreCapacity + savCapacity
         
         const calculatedPoseRate = poseCapacity > 0 ? Math.round((poseBookingsThisMonth.length / poseCapacity) * 100) : 0
         const calculatedMetreRate = metreCapacity > 0 ? Math.round((metreBookingsThisMonth.length / metreCapacity) * 100) : 0
@@ -197,11 +280,11 @@ function DashbordPage() {
         // Process recent bookings (top 5 most recent)
         const sortedBookings = allBookings
           .sort((a, b) => b.timestamp - a.timestamp)
-          .slice(0, 5)
+          .slice(0, 10)
         setRecentBookings(sortedBookings)
 
         // Process top clients (SAV calendar only)
-        const savBookingsOnly = allBookings.filter(booking => (booking as any).calendarId === 'calendar2')
+        const savBookingsOnly = allBookings.filter(booking => (booking as any).calendarId === 'calendar3')
         const clientCounts: { [key: string]: number } = {}
         savBookingsOnly.forEach(booking => {
           const clientName = booking.name
@@ -217,9 +300,12 @@ function DashbordPage() {
           .slice(0, 10)
         
         setTopClients(topClientsList)
+
+        setTopClientsAll(computeTopClientsByView(allBookings as any, topClientsView))
       } catch (error) {
         console.error('Error loading bookings data:', error)
         setTopClients([])
+        setTopClientsAll([])
       } finally {
         setIsLoadingBookings(false)
         setIsLoadingTopClients(false)
@@ -264,9 +350,9 @@ function DashbordPage() {
           return false
         })
         
-        const metreDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar3').length
+        const metreDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar2').length
         const poseDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar1').length
-        const savDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar2').length
+        const savDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar3').length
         
         // Accumulate totals
         cumulMetré += metreDayCount
@@ -321,9 +407,9 @@ function DashbordPage() {
           return false
         })
         
-        const metreDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar3').length
+        const metreDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar2').length
         const poseDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar1').length
-        const savDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar2').length
+        const savDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar3').length
         
         // Accumulate totals
         cumulMetré += metreDayCount
@@ -350,6 +436,11 @@ function DashbordPage() {
 
     setChartData(chartDataPoints)
   }, [allBookingsForChart, chartViewMode, monthOffset, weekOffset])
+
+  // Recompute top concepteurs when view changes or bookings refresh
+  useEffect(() => {
+    setTopClientsAll(computeTopClientsByView(allBookingsForChart as any, topClientsView))
+  }, [topClientsView, allBookingsForChart])
 
   // Load users count
   useEffect(() => {
@@ -407,6 +498,7 @@ function DashbordPage() {
     : 5
   // Round up to nearest multiple of 5 for cleaner labels (5, 10, 15, 20, etc.)
   const maxValue = Math.max(5, Math.ceil(rawMaxValue / 5) * 5)
+  const clampY = (value: number) => Math.min(380, Math.max(0, value)) // keep chart above X-axis
 
   // Helper function to calculate time ago
   const getTimeAgo = (timestamp: number): string => {
@@ -799,14 +891,14 @@ function DashbordPage() {
           )}
           </button>
           
-          {isAdmin && calendarsExpanded && (
+          {(isAdmin || isTechnicien) && calendarsExpanded && (
             <div style={{ paddingLeft: '20px' }}>
           <SidebarItem
             Icon={Calendar}
-                title="Metré"
-                isActive={location.pathname === '/metre'}
+                title="SAV"
+                isActive={location.pathname === '/sav'}
             open={sidebarOpen}
-                onClick={() => navigate('/metre')}
+                onClick={() => navigate('/sav')}
             isDarkMode={isDarkMode}
             orangeColor={orangeColor}
             textColor={textColor}
@@ -825,10 +917,10 @@ function DashbordPage() {
             />
               <SidebarItem
                 Icon={Calendar}
-                title="SAV"
-                isActive={location.pathname === '/sav'}
+                title="Metré"
+                isActive={location.pathname === '/metre'}
                 open={sidebarOpen}
-                onClick={() => navigate('/sav')}
+                onClick={() => navigate('/metre')}
                 isDarkMode={isDarkMode}
                 orangeColor={orangeColor}
                 textColor={textColor}
@@ -947,7 +1039,7 @@ function DashbordPage() {
         className="dashboard-main"
         style={{
           flex: 1,
-          overflow: 'auto',
+          overflow: 'visible',
           backgroundColor: bgColor,
           display: 'flex',
           flexDirection: 'column',
@@ -957,11 +1049,11 @@ function DashbordPage() {
         {location.pathname === '/calendrier' ? (
           <HomePage disableAnimations={true} isAdminView={true} />
         ) : location.pathname === '/metre' ? (
-          <Calendar3Page disableAnimations={true} isAdminView={true} />
+          <Calendar2Page disableAnimations={true} isAdminView={true} />
         ) : location.pathname === '/pose' ? (
           <Calendar1Page disableAnimations={true} isAdminView={true} />
         ) : location.pathname === '/sav' ? (
-          <Calendar2Page disableAnimations={true} isAdminView={true} />
+          <Calendar3Page disableAnimations={true} isAdminView={true} />
         ) : (
           <div 
             className="dashboard-content"
@@ -1061,17 +1153,16 @@ function DashbordPage() {
                 data-notifications-dropdown
                 className="notifications-dropdown"
                 style={{
-                  position: isMobile ? 'fixed' : 'absolute',
-                  top: isMobile ? '60px' : '50px',
-                  right: isMobile ? '0' : '0',
-                  left: isMobile ? '0' : 'auto',
-                  width: isMobile ? '100%' : '380px',
-                  maxHeight: isMobile ? 'calc(100vh - 60px)' : '500px',
+                  position: 'fixed',
+                  top: isMobile ? '60px' : '72px',
+                  right: isMobile ? '12px' : '24px',
+                  width: isMobile ? 'min(420px, calc(100vw - 24px))' : '380px',
+                  maxHeight: '70vh',
                   backgroundColor: cardBg,
-                  border: isMobile ? 'none' : `1px solid ${borderColor}`,
-                  borderRadius: isMobile ? '0' : '12px',
-                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
-                  zIndex: 1000,
+                  border: `1px solid ${borderColor}`,
+                  borderRadius: '12px',
+                  boxShadow: '0 12px 30px rgba(0, 0, 0, 0.25)',
+                  zIndex: 3000,
                   overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column'
@@ -1125,10 +1216,10 @@ function DashbordPage() {
                           return {
                             subtitle: `${booking.name} - ${calendarName}`,
                             details: `${booking.date} ${booking.time && booking.time !== '21h00' ? `à ${booking.time}` : ''}`,
-                            onClick: () => {
-                              setNotificationsOpen(false)
-                              navigate('/réservation')
-                            }
+                                onClick: () => {
+                                  setNotificationsOpen(false)
+                                  navigate('/réservation', { state: { highlightBookingId: booking.id, calendarId: booking.calendarId } })
+                                }
                           }
                         } else if (notification.type === 'holiday') {
                           const holiday = notification.data as any
@@ -1155,6 +1246,7 @@ function DashbordPage() {
                           const getRoleLabel = (role: string): string => {
                             const roleLabels: { [key: string]: string } = {
                               'admin': 'Administrateur',
+                              'concepteur': 'Concepteur',
                               'technicien': 'Technicien',
                               'user': 'Utilisateur'
                             }
@@ -1335,7 +1427,7 @@ function DashbordPage() {
           <StatCardContent
             title="Taux d'engorgement"
             value={`${bookingRate} %`}
-            change={`Pose: ${poseRate}% | Metré: ${metreRate}% | SAV: ${savRate}%`}
+            change={`Pose: ${poseRate}% | SAV: ${savRate}% | Metré: ${metreRate}%`}
             Icon={Percent}
             iconBg={isDarkMode ? `${orangeColor}30` : `${orangeColor}20`}
             iconColor={orangeColor}
@@ -1359,7 +1451,7 @@ function DashbordPage() {
           <StatCardContent
             title="Total Réservations"
             value={totalBookings.toLocaleString('fr-FR')}
-            change={`Pose: ${poseBookings} | Metré: ${metreBookings}  | SAV: ${savBookings}`}
+            change={`Pose: ${poseBookings} | SAV: ${savBookings} | Metré: ${metreBookings}`}
             Icon={CalendarCheck}
             iconBg={isDarkMode ? '#8b5cf630' : '#8b5cf620'}
             iconColor="#8b5cf6"
@@ -1956,7 +2048,7 @@ function DashbordPage() {
                         const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
                         const points: {x: number, y: number}[] = chartData.map((data, index) => ({
                           x: (index / divisor) * chartWidth,
-                          y: 380 - (data.Metré / maxValue) * 380
+                          y: clampY(380 - (data.Metré / maxValue) * 380)
                         }))
                         
                         // Create smooth curve using cardinal spline
@@ -1968,9 +2060,9 @@ function DashbordPage() {
                           const p3 = points[Math.min(points.length - 1, i + 2)]
                           
                           const cp1x = p1.x + (p2.x - p0.x) / 6
-                          const cp1y = p1.y + (p2.y - p0.y) / 6
+                          const cp1y = clampY(p1.y + (p2.y - p0.y) / 6)
                           const cp2x = p2.x - (p3.x - p1.x) / 6
-                          const cp2y = p2.y - (p3.y - p1.y) / 6
+                          const cp2y = clampY(p2.y - (p3.y - p1.y) / 6)
                           
                           path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
                         }
@@ -1993,7 +2085,7 @@ function DashbordPage() {
                         const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
                         const points: {x: number, y: number}[] = chartData.map((data, index) => ({
                           x: (index / divisor) * chartWidth,
-                          y: 380 - (data.Pose / maxValue) * 380
+                          y: clampY(380 - (data.Pose / maxValue) * 380)
                         }))
                         
                         let path = `M ${points[0].x} 380 L ${points[0].x} ${points[0].y}`
@@ -2004,9 +2096,9 @@ function DashbordPage() {
                           const p3 = points[Math.min(points.length - 1, i + 2)]
                           
                           const cp1x = p1.x + (p2.x - p0.x) / 6
-                          const cp1y = p1.y + (p2.y - p0.y) / 6
+                          const cp1y = clampY(p1.y + (p2.y - p0.y) / 6)
                           const cp2x = p2.x - (p3.x - p1.x) / 6
-                          const cp2y = p2.y - (p3.y - p1.y) / 6
+                          const cp2y = clampY(p2.y - (p3.y - p1.y) / 6)
                           
                           path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
                         }
@@ -2029,7 +2121,7 @@ function DashbordPage() {
                         const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
                         const points: {x: number, y: number}[] = chartData.map((data, index) => ({
                           x: (index / divisor) * chartWidth,
-                          y: 380 - (data.SAV / maxValue) * 380
+                          y: clampY(380 - (data.SAV / maxValue) * 380)
                         }))
                         
                         let path = `M ${points[0].x} 380 L ${points[0].x} ${points[0].y}`
@@ -2040,9 +2132,9 @@ function DashbordPage() {
                           const p3 = points[Math.min(points.length - 1, i + 2)]
                           
                           const cp1x = p1.x + (p2.x - p0.x) / 6
-                          const cp1y = p1.y + (p2.y - p0.y) / 6
+                          const cp1y = clampY(p1.y + (p2.y - p0.y) / 6)
                           const cp2x = p2.x - (p3.x - p1.x) / 6
-                          const cp2y = p2.y - (p3.y - p1.y) / 6
+                          const cp2y = clampY(p2.y - (p3.y - p1.y) / 6)
                           
                           path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
                         }
@@ -2065,7 +2157,7 @@ function DashbordPage() {
                         const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
                         const points: {x: number, y: number}[] = chartData.map((data, index) => ({
                           x: (index / divisor) * chartWidth,
-                          y: 380 - (data.Metré / maxValue) * 380
+                          y: clampY(380 - (data.Metré / maxValue) * 380)
                         }))
                         
                         let path = `M ${points[0].x} ${points[0].y}`
@@ -2076,9 +2168,9 @@ function DashbordPage() {
                           const p3 = points[Math.min(points.length - 1, i + 2)]
                           
                           const cp1x = p1.x + (p2.x - p0.x) / 6
-                          const cp1y = p1.y + (p2.y - p0.y) / 6
+                          const cp1y = clampY(p1.y + (p2.y - p0.y) / 6)
                           const cp2x = p2.x - (p3.x - p1.x) / 6
-                          const cp2y = p2.y - (p3.y - p1.y) / 6
+                          const cp2y = clampY(p2.y - (p3.y - p1.y) / 6)
                           
                           path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
                         }
@@ -2106,7 +2198,7 @@ function DashbordPage() {
                         const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
                         const points: {x: number, y: number}[] = chartData.map((data, index) => ({
                           x: (index / divisor) * chartWidth,
-                          y: 380 - (data.Pose / maxValue) * 380
+                          y: clampY(380 - (data.Pose / maxValue) * 380)
                         }))
                         
                         let path = `M ${points[0].x} ${points[0].y}`
@@ -2117,9 +2209,9 @@ function DashbordPage() {
                           const p3 = points[Math.min(points.length - 1, i + 2)]
                           
                           const cp1x = p1.x + (p2.x - p0.x) / 6
-                          const cp1y = p1.y + (p2.y - p0.y) / 6
+                          const cp1y = clampY(p1.y + (p2.y - p0.y) / 6)
                           const cp2x = p2.x - (p3.x - p1.x) / 6
-                          const cp2y = p2.y - (p3.y - p1.y) / 6
+                          const cp2y = clampY(p2.y - (p3.y - p1.y) / 6)
                           
                           path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
                         }
@@ -2147,7 +2239,7 @@ function DashbordPage() {
                         const divisor = chartData.length > 1 ? (chartData.length - 1) : 1
                         const points: {x: number, y: number}[] = chartData.map((data, index) => ({
                           x: (index / divisor) * chartWidth,
-                          y: 380 - (data.SAV / maxValue) * 380
+                          y: clampY(380 - (data.SAV / maxValue) * 380)
                         }))
                         
                         let path = `M ${points[0].x} ${points[0].y}`
@@ -2158,9 +2250,9 @@ function DashbordPage() {
                           const p3 = points[Math.min(points.length - 1, i + 2)]
                           
                           const cp1x = p1.x + (p2.x - p0.x) / 6
-                          const cp1y = p1.y + (p2.y - p0.y) / 6
+                          const cp1y = clampY(p1.y + (p2.y - p0.y) / 6)
                           const cp2x = p2.x - (p3.x - p1.x) / 6
-                          const cp2y = p2.y - (p3.y - p1.y) / 6
+                          const cp2y = clampY(p2.y - (p3.y - p1.y) / 6)
                           
                           path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
                         }
@@ -2189,9 +2281,9 @@ function DashbordPage() {
                     const hasData = data.Metré > 0 || data.Pose > 0 || data.SAV > 0
                     
                     // Calculate Y positions for tooltip positioning
-                    const metreY = 380 - (data.Metré / maxValue) * 380
-                    const poseY = 380 - (data.Pose / maxValue) * 380
-                    const savY = 380 - (data.SAV / maxValue) * 380
+                    const metreY = clampY(380 - (data.Metré / maxValue) * 380)
+                    const poseY = clampY(380 - (data.Pose / maxValue) * 380)
+                    const savY = clampY(380 - (data.SAV / maxValue) * 380)
                     
                     return (
                       <g 
@@ -2413,7 +2505,7 @@ function DashbordPage() {
                                       ? data.month || `Jour ${data.day}`
                                       : (data.day ? `Jour ${data.day}` : data.month)}
                                   </text>
-                                  {/* Metré value - show cumulative for both month and week view */}
+                                  {/* Metré value - show day count */}
                                   <circle cx={tooltipX + 15} cy={tooltipY + 42} r="4" fill="#3b82f6" />
                                   <text
                                     x={tooltipX + 25}
@@ -2431,9 +2523,9 @@ function DashbordPage() {
                                     fontWeight="600"
                                     fill="#3b82f6"
                                   >
-                                    {data.cumulMetré !== undefined ? data.cumulMetré : data.Metré}
+                                    {data.Metré}
                                   </text>
-                                  {/* Pose value - show cumulative for both month and week view */}
+                                  {/* Pose value - show day count */}
                                   <circle cx={tooltipX + 15} cy={tooltipY + 60} r="4" fill={orangeColor} />
                                   <text
                                     x={tooltipX + 25}
@@ -2451,9 +2543,9 @@ function DashbordPage() {
                                     fontWeight="600"
                                     fill={orangeColor}
                                   >
-                                    {data.cumulPose !== undefined ? data.cumulPose : data.Pose}
+                                    {data.Pose}
                                   </text>
-                                  {/* SAV value - show cumulative for both month and week view */}
+                                  {/* SAV value - show day count */}
                                   <circle cx={tooltipX + 15} cy={tooltipY + 78} r="4" fill="#10b981" />
                                   <text
                                     x={tooltipX + 25}
@@ -2471,7 +2563,7 @@ function DashbordPage() {
                                     fontWeight="600"
                                     fill="#10b981"
                                   >
-                                    {data.cumulSAV !== undefined ? data.cumulSAV : data.SAV}
+                                    {data.SAV}
                                   </text>
                                 </g>
                               )
@@ -2652,7 +2744,7 @@ function DashbordPage() {
                   }}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f0f0f0'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? '#0a0a0a' : '#f9fafb'}
-                    onClick={() => navigate('/réservation')}
+                onClick={() => navigate('/réservation', { state: { highlightBookingId: booking.id, calendarId } })}
                   >
                     <div style={{
                         padding: '6px',
@@ -2696,6 +2788,167 @@ function DashbordPage() {
                   </div>
                 )
                 })
+              )}
+            </div>
+          </div>
+
+          {/* Top Clients (All Calendars) - Bottom Right */}
+          <div style={{
+            backgroundColor: cardBg,
+            borderRadius: '16px',
+            padding: '24px',
+            border: `1px solid ${borderColor}`,
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+            animation: 'fadeInRight 0.7s ease-out',
+            transition: 'all 0.3s ease',
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0
+          }}>
+            <div style={{
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 600, color: textColor }}>
+                Top 10 Concepteurs
+              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {topClientsView === 'week' && (
+                  <span style={{ fontSize: '12px', color: textSecondary }}>
+                    Semaine du {getCurrentWeekRangeLabel()}
+                  </span>
+                )}
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    onClick={() => setTopClientsView('total')}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '8px',
+                      border: `1px solid ${topClientsView === 'total' ? orangeColor : borderColor}`,
+                      backgroundColor: topClientsView === 'total'
+                        ? (isDarkMode ? `${orangeColor}20` : `${orangeColor}15`)
+                        : 'transparent',
+                      color: topClientsView === 'total' ? orangeColor : textSecondary,
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Total
+                  </button>
+                  <button
+                    onClick={() => setTopClientsView('month')}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '8px',
+                      border: `1px solid ${topClientsView === 'month' ? orangeColor : borderColor}`,
+                      backgroundColor: topClientsView === 'month'
+                        ? (isDarkMode ? `${orangeColor}20` : `${orangeColor}15`)
+                        : 'transparent',
+                      color: topClientsView === 'month' ? orangeColor : textSecondary,
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Par mois
+                  </button>
+                  <button
+                    onClick={() => setTopClientsView('week')}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '8px',
+                      border: `1px solid ${topClientsView === 'week' ? orangeColor : borderColor}`,
+                      backgroundColor: topClientsView === 'week'
+                        ? (isDarkMode ? `${orangeColor}20` : `${orangeColor}15`)
+                        : 'transparent',
+                      color: topClientsView === 'week' ? orangeColor : textSecondary,
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Par semaine
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1' }}>
+              {isLoadingTopClients ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
+                  Chargement...
+                </div>
+              ) : topClientsAll.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
+                  Aucun client
+                </div>
+              ) : (
+                topClientsAll.map((client, i) => (
+                  <div key={i} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 12px',
+                    borderRadius: '12px',
+                    backgroundColor: isDarkMode ? '#0f1115' : '#f5f6fb',
+                    border: `1px solid ${isDarkMode ? '#1f2933' : '#e5e7eb'}`
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                      <span style={{ fontSize: '14px', color: textColor, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {client.name}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '999px',
+                        backgroundColor: isDarkMode ? `${orangeColor}25` : `${orangeColor}20`,
+                        color: orangeColor,
+                        fontSize: '12px',
+                        fontWeight: 700
+                      }}>
+                        Pose: {client.pose}
+                      </span>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '999px',
+                        backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.12)',
+                        color: '#10b981',
+                        fontSize: '12px',
+                        fontWeight: 700
+                      }}>
+                        SAV: {client.sav}
+                      </span>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '999px',
+                        backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.12)',
+                        color: '#3b82f6',
+                        fontSize: '12px',
+                        fontWeight: 700
+                      }}>
+                        Metré: {client.metre}
+                      </span>
+                      <span style={{
+                        padding: '4px 10px',
+                        borderRadius: '10px',
+                        backgroundColor: isDarkMode ? '#111827' : '#e5e7eb',
+                        color: textColor,
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        border: `1px solid ${borderColor}`
+                      }}>
+                        Total: {client.total}
+                      </span>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           </div>
