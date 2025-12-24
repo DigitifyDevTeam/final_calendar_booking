@@ -3,12 +3,63 @@ from django.conf import settings
 from django.core.mail import EmailMessage
 from django.db.models import Count
 from rest_framework import generics, status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser, BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Booking, ContactMessage, Holiday, User
 from .serializers import BookingSerializer, ContactMessageSerializer, HolidaySerializer, UserSerializer
+
+
+class LoginRateThrottle(SimpleRateThrottle):
+    """
+    Custom rate throttle for login endpoint.
+    Limits login attempts to prevent brute force attacks.
+    """
+    scope = 'login'
+    
+    def get_cache_key(self, request, view):
+        # Use IP address as the key for rate limiting
+        ident = self.get_ident(request)
+        return self.cache_format % {
+            'scope': self.scope,
+            'ident': ident
+        }
+
+
+class IsAuthenticatedCustom(BasePermission):
+    """
+    Custom permission class that works with our custom User model.
+    Checks if the user is authenticated (not AnonymousUser and user exists).
+    """
+    def has_permission(self, request, view):
+        # Check if user exists and is not AnonymousUser
+        if not request.user:
+            return False
+        
+        # Check if it's our custom User model (not AnonymousUser)
+        # AnonymousUser doesn't have 'role' attribute, our User model does
+        if hasattr(request.user, 'role'):
+            return True
+        
+        # If no role attribute, it's probably AnonymousUser
+        return False
+
+
+class IsAdminUserCustom(BasePermission):
+    """
+    Custom permission class that checks if the user has 'admin' role
+    in the custom User model.
+    """
+    def has_permission(self, request, view):
+        # First check if user is authenticated
+        if not request.user or not hasattr(request.user, 'role'):
+            return False
+        
+        # Check if user has admin role
+        return request.user.role == 'admin'
 
 CALENDAR_LABELS = {
     'calendar1': 'Pose',
@@ -144,7 +195,7 @@ class ContactEmailView(generics.ListCreateAPIView):
 
 
 class BookingListCreateView(generics.ListCreateAPIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedCustom]
     serializer_class = BookingSerializer
     queryset = Booking.objects.all()
     
@@ -173,7 +224,7 @@ class BookingListCreateView(generics.ListCreateAPIView):
 
 
 class BookingRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedCustom]
     serializer_class = BookingSerializer
     queryset = Booking.objects.all()
     
@@ -236,7 +287,7 @@ class BookingRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class BookingResetView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUserCustom]
 
     def delete(self, request):
         calendar_id = request.query_params.get('calendar_id')
@@ -251,7 +302,7 @@ class BookingResetView(APIView):
 
 
 class BookingDebugView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUserCustom]
 
     def get(self, request):
         """Debug endpoint to find dates with 2+ bookings for a calendar_id"""
@@ -301,9 +352,13 @@ class BookingDebugView(APIView):
 
 
 class HolidayListCreateView(generics.ListCreateAPIView):
-    permission_classes = [AllowAny]
     serializer_class = HolidaySerializer
     queryset = Holiday.objects.all()
+    
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [IsAuthenticatedCustom()]
+        return [IsAdminUserCustom()]
     
     def get_queryset(self):
         try:
@@ -386,13 +441,17 @@ class HolidayListCreateView(generics.ListCreateAPIView):
 
 
 class HolidayRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [AllowAny]
     serializer_class = HolidaySerializer
     queryset = Holiday.objects.all()
+    
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [IsAuthenticatedCustom()]
+        return [IsAdminUserCustom()]
 
 
 class UserListCreateView(generics.ListCreateAPIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUserCustom]
     serializer_class = UserSerializer
     queryset = User.objects.all()
     
@@ -407,13 +466,14 @@ class UserListCreateView(generics.ListCreateAPIView):
 
 
 class UserRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUserCustom]
     serializer_class = UserSerializer
     queryset = User.objects.all()
 
 
 class UserLoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]  # Rate limit login attempts to prevent brute force
     
     def post(self, request):
         email = request.data.get('email')
@@ -428,13 +488,21 @@ class UserLoginView(APIView):
         try:
             user = User.objects.get(email=email)
             if user.check_password(password):
-                # Return user data (excluding password)
+                # Generate JWT tokens
+                refresh = RefreshToken()
+                refresh['user_id'] = user.id
+                refresh['email'] = user.email
+                refresh['role'] = user.role
+                
+                # Return user data with JWT tokens
                 return Response({
                     'id': user.id,
                     'name': user.name,
                     'email': user.email,
                     'phone': user.phone,
                     'role': user.role,
+                    'access': str(refresh.access_token),
+                    'refresh': str(refresh),
                     'message': 'Connexion réussie'
                 }, status=status.HTTP_200_OK)
             else:

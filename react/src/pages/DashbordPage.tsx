@@ -784,7 +784,9 @@ function DashbordPage() {
             alignItems: 'center',
             justifyContent: 'space-between',
             borderBottom: `1px solid ${borderColor}`,
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -875,6 +877,23 @@ function DashbordPage() {
             >
               {isDarkMode ? <Sun style={{ width: '18px', height: '18px' }} /> : <Moon style={{ width: '18px', height: '18px' }} />}
             </button>
+            <button 
+              onClick={handleLogout}
+              style={{
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                color: textSecondary,
+                cursor: 'pointer'
+              }}
+            >
+              <LogOut style={{ width: '18px', height: '18px' }} />
+            </button>
           </div>
         </div>
       )}
@@ -935,19 +954,27 @@ function DashbordPage() {
         style={{
           position: isMobile ? 'fixed' : 'sticky',
           top: isMobile ? '60px' : 0, // Start below mobile header
-          left: 0,
+          left: isMobile ? 0 : 'auto',
+          right: isMobile ? 0 : 'auto',
+          bottom: isMobile ? 0 : 'auto',
           height: isMobile ? 'calc(100vh - 60px)' : '100vh', // Adjust height for mobile header
-          width: isMobile ? '280px' : (sidebarOpen ? '256px' : '64px'),
-          borderRight: `1px solid ${borderColor}`,
+          width: isMobile ? '100vw' : (sidebarOpen ? '256px' : '64px'),
+          maxWidth: isMobile ? '100vw' : 'none',
+          minWidth: isMobile ? '100vw' : 'auto',
+          borderRight: isMobile ? 'none' : `1px solid ${borderColor}`,
           backgroundColor: isDarkMode ? '#000000' : '#ffffff',
-          padding: '8px',
-          paddingBottom: '60px',
-          transition: 'width 0.3s ease, transform 0.3s ease',
+          padding: isMobile ? '16px' : '8px',
+          paddingBottom: isMobile ? '16px' : '60px',
+          transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          boxShadow: isMobile ? '0 8px 32px rgba(0, 0, 0, 0.16)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
+          backdropFilter: isMobile ? 'blur(12px)' : 'none',
+          WebkitBackdropFilter: isMobile ? 'blur(12px)' : 'none',
           transform: isMobile ? (mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
-          zIndex: 999
+          zIndex: 999,
+          overflowY: isMobile ? 'auto' : 'visible',
+          WebkitOverflowScrolling: isMobile ? 'touch' : 'auto'
         }}
       >
         {/* Logo Section */}
@@ -1266,17 +1293,20 @@ function DashbordPage() {
         >
           <div>
             <h1 style={{
-              fontSize: '30px',
+              fontSize: isMobile ? '28px' : '32px',
               fontWeight: 700,
               color: textColor,
-              marginBottom: '4px'
+              marginBottom: '4px',
+              lineHeight: 1.2
             }}>
               Tableau de Bord
             </h1>
             <p style={{
-              fontSize: '16px',
+              fontSize: isMobile ? '15px' : '16px',
               color: textSecondary,
-              marginTop: '4px'
+              marginTop: '4px',
+              lineHeight: 1.5,
+              opacity: 0.8
             }}>
               Bienvenue sur votre tableau de bord
             </p>
@@ -1625,6 +1655,7 @@ function DashbordPage() {
             textColor={textColor}
             textSecondary={textSecondary}
             borderColor={borderColor}
+            isMobile={isMobile}
           />
           <StatCardContent
             title="Utilisateurs"
@@ -1637,6 +1668,7 @@ function DashbordPage() {
             textColor={textColor}
             textSecondary={textSecondary}
             borderColor={borderColor}
+            isMobile={isMobile}
           />
           <StatCardContent
             title="Total Réservations"
@@ -1649,6 +1681,7 @@ function DashbordPage() {
             textColor={textColor}
             textSecondary={textSecondary}
             borderColor={borderColor}
+            isMobile={isMobile}
           />
           <StatCardContent
             title="Réservations SAV"
@@ -1661,6 +1694,7 @@ function DashbordPage() {
             textColor={textColor}
             textSecondary={textSecondary}
             borderColor={borderColor}
+            isMobile={isMobile}
           />
         </div>
 
@@ -1678,28 +1712,35 @@ function DashbordPage() {
           }}
         >
           {/* Chart Section - Top Left */}
-          <div style={{
+          <div 
+            className="chart-container"
+            style={{
             backgroundColor: cardBg,
-            borderRadius: '16px',
-            padding: '24px',
+              borderRadius: isMobile ? '12px' : '16px',
+              padding: isMobile ? '16px' : '32px',
             border: `1px solid ${borderColor}`,
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
             animation: 'fadeInUp 1s ease-out',
-            transition: 'all 0.3s ease',
+              transition: 'all 0.2s ease',
             display: 'flex',
             flexDirection: 'column',
             flex: 1,
-            minHeight: 0
+              minHeight: isMobile ? '320px' : '420px',
+              position: 'relative'
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-4px)'
-            e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.15)'
+              if (window.matchMedia('(hover: hover)').matches) {
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.12)'
             e.currentTarget.style.borderColor = borderColor === '#333333' ? '#444444' : '#d1d5db'
+              }
           }}
           onMouseLeave={(e) => {
+              if (window.matchMedia('(hover: hover)').matches) {
             e.currentTarget.style.transform = 'translateY(0)'
-            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)'
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)'
             e.currentTarget.style.borderColor = borderColor
+              }
           }}
           >
             <div 
@@ -2913,19 +2954,22 @@ function DashbordPage() {
           </div>
 
           {/* Top Clients (All Calendars) - Bottom Right */}
-          <div style={{
+          <div 
+            className="clients-card"
+            style={{
             backgroundColor: cardBg,
-            borderRadius: '16px',
-            padding: '24px',
+              borderRadius: isMobile ? '12px' : '16px',
+              padding: isMobile ? '16px' : '24px',
             border: `1px solid ${borderColor}`,
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
             animation: 'fadeInRight 0.7s ease-out',
-            transition: 'all 0.3s ease',
+              transition: 'all 0.2s ease',
             display: 'flex',
             flexDirection: 'column',
             flex: 1,
-            minHeight: 0
-          }}>
+              minHeight: isMobile ? '200px' : '0'
+            }}
+          >
             <div style={{
               marginBottom: '16px',
               display: 'flex',
@@ -2935,7 +2979,12 @@ function DashbordPage() {
               flexWrap: 'wrap'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 600, color: textColor }}>
+                <h3 style={{ 
+                  fontSize: isMobile ? '16px' : '18px', 
+                  fontWeight: 600, 
+                  color: textColor,
+                  lineHeight: 1.3
+                }}>
                   Top 10 Concepteurs
                 </h3>
               </div>
@@ -3244,65 +3293,118 @@ function DashbordPage() {
                 </div>
               ) : (
                 topClientsAll.map((client, i) => (
-                  <div key={i} style={{
+                  <div 
+                    key={i} 
+                    className="client-item"
+                    style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '10px 12px',
-                    borderRadius: '12px',
+                      padding: isMobile ? '12px' : '12px 16px',
+                      borderRadius: isMobile ? '10px' : '12px',
                     backgroundColor: isDarkMode ? '#0f1115' : '#f5f6fb',
-                    border: `1px solid ${isDarkMode ? '#1f2933' : '#e5e7eb'}`
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                      <span style={{ fontSize: '14px', color: textColor, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      border: `1px solid ${isDarkMode ? '#1f2933' : '#e5e7eb'}`,
+                      minHeight: '48px',
+                      marginBottom: '4px',
+                      transition: 'background-color 0.15s ease, transform 0.15s ease',
+                      cursor: 'pointer'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (window.matchMedia('(hover: hover)').matches) {
+                        e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f0f0f0'
+                        e.currentTarget.style.transform = 'translateX(2px)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (window.matchMedia('(hover: hover)').matches) {
+                        e.currentTarget.style.backgroundColor = isDarkMode ? '#0f1115' : '#f5f6fb'
+                        e.currentTarget.style.transform = 'translateX(0)'
+                      }
+                    }}
+                    onTouchStart={(e) => {
+                      e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f0f0f0'
+                    }}
+                    onTouchEnd={(e) => {
+                      setTimeout(() => {
+                        e.currentTarget.style.backgroundColor = isDarkMode ? '#0f1115' : '#f5f6fb'
+                      }, 150)
+                    }}
+                  >
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '10px', 
+                      minWidth: 0,
+                      flex: 1
+                    }}>
+                      <span style={{ 
+                        fontSize: isMobile ? '13px' : '14px', 
+                        color: textColor, 
+                        fontWeight: 600, 
+                        overflow: 'hidden', 
+                        textOverflow: 'ellipsis', 
+                        whiteSpace: 'nowrap',
+                        lineHeight: 1.4
+                      }}>
                         {client.name}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: isMobile ? '4px' : '8px', 
+                      whiteSpace: 'nowrap',
+                      flexWrap: isMobile ? 'wrap' : 'nowrap',
+                      justifyContent: 'flex-end'
+                    }}>
                       <span style={{
-                        padding: '6px 12px',
-                        borderRadius: '12px',
+                        padding: isMobile ? '4px 8px' : '6px 12px',
+                        borderRadius: isMobile ? '8px' : '10px',
                         backgroundColor: isDarkMode ? `${orangeColor}25` : `${orangeColor}20`,
                         color: orangeColor,
-                        fontSize: '13px',
-                        fontWeight: 800,
-                        letterSpacing: '0.1px'
+                        fontSize: isMobile ? '11px' : '12px',
+                        fontWeight: 700,
+                        letterSpacing: '0.05px',
+                        lineHeight: 1.2
                       }}>
-                        Pose: {client.pose}
+                        {isMobile ? 'P' : 'Pose'}: {client.pose}
                       </span>
                       <span style={{
-                        padding: '6px 12px',
-                        borderRadius: '12px',
+                        padding: isMobile ? '4px 8px' : '6px 12px',
+                        borderRadius: isMobile ? '8px' : '10px',
                         backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.12)',
                         color: '#10b981',
-                        fontSize: '13px',
-                        fontWeight: 800,
-                        letterSpacing: '0.1px'
+                        fontSize: isMobile ? '11px' : '12px',
+                        fontWeight: 700,
+                        letterSpacing: '0.05px',
+                        lineHeight: 1.2
                       }}>
-                        SAV: {client.sav}
+                        {isMobile ? 'S' : 'SAV'}: {client.sav}
                       </span>
                       <span style={{
-                        padding: '6px 12px',
-                        borderRadius: '12px',
+                        padding: isMobile ? '4px 8px' : '6px 12px',
+                        borderRadius: isMobile ? '8px' : '10px',
                         backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.12)',
                         color: '#3b82f6',
-                        fontSize: '13px',
-                        fontWeight: 800,
-                        letterSpacing: '0.1px'
+                        fontSize: isMobile ? '11px' : '12px',
+                        fontWeight: 700,
+                        letterSpacing: '0.05px',
+                        lineHeight: 1.2
                       }}>
-                        Metré: {client.metre}
+                        {isMobile ? 'M' : 'Metré'}: {client.metre}
                       </span>
                       <span style={{
-                        padding: '6px 12px',
-                        borderRadius: '12px',
+                        padding: isMobile ? '4px 8px' : '6px 12px',
+                        borderRadius: isMobile ? '8px' : '10px',
                         backgroundColor: isDarkMode ? '#111827' : '#e5e7eb',
                         color: textColor,
-                        fontSize: '13px',
-                        fontWeight: 800,
-                        letterSpacing: '0.1px',
-                        border: `1px solid ${borderColor}`
+                        fontSize: isMobile ? '11px' : '12px',
+                        fontWeight: 700,
+                        letterSpacing: '0.05px',
+                        border: `1px solid ${borderColor}`,
+                        lineHeight: 1.2
                       }}>
-                        Total: {client.total}
+                        {isMobile ? 'T' : 'Total'}: {client.total}
                       </span>
                     </div>
                   </div>
@@ -3312,29 +3414,35 @@ function DashbordPage() {
           </div>
 
           {/* Recent Activity - Bottom Left */}
-          <div style={{
+          <div 
+            className="activity-card"
+            style={{
             backgroundColor: cardBg,
-            borderRadius: '16px',
-            padding: '24px',
+              borderRadius: isMobile ? '12px' : '16px',
+              padding: isMobile ? '16px' : '24px',
             border: `1px solid ${borderColor}`,
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
             animation: 'fadeInLeft 0.7s ease-out',
-            transition: 'all 0.3s ease',
+              transition: 'all 0.2s ease',
             cursor: 'pointer',
             display: 'flex',
             flexDirection: 'column',
             flex: 1,
-            minHeight: 0
+              minHeight: isMobile ? '200px' : '0'
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-4px)'
-            e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.15)'
+              if (window.matchMedia('(hover: hover)').matches) {
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.12)'
             e.currentTarget.style.borderColor = borderColor === '#333333' ? '#444444' : '#d1d5db'
+              }
           }}
           onMouseLeave={(e) => {
+              if (window.matchMedia('(hover: hover)').matches) {
             e.currentTarget.style.transform = 'translateY(0)'
-            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)'
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)'
             e.currentTarget.style.borderColor = borderColor
+              }
           }}
           >
             <div style={{
@@ -3344,9 +3452,11 @@ function DashbordPage() {
               marginBottom: '12px'
             }}>
               <h3 style={{
-                fontSize: '16px',
+                fontSize: isMobile ? '16px' : '18px',
                 fontWeight: 600,
-                color: textColor
+                color: textColor,
+                lineHeight: 1.3,
+                marginBottom: isMobile ? '12px' : '0'
               }}>
                 Réservation Récente
               </h3>
@@ -3389,18 +3499,39 @@ function DashbordPage() {
                   const colors = calendarColors[calendarName] || calendarColors['Pose']
                   
                 return (
-                    <div key={booking.id} style={{
+                    <div 
+                      key={booking.id} 
+                      className="activity-item"
+                      style={{
                     display: 'flex',
                     alignItems: 'center',
-                      gap: '12px',
-                      padding: '8px',
-                    borderRadius: '8px',
+                        gap: isMobile ? '10px' : '12px',
+                        padding: isMobile ? '12px' : '12px',
+                        borderRadius: isMobile ? '10px' : '12px',
                     backgroundColor: isDarkMode ? '#0a0a0a' : '#f9fafb',
                     cursor: 'pointer',
-                    transition: 'background-color 0.2s'
+                        transition: 'background-color 0.15s ease',
+                        minHeight: '48px',
+                        marginBottom: '4px'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f0f0f0'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? '#0a0a0a' : '#f9fafb'}
+                      onMouseEnter={(e) => {
+                        if (window.matchMedia('(hover: hover)').matches) {
+                          e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f0f0f0'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (window.matchMedia('(hover: hover)').matches) {
+                          e.currentTarget.style.backgroundColor = isDarkMode ? '#0a0a0a' : '#f9fafb'
+                        }
+                      }}
+                      onTouchStart={(e) => {
+                        e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f0f0f0'
+                      }}
+                      onTouchEnd={(e) => {
+                        setTimeout(() => {
+                          e.currentTarget.style.backgroundColor = isDarkMode ? '#0a0a0a' : '#f9fafb'
+                        }, 150)
+                      }}
                 onClick={() => navigate('/réservation', { state: { highlightBookingId: booking.id, calendarId } })}
                   >
                     <div style={{
@@ -3415,30 +3546,33 @@ function DashbordPage() {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{
-                          fontSize: '13px',
+                        fontSize: isMobile ? '13px' : '14px',
                         fontWeight: 500,
                         color: textColor,
-                          marginBottom: '2px',
+                        marginBottom: '4px',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
-                        textOverflow: 'ellipsis'
+                        textOverflow: 'ellipsis',
+                        lineHeight: 1.4
                       }}>
                           {booking.name} - {calendarName}
                       </p>
                       <p style={{
-                          fontSize: '11px',
+                        fontSize: isMobile ? '11px' : '12px',
                         color: textSecondary,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
-                        textOverflow: 'ellipsis'
+                        textOverflow: 'ellipsis',
+                        lineHeight: 1.4
                       }}>
                           {booking.date} {booking.time && booking.time !== '21h00' ? `à ${booking.time}` : ''}
                       </p>
                     </div>
                     <div style={{
-                        fontSize: '11px',
+                      fontSize: isMobile ? '10px' : '11px',
                       color: textSecondary,
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      lineHeight: 1.4
                     }}>
                         {timeAgo}
                     </div>
@@ -3531,6 +3665,7 @@ interface StatCardContentProps {
   textColor: string
   textSecondary: string
   borderColor: string
+  isMobile?: boolean
 }
 
 const StatCardContent: React.FC<StatCardContentProps> = ({
@@ -3543,70 +3678,100 @@ const StatCardContent: React.FC<StatCardContentProps> = ({
   cardBg,
   textColor,
   textSecondary,
-  borderColor
+  borderColor,
+  isMobile = false
 }) => {
+  const isSmallMobile = typeof window !== 'undefined' && window.innerWidth <= 480
+  
   return (
-    <div style={{
-      padding: '24px',
-      borderRadius: '16px',
+    <div 
+      className="stat-card"
+      style={{
+        padding: isSmallMobile ? '16px' : isMobile ? '16px' : '24px',
+        borderRadius: isMobile ? '12px' : '16px',
       border: `1px solid ${borderColor}`,
       backgroundColor: cardBg,
-      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-      transition: 'all 0.3s ease',
-      cursor: 'pointer'
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+        transition: 'all 0.2s ease',
+        cursor: 'pointer',
+        position: 'relative',
+        overflow: 'hidden',
+        minHeight: isSmallMobile ? '110px' : '120px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between'
     }}
     onMouseEnter={(e) => {
+        if (window.matchMedia('(hover: hover)').matches) {
       e.currentTarget.style.transform = 'translateY(-4px) scale(1.02)'
-      e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.15)'
+          e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.12)'
       e.currentTarget.style.borderColor = borderColor === '#333333' ? '#444444' : '#d1d5db'
+        }
     }}
     onMouseLeave={(e) => {
+        if (window.matchMedia('(hover: hover)').matches) {
       e.currentTarget.style.transform = 'translateY(0) scale(1)'
-      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)'
+          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)'
       e.currentTarget.style.borderColor = borderColor
+        }
     }}
     >
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: '16px'
+        marginBottom: isMobile ? '12px' : '16px'
       }}>
         <div style={{
-          padding: '8px',
+          padding: isMobile ? '10px' : '12px',
           backgroundColor: iconBg,
-          borderRadius: '8px',
+          borderRadius: '10px',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          boxShadow: `0 2px 8px ${iconColor}30`
         }}>
-          <Icon style={{ width: '20px', height: '20px', color: iconColor }} />
+          <Icon style={{ 
+            width: isMobile ? '20px' : '24px', 
+            height: isMobile ? '20px' : '24px', 
+            color: iconColor 
+          }} />
         </div>
-        <TrendingUp style={{ width: '16px', height: '16px', color: '#10b981' }} />
+        <TrendingUp style={{ 
+          width: isMobile ? '14px' : '16px', 
+          height: isMobile ? '14px' : '16px', 
+          color: '#10b981',
+          opacity: 0.7
+        }} />
       </div>
+      <div>
       <h3 style={{
-        fontSize: '14px',
+          fontSize: isSmallMobile ? '12px' : isMobile ? '13px' : '14px',
         fontWeight: 500,
         color: textSecondary,
-        marginBottom: '4px'
+          marginBottom: '8px',
+          lineHeight: 1.4
       }}>
         {title}
       </h3>
       <p style={{
-        fontSize: '24px',
+          fontSize: isSmallMobile ? '20px' : isMobile ? '22px' : '24px',
         fontWeight: 700,
         color: textColor,
-        marginBottom: '4px'
+          marginBottom: '4px',
+          lineHeight: 1.2
       }}>
         {value}
       </p>
       <p style={{
-        fontSize: '12px',
+          fontSize: isMobile ? '11px' : '12px',
         color: '#10b981',
-        marginTop: '4px'
+          marginTop: '4px',
+          lineHeight: 1.4
       }}>
         {change}
       </p>
+      </div>
     </div>
   )
 }

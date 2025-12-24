@@ -33,6 +33,19 @@ class User(models.Model):
         """Check if the provided password matches"""
         return check_password(raw_password, self.password)
     
+    @property
+    def is_authenticated(self):
+        """
+        Always return True for authenticated users.
+        This is required for Django REST Framework's IsAuthenticated permission.
+        """
+        return True
+    
+    @property
+    def is_anonymous(self):
+        """Always return False since this is not an anonymous user"""
+        return False
+    
     def save(self, *args, **kwargs):
         # If password is being set and it's not already hashed, hash it
         if self.password and not self.password.startswith('pbkdf2_'):

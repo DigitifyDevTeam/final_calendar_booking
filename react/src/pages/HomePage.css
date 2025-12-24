@@ -71,6 +71,10 @@
 .header-content > div:first-child {
   flex: 1;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .home-header h1,
@@ -82,6 +86,8 @@
   font-size: 2.5rem;
   margin-bottom: 10px;
   font-weight: 700;
+  text-align: center;
+  width: 100%;
 }
 
 .home-header p {
@@ -288,6 +294,30 @@
 
 /* All buttons now use the same orange color */
 
+/* Mobile Sidebar Styles */
+.mobile-menu-overlay {
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.home-sidebar {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.home-sidebar.mobile-open {
+  transform: translateX(0) !important;
+}
+
+@media (max-width: 768px) {
+  .home-sidebar {
+    width: 100% !important;
+    max-width: 100% !important;
+    right: 0 !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+  }
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .home-page {
@@ -299,6 +329,12 @@
     padding-right: 50px;
     flex-wrap: wrap;
     gap: 12px;
+  }
+
+  .mobile-header {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
   }
   
   .calendar-buttons-container {
@@ -321,10 +357,12 @@
   
   .home-header h1 {
     font-size: 1.8rem;
+    text-align: center;
+    width: 100%;
   }
   
   .home-header p {
-    font-size: 0.95rem;
+    display: none !important;
   }
 
   .home-header {
@@ -402,10 +440,12 @@
   .home-header h1 {
     font-size: 1.5rem;
     margin-bottom: 8px;
+    text-align: center;
+    width: 100%;
   }
   
   .home-header p {
-    font-size: 0.9rem;
+    display: none !important;
   }
 
   .home-main {

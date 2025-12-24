@@ -162,7 +162,7 @@ function Calendar2Page({ disableAnimations = false, isAdminView = false }: Calen
       </div>
       )}
       <header className={`app-header ${isAdminView ? 'admin-style' : ''}`}>
-        <div className="header-content" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: '16px' }}>
+        <div className="header-content" style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', minWidth: '50px' }}>
             {!isAdminView && (
               <button 
@@ -176,7 +176,7 @@ function Calendar2Page({ disableAnimations = false, isAdminView = false }: Calen
             )}
           </div>
           
-          <div style={{ textAlign: 'center' }}>
+          <div style={{ textAlign: 'center', gridColumn: 2 }}>
             {isAdminView ? (
               <div>
                 <h1>Administration - Metré</h1>
@@ -190,7 +190,16 @@ function Calendar2Page({ disableAnimations = false, isAdminView = false }: Calen
             )}
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'flex-end', minWidth: '100px' }}>
+          <div 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '12px', 
+              justifyContent: 'flex-end', 
+              minWidth: '100px'
+            }}
+            className="desktop-header-icons"
+          >
             <button 
               onClick={toggleDarkMode}
               style={{

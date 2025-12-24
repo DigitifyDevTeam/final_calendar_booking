@@ -7,7 +7,7 @@ export interface UserRecord {
   name: string
   email: string
   phone: string
-  role: 'admin' | 'concepteur'
+  role: 'admin' | 'concepteur' | 'technicien'
   created_at: string
   updated_at: string
 }
@@ -16,7 +16,7 @@ export interface UserFormData {
   name: string
   email: string
   phone: string
-  role: 'admin' | 'concepteur'
+  role: 'admin' | 'concepteur' | 'technicien'
   password: string
   confirm_password?: string
 }
@@ -31,24 +31,81 @@ interface UserApiResponse {
   updated_at: string
 }
 
+// Helper function to refresh the access token
+const refreshAccessToken = async (): Promise<string | null> => {
+  const refreshToken = sessionStorage.getItem('refresh_token')
+  if (!refreshToken) {
+    return null
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/token/refresh/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refresh: refreshToken }),
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      if (data.access) {
+        sessionStorage.setItem('access_token', data.access)
+        return data.access
+      }
+    }
+  } catch (error) {
+    console.error('Error refreshing token:', error)
+  }
+
+  return null
+}
+
 const apiRequest = async <T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> => {
   const url = `${API_BASE_URL}${endpoint}`
-  const defaultHeaders: HeadersInit = {
+  
+  // Get access token from sessionStorage
+  let accessToken = sessionStorage.getItem('access_token')
+  
+  const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
   }
+  
+  // Add Authorization header if token exists
+  if (accessToken) {
+    defaultHeaders['Authorization'] = `Bearer ${accessToken}`
+  }
 
-  const config: RequestInit = {
+  let config: RequestInit = {
     ...options,
     headers: {
       ...defaultHeaders,
-      ...options.headers,
+      ...(options.headers as Record<string, string> || {}),
     },
   }
 
-  const response = await fetch(url, config)
+  let response = await fetch(url, config)
+
+  // If token expired (401), try to refresh it and retry once
+  if (response.status === 401 && accessToken) {
+    const newAccessToken = await refreshAccessToken()
+    if (newAccessToken) {
+      // Update headers with new token
+      defaultHeaders['Authorization'] = `Bearer ${newAccessToken}`
+      config = {
+        ...options,
+        headers: {
+          ...defaultHeaders,
+          ...(options.headers as Record<string, string> || {}),
+        },
+      }
+      // Retry the request with new token
+      response = await fetch(url, config)
+    }
+  }
 
   if (!response.ok) {
     let errorMessage = `Erreur ${response.status}: ${response.statusText}`
@@ -91,7 +148,7 @@ const toUserRecord = (data: UserApiResponse): UserRecord => {
     name: data.name,
     email: data.email,
     phone: data.phone || '',
-    role: data.role as 'admin' | 'concepteur',
+    role: data.role as 'admin' | 'concepteur' | 'technicien',
     created_at: data.created_at,
     updated_at: data.updated_at,
   }

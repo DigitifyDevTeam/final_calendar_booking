@@ -235,7 +235,7 @@ function LoginPage() {
         // Reset login attempts on successful login
         resetLoginAttempts(formData.email)
         
-        // Store user info in sessionStorage (clears when browser tab closes)
+        // Store user info and tokens in sessionStorage (clears when browser tab closes)
         sessionStorage.setItem('user', JSON.stringify({
           id: data.id,
           name: data.name,
@@ -244,6 +244,16 @@ function LoginPage() {
           role: data.role,
           isAuthenticated: true,
         }))
+        
+        // Store access token for API requests
+        if (data.access) {
+          sessionStorage.setItem('access_token', data.access)
+        }
+        
+        // Store refresh token for token refresh
+        if (data.refresh) {
+          sessionStorage.setItem('refresh_token', data.refresh)
+        }
         
         // Navigate to home page on successful login
         navigate('/')

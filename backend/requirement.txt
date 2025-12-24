@@ -1,6 +1,7 @@
 pymysql>=1.0.0
 django
 djangorestframework
+djangorestframework-simplejwt
 django-cors-headers
 gunicorn
 python-dotenv

@@ -15,6 +15,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework_simplejwt',
     'corsheaders',
     'core'
 ]
@@ -168,4 +169,44 @@ LOGGING = {
 LOGS_DIR = os.path.join(BASE_DIR, 'logs')
 if not os.path.exists(LOGS_DIR):
     os.makedirs(LOGS_DIR)
+
+# Cache configuration for throttling and other features
+# Using local memory cache (default) - for production, consider Redis
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
+
+# REST Framework Configuration
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'core.authentication.CustomJWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.AllowAny',  # Default to AllowAny, views will override
+    ),
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',  # General rate limit for anonymous users
+        'login': '5/minute',  # Stricter limit for login endpoint (5 attempts per minute per IP)
+    },
+}
+
+# JWT Settings
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=7),  # Access token valid for 7 days
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),  # Refresh token valid for 7 days
+    'ROTATE_REFRESH_TOKENS': True,  # Rotate tokens for better security
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+}
+
+
 

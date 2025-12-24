@@ -9,7 +9,7 @@ Usage:
 """
 import os
 
-# Determine environment (default to 'local' for development)
+# Determine environment (default to 'production')
 ENV = os.environ.get('DJANGO_ENV', 'local').lower()
 
 if ENV == 'production':

@@ -271,7 +271,7 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
           className="header-content" 
           style={{ 
             display: 'grid',
-            gridTemplateColumns: 'auto 1fr auto',
+            gridTemplateColumns: '1fr auto 1fr',
             alignItems: 'center',
             gap: '16px'
           }}
@@ -289,7 +289,7 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
             )}
           </div>
           
-          <div style={{ textAlign: 'center' }}>
+          <div style={{ textAlign: 'center', gridColumn: 2 }}>
             {isAdminView ? (
               <div>
                 <h1>Administration - Pose</h1>
@@ -303,7 +303,15 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
             )}
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'flex-end', minWidth: '120px' }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '12px', 
+            justifyContent: 'flex-end', 
+            minWidth: '120px'
+          }}
+          className="desktop-header-icons"
+          >
             <button 
               onClick={toggleDarkMode}
               style={{

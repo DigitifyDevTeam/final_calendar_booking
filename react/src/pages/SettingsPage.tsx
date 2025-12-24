@@ -31,6 +31,8 @@ import {
   X
 } from 'lucide-react'
 import './SettingsPage.css'
+import { getAllNotifications, NotificationItem, getTimeAgo as getNotificationTimeAgo } from '../services/notificationService'
+import { getCalendarName } from '../services/bookingService'
 
 interface AdminSidebarItemProps {
   Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
@@ -124,6 +126,9 @@ function SettingsPage() {
     const saved = localStorage.getItem('accentColor')
     return saved || '#fa541c'
   })
+  const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false)
+  const [unreadCount, setUnreadCount] = useState<number>(0)
+  const [allNotifications, setAllNotifications] = useState<NotificationItem[]>([])
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode))
@@ -189,6 +194,43 @@ function SettingsPage() {
     sessionStorage.removeItem('user')
     navigate('/')
   }
+
+  const loadNotifications = async () => {
+    try {
+      const notifications = await getAllNotifications()
+      setAllNotifications(notifications)
+      setUnreadCount(notifications.length)
+    } catch (error) {
+      console.error('Error loading notifications:', error)
+    }
+  }
+
+  useEffect(() => {
+    loadNotifications()
+    const interval = setInterval(loadNotifications, 30000) // Refresh every 30 seconds
+    return () => clearInterval(interval)
+  }, [])
+
+  // Listen for notification refresh events
+  useEffect(() => {
+    const handleNotificationRefresh = () => {
+      loadNotifications()
+    }
+    window.addEventListener('notificationRefresh', handleNotificationRefresh)
+    return () => window.removeEventListener('notificationRefresh', handleNotificationRefresh)
+  }, [])
+
+  // Close notifications dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (notificationsOpen && !target.closest('[data-notifications-dropdown]')) {
+        setNotificationsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [notificationsOpen])
 
   const handleSave = async () => {
     setSaving(true)
@@ -351,6 +393,45 @@ function SettingsPage() {
             <span style={{ fontSize: '16px', fontWeight: 600, color: textColor }}>Paramètres</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button 
+              data-notifications-dropdown
+              onClick={() => setNotificationsOpen(!notificationsOpen)}
+              style={{
+                position: 'relative',
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                color: textSecondary,
+                cursor: 'pointer'
+              }}
+            >
+              <Bell style={{ width: '18px', height: '18px' }} />
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: '-2px',
+                  right: '-2px',
+                  minWidth: '16px',
+                  height: '16px',
+                  backgroundColor: '#ef4444',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  color: '#ffffff',
+                  padding: '0 3px'
+                }}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
             <button
               onClick={toggleDarkMode}
               style={{
@@ -368,7 +449,227 @@ function SettingsPage() {
             >
               {isDarkMode ? <Sun style={{ width: '18px', height: '18px' }} /> : <Moon style={{ width: '18px', height: '18px' }} />}
             </button>
+            <button 
+              onClick={handleLogout}
+              style={{
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                color: textSecondary,
+                cursor: 'pointer'
+              }}
+            >
+              <LogOut style={{ width: '18px', height: '18px' }} />
+            </button>
           </div>
+        </div>
+      )}
+
+      {/* Mobile Notifications Dropdown */}
+      {isMobile && notificationsOpen && (
+        <div 
+          data-notifications-dropdown
+          style={{
+            position: 'fixed',
+            top: '60px',
+            right: '16px',
+            left: '16px',
+            maxHeight: 'calc(100vh - 80px)',
+            backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+            border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+            borderRadius: '12px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
+            zIndex: 1001,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
+          <div style={{
+            padding: '16px',
+            borderBottom: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <h3 style={{
+              margin: 0,
+              fontSize: '16px',
+              fontWeight: 600,
+              color: isDarkMode ? '#ffffff' : '#111827'
+            }}>
+              Notifications
+            </h3>
+            {unreadCount > 0 && (
+              <span style={{
+                fontSize: '12px',
+                color: '#ef4444',
+                fontWeight: 600
+              }}>
+                {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          <div style={{
+            overflowY: 'auto',
+            maxHeight: 'calc(100vh - 200px)',
+            flex: 1
+          }}>
+            {allNotifications.length === 0 ? (
+              <div style={{
+                padding: '40px 20px',
+                textAlign: 'center',
+                color: isDarkMode ? '#9ca3af' : '#6b7280'
+              }}>
+                Aucune notification
+              </div>
+            ) : (
+              allNotifications.map((notification) => {
+                const timeAgo = getNotificationTimeAgo(notification.timestamp)
+                const getNotificationDetails = () => {
+                  if (notification.type === 'booking') {
+                    const booking = notification.data
+                    return {
+                      title: 'Nouvelle réservation',
+                      subtitle: `${booking.client_name} - ${getCalendarName(booking.calendar_id)}`,
+                      details: `${booking.booking_date} ${booking.booking_time || ''}`,
+                      onClick: () => {
+                        setNotificationsOpen(false)
+                        navigate('/réservation', { state: { highlightBookingId: booking.id, calendarId: booking.calendar_id } })
+                      }
+                    }
+                  } else if (notification.type === 'holiday') {
+                    const holiday = notification.data
+                    const calendarName = getCalendarName(holiday.calendar_id)
+                    const formatDate = (dateStr: string) => {
+                      const date = new Date(dateStr)
+                      return date.toLocaleDateString('fr-FR', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })
+                    }
+                    return {
+                      title: 'Nouveau jour férié',
+                      subtitle: `${calendarName} - ${formatDate(holiday.holiday_date)}`,
+                      details: 'Jour férié ajouté',
+                      onClick: () => {
+                        setNotificationsOpen(false)
+                        navigate('/jours-feries')
+                      }
+                    }
+                  } else if (notification.type === 'user') {
+                    const user = notification.data
+                    return {
+                      title: 'Nouvel utilisateur',
+                      subtitle: `${user.name} (${user.role})`,
+                      details: user.email,
+                      onClick: () => {
+                        setNotificationsOpen(false)
+                        navigate('/utilisateurs')
+                      }
+                    }
+                  }
+                  return { title: '', subtitle: '', details: '', onClick: () => {} }
+                }
+                const details = getNotificationDetails()
+                return (
+                  <div
+                    key={notification.id}
+                    onClick={details.onClick}
+                    style={{
+                      padding: '12px 16px',
+                      borderBottom: `1px solid ${isDarkMode ? '#2a2a2a' : '#f0f0f0'}`,
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = isDarkMode ? '#2a2a2a' : '#f9fafb'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: '12px'
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          color: isDarkMode ? '#ffffff' : '#111827',
+                          marginBottom: '4px'
+                        }}>
+                          {details.title || notification.title}
+                        </div>
+                        <div style={{
+                          fontSize: '13px',
+                          color: isDarkMode ? '#9ca3af' : '#6b7280',
+                          marginBottom: '4px'
+                        }}>
+                          {details.subtitle}
+                        </div>
+                        {details.details && (
+                          <div style={{
+                            fontSize: '12px',
+                            color: isDarkMode ? '#6b7280' : '#9ca3af'
+                          }}>
+                            {details.details}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{
+                        fontSize: '11px',
+                        color: isDarkMode ? '#6b7280' : '#9ca3af',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {timeAgo}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+          {allNotifications.length > 0 && (
+            <div style={{
+              padding: '12px 16px',
+              borderTop: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+              textAlign: 'center'
+            }}>
+              <button
+                onClick={() => {
+                  setNotificationsOpen(false)
+                  if (allNotifications[0]?.type === 'booking') {
+                    navigate('/réservation')
+                  } else if (allNotifications[0]?.type === 'holiday') {
+                    navigate('/jours-feries')
+                  } else {
+                    navigate('/utilisateurs')
+                  }
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#fa541c',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500
+                }}
+              >
+                Voir toutes les notifications
+              </button>
+            </div>
+          )}
         </div>
       )}
       
@@ -675,7 +976,7 @@ function SettingsPage() {
                 <h1>Paramètres</h1>
                 <p>Gérez vos préférences et configurations</p>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: isMobile ? 'none' : 'flex', alignItems: 'center', gap: '12px' }}>
                 {saveStatus === 'success' && (
                   <div style={{
                     display: 'flex',

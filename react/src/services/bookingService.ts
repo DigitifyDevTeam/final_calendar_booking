@@ -42,14 +42,68 @@ const toBookingRecord = (apiBooking: BookingApiResponse): BookingRecord => ({
   timestamp: new Date(apiBooking.created_at).getTime(),
 })
 
+// Helper function to refresh the access token
+const refreshAccessToken = async (): Promise<string | null> => {
+  const refreshToken = sessionStorage.getItem('refresh_token')
+  if (!refreshToken) {
+    return null
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/token/refresh/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refresh: refreshToken }),
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      if (data.access) {
+        sessionStorage.setItem('access_token', data.access)
+        return data.access
+      }
+    }
+  } catch (error) {
+    console.error('Error refreshing token:', error)
+  }
+
+  return null
+}
+
 const apiRequest = async <T>(path: string, options?: RequestInit): Promise<T> => {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options?.headers || {}),
-    },
+  // Get access token from sessionStorage
+  let accessToken = sessionStorage.getItem('access_token')
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string> || {}),
+  }
+  
+  // Add Authorization header if token exists
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`
+  }
+  
+  let response = await fetch(`${API_BASE_URL}${path}`, {
+    headers,
     ...options,
   })
+
+  // If token expired (401), try to refresh it and retry once
+  if (response.status === 401 && accessToken) {
+    const newAccessToken = await refreshAccessToken()
+    if (newAccessToken) {
+      // Update headers with new token
+      headers['Authorization'] = `Bearer ${newAccessToken}`
+      // Retry the request with new token
+      response = await fetch(`${API_BASE_URL}${path}`, {
+        headers,
+        ...options,
+      })
+    }
+  }
 
   if (!response.ok) {
     let errorMessage = `API request failed with status ${response.status}`
