@@ -47,11 +47,13 @@ CORS_ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 
-# Always add dev.woodagency.fr to allowed origins
-if 'dev.woodagency.fr' not in [origin.replace('https://', '').replace('http://', '') for origin in CORS_ALLOWED_ORIGINS]:
+# Always add woodagency.fr to allowed origins
+if 'woodagency.fr' not in [origin.replace('https://', '').replace('http://', '') for origin in CORS_ALLOWED_ORIGINS]:
     CORS_ALLOWED_ORIGINS.extend([
-        'https://dev.woodagency.fr',
-        'http://dev.woodagency.fr',
+        'https://woodagency.fr',
+        'https://www.woodagency.fr',
+        'http://woodagency.fr',
+        'http://www.woodagency.fr',
     ])
 
 # If no specific origins set, add common patterns from ALLOWED_HOSTS
