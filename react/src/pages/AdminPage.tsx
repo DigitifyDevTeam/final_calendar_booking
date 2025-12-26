@@ -1089,17 +1089,19 @@ function AdminPage() {
         <div className={`admin-page ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
           <header className="admin-header">
             <div className="header-content">
-              <div>
+              <div style={{ gridColumn: '2', textAlign: 'center' }}>
                 <h1>{isAdmin ? 'Administration - Réservations' : 'Mes Réservations'}</h1>
                 <p>{isAdmin ? 'Gestion des réservations' : 'Vos réservations personnelles'}</p>
               </div>
-              <div style={{ display: isMobile ? 'none' : 'flex', alignItems: 'center', gap: '16px', position: 'relative' }}>
+              <div style={{ display: isMobile ? 'none' : 'flex', alignItems: 'center', gap: '12px', position: 'relative', gridColumn: '3', justifyContent: 'flex-end' }}>
                 <button 
                   data-notifications-dropdown
                   onClick={() => setNotificationsOpen(!notificationsOpen)}
                   style={{
                     position: 'relative',
-                    padding: '8px',
+                    width: '40px',
+                    height: '40px',
+                    padding: '0',
                     borderRadius: '8px',
                     backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
                     border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
@@ -1363,7 +1365,9 @@ function AdminPage() {
                 <button 
                   onClick={handleLogout}
                   style={{
-                    padding: '8px',
+                    width: '40px',
+                    height: '40px',
+                    padding: '0',
                     borderRadius: '8px',
                     backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
                     border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,

@@ -60,3 +60,9 @@ logs/
 # Database
 *.db
 
+# Gmail OAuth2 tokens and credentials
+gmail_token.json
+backend/gmail_token.json
+client_secret_*.json
+**/client_secret*.json
+*.client_secret.json

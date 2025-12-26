@@ -39,8 +39,20 @@ SECURE_BROWSER_XSS_FILTER = False
 SECURE_CONTENT_TYPE_NOSNIFF = False
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-# Email - Console backend for local (prints to console)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'dev.digitify@gmail.com')
-CONTACT_EMAIL_RECIPIENTS = os.environ.get('CONTACT_EMAIL_RECIPIENTS', 'dev.digitify@gmail.com')
+# Email - Gmail OAuth2 backend
+EMAIL_BACKEND = 'core.gmail_oauth.GmailOAuth2Backend'
+
+# OAuth2 Credentials (for local development)
+# Can use environment variables (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET) or credentials file
+GMAIL_CREDENTIALS_FILE = os.environ.get('GMAIL_CREDENTIALS_FILE')
+
+# Token storage (for local development)
+# Can use environment variable (GMAIL_TOKEN_JSON) or token file
+GMAIL_TOKEN_FILE = os.environ.get('GMAIL_TOKEN_FILE')
+
+# Email addresses
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'contact@woodagency.fr')
+# Recipient email for booking notifications
+# Can be overridden with CONTACT_EMAIL_RECIPIENTS environment variable
+CONTACT_EMAIL_RECIPIENTS = os.environ.get('CONTACT_EMAIL_RECIPIENTS', 'contact@woodagency.fr')
 

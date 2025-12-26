@@ -1,4 +1,5 @@
 from datetime import date
+import logging
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.db.models import Count
@@ -11,6 +12,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Booking, ContactMessage, Holiday, User
 from .serializers import BookingSerializer, ContactMessageSerializer, HolidaySerializer, UserSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class LoginRateThrottle(SimpleRateThrottle):
@@ -72,43 +75,200 @@ CALENDAR_LABELS = {
 
 
 def _notify_booking(booking: Booking, is_update=False):
-    """Send email notification for booking creation or update"""
+    """Send email notification for booking creation or update with beautiful HTML template"""
     try:
         action = "modifiée" if is_update else "enregistrée"
+        action_icon = "✏️" if is_update else "✅"
         calendar_label = CALENDAR_LABELS.get(booking.calendar_id, booking.calendar_id)
-        subject = f"Réservation {action} pour {calendar_label} le {booking.booking_date}"
-        body_lines = [
-            f"Une réservation vient d'être {action} :",
-            "",
-            f"Calendrier : {calendar_label}",
-            f"Date : {booking.booking_date}",
-        ]
-
-        # Show time slot for calendars that use time slots (SAV and Metré)
-        # For Pose calendar, time is optional and defaults to '21h00' which we don't need to show
+        subject = f"{action_icon} Réservation {action} - {calendar_label} - {booking.booking_date}"
+        
+        # Format time display
+        time_display = ""
         if booking.calendar_id in ['calendar2', 'calendar3', '2', '3']:
-            # For time slot calendars, always show the time slot
             if booking.booking_time and booking.booking_time.strip():
-                body_lines.append(f"Heure : {booking.booking_time}")
+                time_display = booking.booking_time.strip()
             else:
-                body_lines.append(f"Heure : Non spécifiée")
+                time_display = "Non spécifiée"
         elif booking.booking_time and booking.booking_time.strip() and booking.booking_time.strip() != '21h00':
-            # For other calendars, only show time if it's not the default
-            body_lines.append(f"Heure : {booking.booking_time}")
+            time_display = booking.booking_time.strip()
+        
+        # Format date and time
+        from django.utils import timezone
+        created_at = booking.created_at
+        if timezone.is_aware(created_at):
+            created_at = timezone.localtime(created_at)
+        formatted_date = created_at.strftime("%d/%m/%Y à %H:%M")
+        
+        # Create beautiful HTML email template
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }}
+        .container {{
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }}
+        .header h1 {{
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }}
+        .content {{
+            padding: 30px 20px;
+        }}
+        .info-box {{
+            background-color: #f8f9fa;
+            border-left: 4px solid #FF6B35;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }}
+        .info-row {{
+            display: flex;
+            padding: 10px 0;
+            border-bottom: 1px solid #e9ecef;
+        }}
+        .info-row:last-child {{
+            border-bottom: none;
+        }}
+        .info-label {{
+            font-weight: 600;
+            color: #666;
+            min-width: 140px;
+        }}
+        .info-value {{
+            color: #333;
+            flex: 1;
+        }}
+        .message-box {{
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+        }}
+        .footer {{
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            border-top: 1px solid #e9ecef;
+        }}
+        .badge {{
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }}
+        .badge-new {{
+            background-color: #28a745;
+            color: white;
+        }}
+        .badge-updated {{
+            background-color: #ffc107;
+            color: #333;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{action_icon} Réservation {action}</h1>
+            <span class="badge {'badge-updated' if is_update else 'badge-new'}">
+                {'Modifiée' if is_update else 'Nouvelle'}
+            </span>
+        </div>
+        
+        <div class="content">
+            <div class="info-box">
+                <div class="info-row">
+                    <span class="info-label">📅 Calendrier:</span>
+                    <span class="info-value"><strong>{calendar_label}</strong></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">📆 Date:</span>
+                    <span class="info-value"><strong>{booking.booking_date}</strong></span>
+                </div>
+                {f'<div class="info-row"><span class="info-label">🕐 Heure:</span><span class="info-value"><strong>{time_display}</strong></span></div>' if time_display else ''}
+            </div>
+            
+            <div class="info-box">
+                <div class="info-row">
+                    <span class="info-label">👤 Client:</span>
+                    <span class="info-value"><strong>{booking.client_name}</strong></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">📞 Téléphone:</span>
+                    <span class="info-value"><a href="tel:{booking.client_phone}">{booking.client_phone}</a></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">✏️ Concepteur:</span>
+                    <span class="info-value">{booking.designer_name or 'Non spécifié'}</span>
+                </div>
+            </div>
+            
+            {f'<div class="message-box"><strong>💬 Message / Commentaire:</strong><br><br>{booking.message}</div>' if booking.message else ''}
+            
+            <div class="info-box" style="background-color: #e7f3ff; border-left-color: #0066cc;">
+                <div class="info-row">
+                    <span class="info-label">🆔 ID Réservation:</span>
+                    <span class="info-value"><strong>#{booking.id}</strong></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">⏰ {'Modifiée' if is_update else 'Créée'} le:</span>
+                    <span class="info-value">{formatted_date}</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Notification automatique du système de réservation</p>
+            <p>Vous recevez cet email car une réservation a été {action} dans le calendrier.</p>
+        </div>
+    </div>
+</body>
+</html>
+        """
+        
+        # Plain text fallback
+        text_body = f"""
+Réservation {action} - {calendar_label}
 
-        body_lines.extend([
-            f"Nom du client : {booking.client_name}",
-            f"Téléphone : {booking.client_phone}",
-            f"Nom du concepteur : {booking.designer_name}",
-            "",
-            "Message / Commentaire :",
-            booking.message or "(aucun)",
-            "",
-            f"ID de réservation : {booking.id}",
-            f"{'Modifiée' if is_update else 'Créée'} le : {booking.created_at}",
-        ])
+Calendrier: {calendar_label}
+Date: {booking.booking_date}
+{f'Heure: {time_display}' if time_display else ''}
 
-        body = "\n".join(body_lines)
+Client: {booking.client_name}
+Téléphone: {booking.client_phone}
+Concepteur: {booking.designer_name or 'Non spécifié'}
+
+{f'Message/Commentaire:\n{booking.message}' if booking.message else ''}
+
+ID Réservation: #{booking.id}
+{'Modifiée' if is_update else 'Créée'} le: {formatted_date}
+        """.strip()
 
         # Safely get email settings with defaults
         default_from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com')
@@ -120,18 +280,33 @@ def _notify_booking(booking: Booking, is_update=False):
             if email.strip()
         ]
 
+        logger.info(f"Preparing to send booking notification email for booking #{booking.id}")
+        logger.info(f"From: {default_from_email}")
+        logger.info(f"To: {recipients}")
+
         email_message = EmailMessage(
             subject=subject,
-            body=body,
+            body=text_body,  # Plain text fallback
             from_email=default_from_email,
             to=recipients or [default_from_email],
         )
+        
+        # Set HTML content
+        email_message.content_subtype = "html"
+        email_message.body = html_body
 
-        email_message.send(fail_silently=True)  # Don't fail if email can't be sent
+        try:
+            result = email_message.send(fail_silently=True)  # Don't fail if email can't be sent
+            logger.info(f"✅ Booking notification email sent successfully for booking #{booking.id} to {recipients}")
+            if result:
+                logger.info(f"Email backend returned success (sent {result} message(s))")
+            else:
+                logger.warning(f"Email backend returned {result} - email may not have been sent")
+        except Exception as e:
+            logger.error(f"❌ FAILED to send booking notification email for booking #{booking.id}: {e}", exc_info=True)
+            # Don't break booking creation if email fails
     except Exception as e:
         # Log the error but don't break the booking creation
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Error sending booking notification email: {e}", exc_info=True)
 
 

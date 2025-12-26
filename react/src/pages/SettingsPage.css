@@ -47,6 +47,36 @@
   margin: 0 auto;
 }
 
+/* Desktop: Use grid layout for perfect centering */
+@media (min-width: 769px) {
+  .settings-header .header-content {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 16px;
+    position: relative;
+  }
+
+  .settings-header .header-content > div:first-child {
+    grid-column: 2;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .settings-header .header-content > div:last-child {
+    grid-column: 3;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 12px !important;
+    justify-content: flex-end !important;
+  }
+}
+
 .settings-header h1 {
   font-size: 28px;
   font-weight: 700;

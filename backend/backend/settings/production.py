@@ -84,15 +84,30 @@ SECURE_HSTS_SECONDS = 31536000  # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
-# Email - SMTP backend for production
-EMAIL_BACKEND = os.environ.get('DJANGO_EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'dev.digitify@gmail.com')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
-if not EMAIL_HOST_PASSWORD:
-    raise ValueError("EMAIL_HOST_PASSWORD must be set in production!")
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true').lower() == 'true'
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'dev.digitify@gmail.com')
-CONTACT_EMAIL_RECIPIENTS = os.environ.get('CONTACT_EMAIL_RECIPIENTS', 'dev.digitify@gmail.com')
+# Email - Gmail OAuth2 backend (with automatic token refresh - tokens never expire)
+EMAIL_BACKEND = 'core.gmail_oauth.GmailOAuth2Backend'
+
+# OAuth2 Credentials (REQUIRED for production - Use environment variables)
+# Set these environment variables on your production server:
+#   GMAIL_CLIENT_ID - Your OAuth2 client ID
+#   GMAIL_CLIENT_SECRET - Your OAuth2 client secret
+GMAIL_CREDENTIALS_FILE = os.environ.get('GMAIL_CREDENTIALS_FILE')
+
+# Token storage (REQUIRED for production - Use environment variable)
+# Set this environment variable on your production server:
+#   GMAIL_TOKEN_JSON - Complete JSON string from gmail_token.json file
+# 
+# To get the token JSON:
+#   1. Run setup_gmail_oauth.py locally
+#   2. Copy the entire JSON from backend/backend/gmail_token.json
+#   3. Set as GMAIL_TOKEN_JSON environment variable
+#
+# The backend automatically refreshes tokens before expiration, ensuring they never expire.
+GMAIL_TOKEN_FILE = os.environ.get('GMAIL_TOKEN_FILE')
+
+# Email addresses
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'contact@woodagency.fr')
+# Recipient email for booking notifications
+# Can be overridden with CONTACT_EMAIL_RECIPIENTS environment variable
+CONTACT_EMAIL_RECIPIENTS = os.environ.get('CONTACT_EMAIL_RECIPIENTS', 'contact@woodagency.fr')
 
