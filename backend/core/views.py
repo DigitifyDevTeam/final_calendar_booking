@@ -81,7 +81,7 @@ def _notify_booking(booking: Booking, is_update=False):
         action_icon = "✏️" if is_update else "✅"
         calendar_label = CALENDAR_LABELS.get(booking.calendar_id, booking.calendar_id)
         subject = f"{action_icon} Réservation {action} - {calendar_label} - {booking.booking_date}"
-        
+
         # Format time display
         time_display = ""
         if booking.calendar_id in ['calendar2', 'calendar3', '2', '3']:
@@ -253,6 +253,8 @@ def _notify_booking(booking: Booking, is_update=False):
         """
         
         # Plain text fallback
+        message_section = f'Message/Commentaire:\n{booking.message}' if booking.message else ''
+        
         text_body = f"""
 Réservation {action} - {calendar_label}
 
@@ -264,7 +266,7 @@ Client: {booking.client_name}
 Téléphone: {booking.client_phone}
 Concepteur: {booking.designer_name or 'Non spécifié'}
 
-{f'Message/Commentaire:\n{booking.message}' if booking.message else ''}
+{message_section}
 
 ID Réservation: #{booking.id}
 {'Modifiée' if is_update else 'Créée'} le: {formatted_date}
@@ -290,7 +292,7 @@ ID Réservation: #{booking.id}
             from_email=default_from_email,
             to=recipients or [default_from_email],
         )
-        
+
         # Set HTML content
         email_message.content_subtype = "html"
         email_message.body = html_body
