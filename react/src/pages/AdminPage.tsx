@@ -193,10 +193,14 @@ function AdminPage() {
       const results = await Promise.all(allBookingsPromises)
       
       // Flatten and add calendar info to each booking
+      // Use the calendar_id from the booking itself (from backend) if available,
+      // otherwise fall back to the calendarId from the query
       const allBookings: (BookingRecord & { calendarId: string })[] = []
       results.forEach(({ calendarId, bookings }) => {
         bookings.forEach(booking => {
-          allBookings.push({ ...booking, calendarId })
+          // Use the actual calendar_id from the booking if available, otherwise use the query calendarId
+          const actualCalendarId = booking.calendar_id || calendarId
+          allBookings.push({ ...booking, calendarId: actualCalendarId })
         })
       })
 
@@ -1403,8 +1407,8 @@ function AdminPage() {
           >
             <option value="all">Tous les calendriers</option>
             <option value={CALENDAR_CONFIGS['calendar1']}>Pose</option>
-            <option value={CALENDAR_CONFIGS['calendar2']}>Metré</option>
-            <option value={CALENDAR_CONFIGS['calendar3']}>SAV</option>
+            <option value={CALENDAR_CONFIGS['calendar2']}>SAV</option>
+            <option value={CALENDAR_CONFIGS['calendar3']}>Metré</option>
           </select>
         </div>
 

@@ -77,6 +77,7 @@ python manage.py import_metre_data --file /path/to/custom/metré.json
 
 1. **Reads JSON file**: The script reads the JSON file from the `data/` directory (or custom path)
 2. **Maps fields**: Converts JSON fields to database model fields
+   **Remove sundays**: remove all sundays data 
 3. **Handles duplicates**: If a booking already exists (based on calendar_id, date, time, client_name, and client_phone), it updates it instead of creating a duplicate
 4. **Converts timestamps**: Converts JavaScript timestamp (milliseconds) to Python datetime
 5. **Sets designer_name**: All imported bookings will have `designer_name` set to "ancien_rdv" (regardless of the value in the JSON file)

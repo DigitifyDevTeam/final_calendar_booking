@@ -9,6 +9,7 @@
   background-size: 400% 400%;
   animation: gradientShift 15s ease infinite;
   padding: 20px;
+  color-scheme: light; /* Force light mode regardless of browser preference */
 }
 
 @keyframes gradientShift {
@@ -526,38 +527,5 @@
   }
 }
 
-/* Dark mode support (optional) */
-@media (prefers-color-scheme: dark) {
-  .login-card {
-    background: rgba(26, 26, 26, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-
-  .login-title {
-    color: #fff;
-  }
-
-  .login-subtitle {
-    color: #aaa;
-  }
-
-  .form-label {
-    color: #e0e0e0;
-  }
-
-  .form-input {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.1);
-    color: #fff;
-  }
-
-  .form-input:focus {
-    background: rgba(255, 255, 255, 0.08);
-  }
-
-  .checkbox-label,
-  .login-footer {
-    color: #aaa;
-  }
-}
+/* Dark mode support disabled - login interface remains consistent regardless of browser dark mode */
 

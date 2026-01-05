@@ -137,11 +137,19 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
   ]
 
+  // Determine if Sunday should be hidden (for SAV and Metre calendars only)
+  const hideSunday = binId === 'calendar2' || binId === 'calendar3'
 
   // Convert JavaScript day (0=Sunday, 6=Saturday) to header index (0=Monday, 6=Sunday)
+  // When Sunday is hidden, adjust the mapping: Sunday (0) -> not included, Monday (1) -> 0, etc.
   const getDayIndex = (day: number): number => {
-    // Sunday (0) -> 6, Monday (1) -> 0, Tuesday (2) -> 1, etc.
-    return day === 0 ? 6 : day - 1
+    if (hideSunday) {
+      // Sunday (0) -> not included, Monday (1) -> 0, Tuesday (2) -> 1, etc.
+      return day === 0 ? -1 : day - 1
+    } else {
+      // Sunday (0) -> 6, Monday (1) -> 0, Tuesday (2) -> 1, etc.
+      return day === 0 ? 6 : day - 1
+    }
   }
 
   // Get all days of the current month with proper alignment
@@ -154,14 +162,21 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     
     const days: (Date | null)[] = []
     
-    // Add empty cells for days before the 1st
-    for (let i = 0; i < firstDayIndex; i++) {
-      days.push(null)
+    // Add empty cells for days before the 1st (skip if firstDayIndex is -1, meaning it's Sunday and we're hiding it)
+    if (firstDayIndex >= 0) {
+      for (let i = 0; i < firstDayIndex; i++) {
+        days.push(null)
+      }
     }
     
-    // Add all days from 1 to last day of month
+    // Add all days from 1 to last day of month, excluding Sundays if hideSunday is true
     for (let day = 1; day <= daysInMonth; day++) {
-      days.push(new Date(year, month, day))
+      const currentDate = new Date(year, month, day)
+      // Skip Sunday if hideSunday is true
+      if (hideSunday && currentDate.getDay() === 0) {
+        continue
+      }
+      days.push(currentDate)
     }
     
     return days
@@ -177,7 +192,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     monday.setHours(0, 0, 0, 0)
     
     const weekDays: Date[] = []
-    for (let i = 0; i < 7; i++) {
+    const daysToInclude = hideSunday ? 6 : 7 // Monday-Saturday (6 days) or Monday-Sunday (7 days)
+    
+    for (let i = 0; i < daysToInclude; i++) {
       const day = new Date(monday)
       day.setDate(monday.getDate() + i)
       weekDays.push(day)
@@ -339,6 +356,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         const slots: {[key: string]: boolean} = {}
         const details: {[key: string]: BookingRecord} = {}
         
+        let filteredPastCount = 0
+        let filteredTimeSlotCount = 0
         allBookings.forEach((booking: BookingRecord) => {
           // Parse booking date and compare with today
           const bookingDate = new Date(booking.date + 'T00:00:00')
@@ -346,36 +365,35 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           
           // Only count bookings for today or future dates (exclude past dates)
           if (bookingDate >= today) {
-            // For calendars with time slots (calendar2/Metré and calendar3/SAV), only count if time slot is present
+            // For calendars with time slots (calendar2/SAV and calendar3/Metré), only count if time slot is present
             // For calendar1/Pose, count all bookings
             if (usesTimeSlots(binId)) {
               // Only count bookings that have a valid time slot (not empty or default)
               if (booking.time && booking.time.trim() && booking.time !== '21h00') {
                 const normalizedTime = booking.time.trim().toLowerCase()
-                const slotKey = `${booking.date}|${normalizedTime}`
+                
+                // For calendar3 with sav timeSlotType, if booking has range format (e.g., "8:00-11:00"),
+                // we need to extract the start time to match individual slot format (e.g., "8:00")
+                let slotTime = normalizedTime
+                if (binId === 'calendar3' && timeSlotType === 'sav' && normalizedTime.includes('-')) {
+                  // Extract the start time from range format (e.g., "8:00-11:00" -> "8:00")
+                  slotTime = normalizedTime.split('-')[0].trim()
+                }
+                
+                const slotKey = `${booking.date}|${slotTime}`
                 slots[slotKey] = true
                 details[slotKey] = booking // Store booking details for admin
-                // Don't increment counts for time-slot calendars (they're tracked per slot)
+              } else {
+                filteredTimeSlotCount++
               }
             } else {
               // For Pose calendar (calendar1), count all bookings per date
               counts[booking.date] = (counts[booking.date] || 0) + 1
             }
+          } else {
+            filteredPastCount++
           }
         })
-        
-        console.log(`[Calendar] Loaded ${allBookings.length} bookings for calendar: ${binId}`)
-        console.log(`[Calendar] All bookings:`, allBookings)
-        console.log(`[Calendar] Booking counts for ${Object.keys(counts).length} future dates:`, counts)
-        console.log(`[Calendar] Booked time slots:`, slots)
-        console.log(`[Calendar] Today's date:`, today.toISOString().split('T')[0])
-        
-        // Debug: Check specifically for 2025-11-18
-        if (counts['2025-11-18']) {
-          console.log(`[Calendar] DEBUG: Found ${counts['2025-11-18']} bookings for 2025-11-18`)
-        } else {
-          console.log(`[Calendar] DEBUG: No bookings found for 2025-11-18 in counts`)
-        }
         
         setBookingCounts(counts)
         setBookedTimeSlots(slots)
@@ -487,10 +505,6 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     const slotKey = `${dateString}|${normalizedTimeSlot}`
     const isBooked = bookedTimeSlots[slotKey] || false
     
-    // Debug logging for specific dates
-    if (dateString === '2025-11-18' && timeSlot) {
-      console.log(`[isSlotBooked] Date: ${dateString}, TimeSlot: ${timeSlot}, Normalized: ${normalizedTimeSlot}, Key: ${slotKey}, IsBooked: ${isBooked}`)
-    }
     
     return isBooked
   }
@@ -554,7 +568,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
 
   // Helper function to determine if info icon should be shown
   const shouldShowInfoIcon = (date: Date, timeSlot?: string): boolean => {
-    // Only show info icon for Pose calendar (calendar1), hide for Metré (calendar2) and SAV (calendar3)
+    // Only show info icon for Pose calendar (calendar1), hide for SAV (calendar2) and Metré (calendar3)
     if (binId === 'calendar2' || binId === 'calendar3') {
       return false
     }
@@ -1004,13 +1018,14 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   
   // Helper function to get the week range for display
   const getWeekRange = (): string => {
-    const monday = getWeekDays(currentDate)[0]
-    const sunday = getWeekDays(currentDate)[6]
+    const weekDays = getWeekDays(currentDate)
+    const monday = weekDays[0]
+    const lastDay = weekDays[weekDays.length - 1] // Saturday when hideSunday is true, Sunday otherwise
     
-    if (monday.getMonth() === sunday.getMonth()) {
-      return `${monday.getDate()} - ${sunday.getDate()} ${monthNames[monday.getMonth()]} ${monday.getFullYear()}`
+    if (monday.getMonth() === lastDay.getMonth()) {
+      return `${monday.getDate()} - ${lastDay.getDate()} ${monthNames[monday.getMonth()]} ${monday.getFullYear()}`
     } else {
-      return `${monday.getDate()} ${monthNames[monday.getMonth()].slice(0, 3)} - ${sunday.getDate()} ${monthNames[sunday.getMonth()].slice(0, 3)} ${sunday.getFullYear()}`
+      return `${monday.getDate()} ${monthNames[monday.getMonth()].slice(0, 3)} - ${lastDay.getDate()} ${monthNames[lastDay.getMonth()].slice(0, 3)} ${lastDay.getFullYear()}`
     }
   }
 
@@ -1043,8 +1058,11 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         {/* Calendar grid */}
       <div className="calendar-grid">
           {/* Day name headers */}
-          <div className="day-headers-row">
-            {['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'].map((dayName, index) => (
+          <div className={`day-headers-row ${hideSunday ? 'no-sunday' : ''}`}>
+            {(hideSunday 
+              ? ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
+              : ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']
+            ).map((dayName, index) => (
               <div key={index} className="day-header-cell">
                 {dayName}
               </div>
@@ -1054,7 +1072,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           {/* Render based on view mode */}
           {view === 'weekly' ? (
             /* Weekly view - single row */
-            <div className="date-headers">
+            <div className={`date-headers ${hideSunday ? 'no-sunday' : ''}`}>
               {weekDays.map((date, index) => {
                 const bookingStatus = getBookingStatus(date)
                 const isFullyBooked = bookingStatus.isFullyBooked
@@ -1792,8 +1810,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           ) : (
             <>
               {/* Monthly view - First row of dates */}
-              <div className="date-headers">
-                {monthDays.slice(0, 7).map((date, index) => {
+              <div className={`date-headers ${hideSunday ? 'no-sunday' : ''}`}>
+                {monthDays.slice(0, hideSunday ? 6 : 7).map((date, index) => {
               if (date === null) {
                 return <div key={index} className="date-header empty"></div>
               }
@@ -1872,8 +1890,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           </div>
           
           {/* Second row of dates */}
-          <div className="date-headers">
-            {monthDays.slice(7, 14).map((date, index) => {
+          <div className={`date-headers ${hideSunday ? 'no-sunday' : ''}`}>
+            {monthDays.slice(hideSunday ? 6 : 7, hideSunday ? 12 : 14).map((date, index) => {
               if (date === null) {
                 return <div key={`second-${index}`} className="date-header empty"></div>
               }
@@ -1952,8 +1970,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           </div>
           
           {/* Third row of dates */}
-          <div className="date-headers">
-            {monthDays.slice(14, 21).map((date, index) => {
+          <div className={`date-headers ${hideSunday ? 'no-sunday' : ''}`}>
+            {monthDays.slice(hideSunday ? 12 : 14, hideSunday ? 18 : 21).map((date, index) => {
               if (date === null) {
                 return <div key={`third-${index}`} className="date-header empty"></div>
               }
@@ -2032,8 +2050,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           </div>
           
           {/* Fourth row of dates */}
-          <div className="date-headers">
-            {monthDays.slice(21, 28).map((date, index) => {
+          <div className={`date-headers ${hideSunday ? 'no-sunday' : ''}`}>
+            {monthDays.slice(hideSunday ? 18 : 21, hideSunday ? 24 : 28).map((date, index) => {
               if (date === null) {
                 return <div key={`fourth-${index}`} className="date-header empty"></div>
               }
@@ -2112,9 +2130,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           </div>
           
           {/* Fifth row of dates (remaining days) */}
-          {monthDays.length > 28 && (
-            <div className="date-headers">
-              {monthDays.slice(28).map((date, index) => {
+          {monthDays.length > (hideSunday ? 24 : 28) && (
+            <div className={`date-headers ${hideSunday ? 'no-sunday' : ''}`}>
+              {monthDays.slice(hideSunday ? 24 : 28).map((date, index) => {
                 if (date === null) {
                   return <div key={`fifth-${index}`} className="date-header empty"></div>
                 }

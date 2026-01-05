@@ -47,12 +47,32 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
   })
   const [errors, setErrors] = useState<Partial<Record<keyof AdminBookingFormData, string>>>({})
 
+  // Helper function to format date to YYYY-MM-DD for date input
+  const formatDateForInput = (dateString: string): string => {
+    if (!dateString) return ''
+    // If already in YYYY-MM-DD format, return as is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return dateString
+    }
+    // Try to parse and format the date
+    try {
+      const date = new Date(dateString + 'T00:00:00')
+      if (isNaN(date.getTime())) return ''
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    } catch {
+      return dateString
+    }
+  }
+
   useEffect(() => {
     if (booking) {
       // Edit mode - populate form with existing booking data
       setFormData({
         calendar_id: booking.calendarId || CALENDAR_CONFIGS['calendar1'],
-        booking_date: booking.date || '',
+        booking_date: formatDateForInput(booking.date || ''),
         booking_time: booking.time && booking.time !== '21h00' ? booking.time : '',
         client_name: booking.name || '',
         client_phone: booking.phone || '',
@@ -187,8 +207,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
                 className={errors.calendar_id ? 'error' : ''}
               >
                 <option value={CALENDAR_CONFIGS['calendar1']}>Pose</option>
-                <option value={CALENDAR_CONFIGS['calendar2']}>Metré</option>
-                <option value={CALENDAR_CONFIGS['calendar3']}>SAV</option>
+                <option value={CALENDAR_CONFIGS['calendar2']}>SAV</option>
+                <option value={CALENDAR_CONFIGS['calendar3']}>Metré</option>
               </select>
               {errors.calendar_id && <span className="error-message">{errors.calendar_id}</span>}
             </div>
@@ -196,6 +216,16 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
 
           <div className="form-group">
             <label htmlFor="booking_date">Date *</label>
+            {formData.booking_date && (
+              <div className="selected-date-display">
+                Date sélectionnée : {new Date(formData.booking_date + 'T00:00:00').toLocaleDateString('fr-FR', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </div>
+            )}
             <input
               type="date"
               id="booking_date"
@@ -203,6 +233,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
               value={formData.booking_date}
               onChange={handleInputChange}
               className={errors.booking_date ? 'error' : ''}
+              disabled={false}
+              style={{ cursor: 'pointer' }}
             />
             {errors.booking_date && <span className="error-message">{errors.booking_date}</span>}
           </div>

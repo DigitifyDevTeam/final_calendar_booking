@@ -183,15 +183,15 @@ function LoginPage() {
     let isValid = true
 
     if (!formData.email) {
-      newErrors.email = 'Email is required'
+      newErrors.email = 'L\'e-mail est requis'
       isValid = false
     } else if (!validateEmail(formData.email)) {
-      newErrors.email = 'Please enter a valid email address'
+      newErrors.email = 'Veuillez entrer une adresse e-mail valide'
       isValid = false
     }
 
     if (!formData.password) {
-      newErrors.password = 'Password is required'
+      newErrors.password = 'Le mot de passe est requis'
       isValid = false
     }
 
@@ -320,14 +320,14 @@ function LoginPage() {
                 </svg>
               </div>
             </div>
-            <h1 className="login-title">Welcome Back</h1>
-            <p className="login-subtitle">Sign in to your account to continue</p>
+            <h1 className="login-title">Bienvenue</h1>
+            <p className="login-subtitle">Connectez-vous à votre compte pour continuer</p>
           </div>
 
           <form className="login-form" onSubmit={handleSubmit}>
             <div className="form-group">
               <label htmlFor="email" className="form-label">
-                Email Address
+                Adresse e-mail
               </label>
               <div className="input-wrapper">
                 <div className="input-icon">
@@ -341,7 +341,7 @@ function LoginPage() {
                   id="email"
                   name="email"
                   className={`form-input ${errors.email ? 'input-error' : ''}`}
-                  placeholder="Enter your email"
+                  placeholder="Entrez votre e-mail"
                   value={formData.email}
                   onChange={handleChange}
                   autoComplete="email"
@@ -352,7 +352,7 @@ function LoginPage() {
 
             <div className="form-group">
               <label htmlFor="password" className="form-label">
-                Password
+                Mot de passe
               </label>
               <div className="input-wrapper">
                 <div className="input-icon">
@@ -366,7 +366,7 @@ function LoginPage() {
                   id="password"
                   name="password"
                   className={`form-input ${errors.password ? 'input-error' : ''}`}
-                  placeholder="Enter your password"
+                  placeholder="Entrez votre mot de passe"
                   value={formData.password}
                   onChange={handleChange}
                   autoComplete="current-password"
@@ -375,7 +375,7 @@ function LoginPage() {
                   type="button"
                   className="password-toggle"
                   onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                 >
                   {showPassword ? (
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -411,11 +411,11 @@ function LoginPage() {
               {isLoading ? (
                 <>
                   <span className="spinner"></span>
-                  Signing in...
+                  Connexion en cours...
                 </>
               ) : (
                 <>
-                  Sign In
+                  Se connecter
                   <svg className="button-arrow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>

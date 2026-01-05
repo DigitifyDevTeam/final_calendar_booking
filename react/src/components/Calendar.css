@@ -171,6 +171,10 @@
   min-width: 0;
 }
 
+.day-headers-row.no-sunday {
+  grid-template-columns: repeat(6, 1fr);
+}
+
 @media (max-width: 768px) {
   .day-headers-row {
     gap: 4px;
@@ -233,6 +237,10 @@
   margin-bottom: 8px;
   width: 100%;
   min-width: 0;
+}
+
+.date-headers.no-sunday {
+  grid-template-columns: repeat(6, 1fr);
 }
 
 @media (max-width: 768px) {

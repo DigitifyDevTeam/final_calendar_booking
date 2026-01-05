@@ -67,10 +67,10 @@ class IsAdminUserCustom(BasePermission):
 CALENDAR_LABELS = {
     'calendar1': 'Pose',
     '1': 'Pose',
-    'calendar2': 'Metré',
-    '2': 'Metré',
-    'calendar3': 'SAV',
-    '3': 'SAV',
+    'calendar2': 'SAV',
+    '2': 'SAV',
+    'calendar3': 'Metré',
+    '3': 'Metré',
 }
 
 
@@ -383,7 +383,22 @@ class BookingListCreateView(generics.ListCreateAPIView):
         end_date = self.request.query_params.get('end_date')
 
         if calendar_id:
-            queryset = queryset.filter(calendar_id=calendar_id)
+            # Handle legacy calendar_id formats: "1" instead of "calendar1", etc.
+            calendar_ids_to_query = [calendar_id]
+            if calendar_id == 'calendar1':
+                calendar_ids_to_query.append('1')
+            elif calendar_id == 'calendar2':
+                calendar_ids_to_query.append('2')
+            elif calendar_id == 'calendar3':
+                calendar_ids_to_query.append('3')
+            elif calendar_id == '1':
+                calendar_ids_to_query.append('calendar1')
+            elif calendar_id == '2':
+                calendar_ids_to_query.append('calendar2')
+            elif calendar_id == '3':
+                calendar_ids_to_query.append('calendar3')
+            
+            queryset = queryset.filter(calendar_id__in=calendar_ids_to_query)
 
         if start_date:
             queryset = queryset.filter(booking_date__gte=start_date)

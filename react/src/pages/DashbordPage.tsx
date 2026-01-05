@@ -69,7 +69,7 @@ function DashbordPage() {
   const [chartViewMode, setChartViewMode] = useState<'month' | 'week'>('month')
   const [monthOffset, setMonthOffset] = useState<number>(0) // 0 = current month, -1 = previous, +1 = next
   const [weekOffset, setWeekOffset] = useState<number>(0) // 0 = current week, -1 = previous, +1 = next
-  const [topClientsView, setTopClientsView] = useState<'total' | 'year' | 'month' | 'week'>('month')
+  const [topClientsView, setTopClientsView] = useState<'total' | 'year' | 'month' | 'week'>('total')
   const [topMonthOffset, setTopMonthOffset] = useState<number>(0) // independent month offset for top concepteurs
   const [topWeekOffset, setTopWeekOffset] = useState<number>(0) // independent week offset for top concepteurs
   const [topYearOffset, setTopYearOffset] = useState<number>(0) // independent year offset for top concepteurs
@@ -96,8 +96,14 @@ function DashbordPage() {
     endOfWeek.setHours(23, 59, 59, 999)
 
     const filtered = bookings.filter((booking: any) => {
+      // Skip bookings without a valid date
+      if (!booking.date) return false
+      
       const date = new Date(booking.date + 'T00:00:00')
-      if (Number.isNaN(date.getTime())) return false
+      if (Number.isNaN(date.getTime())) {
+        console.warn('[Top Concepteurs] Invalid date in booking:', booking)
+        return false
+      }
 
       if (view === 'total') {
         return true
@@ -125,24 +131,106 @@ function DashbordPage() {
 
       return date >= offsetStartOfWeek && date <= offsetEndOfWeek
     })
+    
+    // Debug: Log filtering results
+    console.log(`[Top Concepteurs] View: ${view}, Total bookings: ${bookings.length}, Filtered: ${filtered.length}`)
 
-    const concepteurCounts: {
-      [key: string]: { pose: number; sav: number; metre: number; total: number }
-    } = {}
+    // Use a Map to track normalized names and preserve original display names
+    const concepteurCountsMap = new Map<string, { 
+      displayName: string
+      pose: number
+      sav: number
+      metre: number
+      total: number
+    }>()
 
     filtered.forEach((booking: any) => {
-      const concepteurName = booking.designer || booking.name || 'Inconnu'
-      const entry = concepteurCounts[concepteurName] || { pose: 0, sav: 0, metre: 0, total: 0 }
-      const calendarId = booking.calendarId
-      if (calendarId === 'calendar1') entry.pose += 1
-      else if (calendarId === 'calendar2') entry.metre += 1
-      else if (calendarId === 'calendar3') entry.sav += 1
-      entry.total = entry.pose + entry.sav + entry.metre
-      concepteurCounts[concepteurName] = entry
+      // Use designer field for concepteur name (not client name)
+      // Normalize the designer name to handle case differences and whitespace
+      const rawDesigner = booking.designer || ''
+      const normalizedDesigner = rawDesigner.trim().toLowerCase()
+      const displayName = rawDesigner.trim() || 'Sans concepteur'
+      const concepteurKey = normalizedDesigner || 'sans concepteur'
+      
+      // Get or create entry
+      if (!concepteurCountsMap.has(concepteurKey)) {
+        concepteurCountsMap.set(concepteurKey, {
+          displayName,
+          pose: 0,
+          sav: 0,
+          metre: 0,
+          total: 0
+        })
+      }
+      
+      const entry = concepteurCountsMap.get(concepteurKey)!
+      
+      // Use calendar_id from booking if available, otherwise use calendarId
+      // Also check for numeric IDs ('1', '2', '3') and string IDs ('calendar1', etc.)
+      const calendarId = booking.calendar_id || booking.calendarId
+      
+      // Convert to string for consistent comparison
+      const calendarIdStr = String(calendarId || '').toLowerCase()
+      
+      // After swap: calendar1 = Pose, calendar2 = SAV, calendar3 = Metré
+      // Count the booking in the appropriate category
+      if (calendarIdStr === 'calendar1' || calendarIdStr === '1') {
+        entry.pose += 1
+      } else if (calendarIdStr === 'calendar2' || calendarIdStr === '2') {
+        entry.sav += 1
+      } else if (calendarIdStr === 'calendar3' || calendarIdStr === '3') {
+        entry.metre += 1
+      } else {
+        // If calendar ID doesn't match, still count it in total but log for debugging
+        console.warn('[Top Concepteurs] Booking with unknown calendar ID:', {
+          calendarId,
+          calendarIdStr,
+          bookingId: booking.id,
+          designer: displayName,
+          date: booking.date
+        })
+        // Still increment total to ensure all bookings are counted
+        entry.total += 1
+      }
+      
+      // Recalculate total after incrementing (only if we didn't already increment it above)
+      if (calendarIdStr === 'calendar1' || calendarIdStr === '1' || 
+          calendarIdStr === 'calendar2' || calendarIdStr === '2' || 
+          calendarIdStr === 'calendar3' || calendarIdStr === '3') {
+        entry.total = entry.pose + entry.sav + entry.metre
+      }
+      
     })
+    
+    // Debug: Log all concepteurs and their counts
+    console.log('[Top Concepteurs] All concepteurs:', Array.from(concepteurCountsMap.entries()))
+    
+    // Debug: Log counts for Martin specifically (case-insensitive)
+    const martinKey = 'martin'
+    if (concepteurCountsMap.has(martinKey)) {
+      const martinEntry = concepteurCountsMap.get(martinKey)!
+      console.log('[Top Concepteurs] Martin entry:', martinEntry)
+      console.log('[Top Concepteurs] Martin total:', martinEntry.total)
+      
+      // Count all bookings with designer containing "martin" (case-insensitive)
+      const martinBookings = filtered.filter((b: any) => {
+        const designer = (b.designer || '').trim().toLowerCase()
+        return designer === 'martin'
+      })
+      console.log('[Top Concepteurs] Total bookings with designer="martin":', martinBookings.length)
+      martinBookings.forEach((b: any, idx: number) => {
+        console.log(`[Top Concepteurs] Martin booking ${idx + 1}:`, {
+          id: b.id,
+          date: b.date,
+          calendarId: b.calendar_id || b.calendarId,
+          designer: b.designer
+        })
+      })
+    }
 
-    return Object.entries(concepteurCounts)
-      .map(([name, counts]) => ({ name, ...counts }))
+    // Convert Map to array and return
+    return Array.from(concepteurCountsMap.values())
+      .map(({ displayName, ...counts }) => ({ name: displayName, ...counts }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 10)
   }
@@ -212,7 +300,13 @@ function DashbordPage() {
         const bookingPromises = calendarIds.map(async (calendarId) => {
           try {
             const bookings = await getAllBookings(calendarId)
-            return bookings.map(booking => ({ ...booking, calendarId }))
+            // Ensure each booking has both calendarId (from query) and preserve calendar_id (from backend)
+            return bookings.map(booking => ({ 
+              ...booking, 
+              calendarId, // Add calendarId from query
+              // Preserve calendar_id from backend if it exists, otherwise use calendarId
+              calendar_id: (booking as any).calendar_id || calendarId
+            }))
           } catch (error) {
             console.warn(`Failed to fetch bookings for ${calendarId}:`, error)
             return []
@@ -221,11 +315,14 @@ function DashbordPage() {
         
         const bookingArrays = await Promise.all(bookingPromises)
         const allBookings = bookingArrays.flat()
+        
+        // Debug: Log total bookings loaded
+        console.log(`[Dashboard] Loaded ${allBookings.length} total bookings across all calendars`)
 
         // Calculate real statistics
         const poseCount = bookingArrays[0]?.length || 0 // calendar1 = Pose
-        const metreCount = bookingArrays[1]?.length || 0 // calendar2 = Metré
-        const savCount = bookingArrays[2]?.length || 0 // calendar3 = SAV
+        const savCount = bookingArrays[1]?.length || 0 // calendar2 = SAV
+        const metreCount = bookingArrays[2]?.length || 0 // calendar3 = Metré
         
         setTotalBookings(allBookings.length)
         setPoseBookings(poseCount)
@@ -283,19 +380,35 @@ function DashbordPage() {
           .slice(0, 10)
         setRecentBookings(sortedBookings)
 
-        // Process top clients (SAV calendar only)
-        const savBookingsOnly = allBookings.filter(booking => (booking as any).calendarId === 'calendar3')
-        const clientCounts: { [key: string]: number } = {}
+        // Process top clients (SAV calendar only) - calendar2 = SAV after swap
+        const savBookingsOnly = allBookings.filter(booking => {
+          const calendarId = (booking as any).calendarId
+          // Use calendar_id from booking if available, otherwise use calendarId
+          const actualCalendarId = (booking as any).calendar_id || calendarId
+          return actualCalendarId === 'calendar2' || actualCalendarId === '2'
+        })
+        
+        // Use a Map to track counts and preserve original display names
+        const clientCountsMap = new Map<string, { count: number; displayName: string }>()
+        
         savBookingsOnly.forEach(booking => {
-          const clientName = booking.name
+          const clientName = booking.name?.trim()
           if (clientName) {
-            clientCounts[clientName] = (clientCounts[clientName] || 0) + 1
+            // Normalize client name (case-insensitive, trim whitespace) for grouping
+            const normalizedName = clientName.toLowerCase().trim()
+            
+            if (clientCountsMap.has(normalizedName)) {
+              const entry = clientCountsMap.get(normalizedName)!
+              entry.count += 1
+            } else {
+              clientCountsMap.set(normalizedName, { count: 1, displayName: clientName })
+            }
           }
         })
 
         // Convert to array, sort by count (descending), and take top 10
-        const topClientsList = Object.entries(clientCounts)
-          .map(([name, count]) => ({ name, count }))
+        const topClientsList = Array.from(clientCountsMap.values())
+          .map(({ count, displayName }) => ({ name: displayName, count }))
           .sort((a, b) => b.count - a.count)
           .slice(0, 10)
         
@@ -350,9 +463,9 @@ function DashbordPage() {
           return false
         })
         
-        const metreDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar2').length
+        const savDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar2').length
         const poseDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar1').length
-        const savDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar3').length
+        const metreDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar3').length
         
         // Accumulate totals
         cumulMetré += metreDayCount
@@ -407,9 +520,9 @@ function DashbordPage() {
           return false
         })
         
-        const metreDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar2').length
+        const savDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar2').length
         const poseDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar1').length
-        const savDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar3').length
+        const metreDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar3').length
         
         // Accumulate totals
         cumulMetré += metreDayCount
@@ -1262,11 +1375,11 @@ function DashbordPage() {
         {location.pathname === '/calendrier' ? (
           <HomePage disableAnimations={true} isAdminView={true} />
         ) : location.pathname === '/metre' ? (
-          <Calendar2Page disableAnimations={true} isAdminView={true} />
+          <Calendar3Page disableAnimations={true} isAdminView={true} />
         ) : location.pathname === '/pose' ? (
           <Calendar1Page disableAnimations={true} isAdminView={true} />
         ) : location.pathname === '/sav' ? (
-          <Calendar3Page disableAnimations={true} isAdminView={true} />
+          <Calendar2Page disableAnimations={true} isAdminView={true} />
         ) : (
           <div 
             className="dashboard-content"
@@ -2902,17 +3015,33 @@ function DashbordPage() {
                 </div>
               ) : (
                 topClients.map((client, i) => (
-                  <div key={i} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 14px',
-                    borderRadius: '12px',
-                    backgroundColor: isDarkMode ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.7)',
-                    border: `1px solid ${isDarkMode ? '#1f2937' : '#e5e7eb'}`,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.06)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                  <div 
+                    key={`${client.name}-${i}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      backgroundColor: isDarkMode ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.7)',
+                      border: `1px solid ${isDarkMode ? '#1f2937' : '#e5e7eb'}`,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (window.matchMedia('(hover: hover)').matches) {
+                        e.currentTarget.style.transform = 'translateX(4px)'
+                        e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.1)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (window.matchMedia('(hover: hover)').matches) {
+                        e.currentTarget.style.transform = 'translateX(0)'
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)'
+                      }
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
                       <div style={{
                         width: '34px',
                         height: '34px',
@@ -2923,16 +3052,25 @@ function DashbordPage() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontWeight: 700,
-                        fontSize: '13px'
+                        fontSize: '13px',
+                        flexShrink: 0
                       }}>
                         {i + 1}
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontSize: '14px', color: textColor, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {client.name}
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                        <span style={{ 
+                          fontSize: '14px', 
+                          color: textColor, 
+                          fontWeight: 700, 
+                          whiteSpace: 'nowrap', 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis',
+                          lineHeight: 1.3
+                        }}>
+                          {client.name || 'Client sans nom'}
                         </span>
-                        <span style={{ fontSize: '12px', color: textSecondary }}>
-                          SAV
+                        <span style={{ fontSize: '12px', color: textSecondary, lineHeight: 1.2 }}>
+                          Client SAV
                         </span>
                       </div>
                     </div>
@@ -2943,7 +3081,9 @@ function DashbordPage() {
                       color: isDarkMode ? '#10b981' : '#0f9f72',
                       fontWeight: 700,
                       fontSize: '12px',
-                      border: `1px solid ${isDarkMode ? 'rgba(16,185,129,0.35)' : 'rgba(16,185,129,0.25)'}`
+                      border: `1px solid ${isDarkMode ? 'rgba(16,185,129,0.35)' : 'rgba(16,185,129,0.25)'}`,
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0
                     }}>
                       {client.count} {client.count === 1 ? 'réservation' : 'réservations'}
                     </div>

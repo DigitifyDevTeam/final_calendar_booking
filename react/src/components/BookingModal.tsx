@@ -40,6 +40,7 @@ interface BookingModalProps {
     message?: string
   }
   users?: UserOption[] // List of users for designer selection (admin only)
+  calendarId?: string // Calendar ID to determine which fields to show (e.g., 'calendar2' for SAV)
   // Props for duration availability (Pose calendar)
   existingBookings?: ExistingBooking[] // All bookings for this calendar
   holidays?: HolidayRecord[] // All holidays for this calendar
@@ -61,13 +62,13 @@ interface FormErrors {
   designer?: string
 }
 
-const BookingModal: React.FC<BookingModalProps> = ({ 
-  selectedDate, 
-  selectedTimeSlot, 
-  onClose, 
-  onSubmit, 
-  isDarkMode = false, 
-  initialData, 
+const BookingModal: React.FC<BookingModalProps> = ({
+  selectedDate,
+  selectedTimeSlot,
+  onClose,
+  onSubmit,
+  isDarkMode = false,
+  initialData,
   users = [],
   existingBookings = [],
   holidays = [],

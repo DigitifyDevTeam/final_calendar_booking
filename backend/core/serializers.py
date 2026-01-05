@@ -9,8 +9,7 @@ CALENDAR_DAILY_LIMITS = {
 
 TIME_SLOT_CALENDARS = {'calendar2', 'calendar3'}  # SAV and Metré use time slots
 ALLOWED_TIME_SLOTS = {
-    'calendar3': ['8:00-11:00', '11:00-14:00', '14:00-17:00'],
-    '3': ['8:00-11:00', '11:00-14:00', '14:00-17:00'],
+    # No restrictions for calendar2 and calendar3 - they use individual time slots
 }
 
 

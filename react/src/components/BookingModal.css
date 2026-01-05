@@ -271,11 +271,12 @@
 }
 
 .submit-button {
-  background: #fa541c;
-  color: white;
+  background: #fa541c !important;
+  color: white !important;
 }
 
 .submit-button:hover {
+  background: #e6450f !important;
   transform: translateY(-2px);
   box-shadow: 0 10px 25px rgba(250, 84, 28, 0.3);
 }

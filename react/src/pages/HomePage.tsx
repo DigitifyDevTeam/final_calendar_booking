@@ -94,7 +94,7 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
 
   return (
     <div className={`home-page ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
-      {!disableAnimations && <NoelDecorations isDarkMode={isDarkMode} />}
+      {!disableAnimations && userRole !== 'concepteur' && userRole !== 'technicien' && <NoelDecorations isDarkMode={isDarkMode} />}
       
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (

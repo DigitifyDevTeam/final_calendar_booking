@@ -26,6 +26,7 @@ function Calendar3Page({ disableAnimations = false, isAdminView = false }: Calen
     return saved ? JSON.parse(saved) : true
   })
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
+  const [userRole, setUserRole] = useState<string>('')
   const [usersList, setUsersList] = useState<UserRecord[]>([])
 
   // Get the bin ID for calendar3 - ensures it uses its own data
@@ -36,6 +37,7 @@ function Calendar3Page({ disableAnimations = false, isAdminView = false }: Calen
     const user = sessionStorage.getItem('user')
     if (user) {
       const userData = JSON.parse(user)
+      setUserRole(userData.role || '')
       if (userData.role === 'admin') {
         setIsAdmin(true)
         loadUsersList()
@@ -151,7 +153,7 @@ function Calendar3Page({ disableAnimations = false, isAdminView = false }: Calen
 
   return (
     <div className={`App ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
-      {!disableAnimations && <NoelDecorations isDarkMode={isDarkMode} />}
+      {!disableAnimations && userRole !== 'concepteur' && userRole !== 'technicien' && <NoelDecorations isDarkMode={isDarkMode} />}
       {!isAdminView && (
       <div className="app-logo">
         <img 
@@ -179,12 +181,12 @@ function Calendar3Page({ disableAnimations = false, isAdminView = false }: Calen
           <div style={{ textAlign: 'center', gridColumn: 2 }}>
             {isAdminView ? (
               <div>
-                <h1>Administration - SAV</h1>
-                <p>Gestion des réservations SAV</p>
+                <h1>Administration - Metré</h1>
+                <p>Gestion des réservations Metré</p>
               </div>
             ) : (
             <div>
-              <h1>Réservez Votre Rendez-vous de SAV</h1>
+              <h1>Réservez Votre Rendez-vous de Metré</h1>
               <p>Sélectionnez une date pour réserver votre rendez-vous</p>
             </div>
             )}
@@ -266,7 +268,7 @@ function Calendar3Page({ disableAnimations = false, isAdminView = false }: Calen
           refreshTrigger={refreshTrigger}
           binId={binId}
           view="weekly"
-          timeSlotType="numerical"
+          timeSlotType="sav"
         />
       </main>
 
@@ -278,6 +280,7 @@ function Calendar3Page({ disableAnimations = false, isAdminView = false }: Calen
           onSubmit={handleBookingSubmit}
           isDarkMode={isDarkMode}
           users={isAdmin ? usersList : []}
+          calendarId={binId}
         />
       )}
 

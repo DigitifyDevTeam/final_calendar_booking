@@ -1209,8 +1209,8 @@ function HolidaysPage() {
                     onChange={(e) => setNewHolidayCalendar(e.target.value)}
                   >
                     <option value={CALENDAR_CONFIGS['calendar1']}>Pose</option>
-                    <option value={CALENDAR_CONFIGS['calendar2']}>Metré</option>
-                    <option value={CALENDAR_CONFIGS['calendar3']}>SAV</option>
+                    <option value={CALENDAR_CONFIGS['calendar2']}>SAV</option>
+                    <option value={CALENDAR_CONFIGS['calendar3']}>Metré</option>
                   </select>
                 </div>
                 <div className="form-group">

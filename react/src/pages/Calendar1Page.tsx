@@ -25,6 +25,7 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
     return saved ? JSON.parse(saved) : true
   })
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
+  const [userRole, setUserRole] = useState<string>('')
   const [usersList, setUsersList] = useState<UserRecord[]>([])
   const [existingBookings, setExistingBookings] = useState<BookingRecord[]>([])
   const [holidays, setHolidays] = useState<HolidayRecord[]>([])
@@ -37,6 +38,7 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
     const user = sessionStorage.getItem('user')
     if (user) {
       const userData = JSON.parse(user)
+      setUserRole(userData.role || '')
       if (userData.role === 'admin') {
         setIsAdmin(true)
         loadUsersList()
@@ -256,7 +258,7 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
 
   return (
     <div className={`App ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
-      {!disableAnimations && <NoelDecorations isDarkMode={isDarkMode} />}
+      {!disableAnimations && userRole !== 'concepteur' && userRole !== 'technicien' && <NoelDecorations isDarkMode={isDarkMode} />}
       {!isAdminView && (
       <div className="app-logo">
         <img 
