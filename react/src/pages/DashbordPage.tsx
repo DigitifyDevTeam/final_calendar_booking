@@ -131,7 +131,7 @@ function DashbordPage() {
 
       return date >= offsetStartOfWeek && date <= offsetEndOfWeek
     })
-    
+
     // Debug: Log filtering results
     console.log(`[Top Concepteurs] View: ${view}, Total bookings: ${bookings.length}, Filtered: ${filtered.length}`)
 
@@ -197,7 +197,7 @@ function DashbordPage() {
       if (calendarIdStr === 'calendar1' || calendarIdStr === '1' || 
           calendarIdStr === 'calendar2' || calendarIdStr === '2' || 
           calendarIdStr === 'calendar3' || calendarIdStr === '3') {
-        entry.total = entry.pose + entry.sav + entry.metre
+      entry.total = entry.pose + entry.sav + entry.metre
       }
       
     })
@@ -3018,13 +3018,13 @@ function DashbordPage() {
                   <div 
                     key={`${client.name}-${i}`}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '12px 14px',
-                      borderRadius: '12px',
-                      backgroundColor: isDarkMode ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.7)',
-                      border: `1px solid ${isDarkMode ? '#1f2937' : '#e5e7eb'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    backgroundColor: isDarkMode ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.7)',
+                    border: `1px solid ${isDarkMode ? '#1f2937' : '#e5e7eb'}`,
                       boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
                       transition: 'all 0.2s ease'
                     }}

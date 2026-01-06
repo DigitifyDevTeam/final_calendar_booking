@@ -62,13 +62,13 @@ interface FormErrors {
   designer?: string
 }
 
-const BookingModal: React.FC<BookingModalProps> = ({
-  selectedDate,
-  selectedTimeSlot,
-  onClose,
-  onSubmit,
-  isDarkMode = false,
-  initialData,
+const BookingModal: React.FC<BookingModalProps> = ({ 
+  selectedDate, 
+  selectedTimeSlot, 
+  onClose, 
+  onSubmit, 
+  isDarkMode = false, 
+  initialData, 
   users = [],
   existingBookings = [],
   holidays = [],
