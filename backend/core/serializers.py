@@ -133,20 +133,32 @@ class BookingSerializer(serializers.ModelSerializer):
                 'booking_date': 'Vous ne pouvez pas réserver une date passée.'
             })
         
-        # For Pose calendar (calendar1): Prevent bookings for today and tomorrow
-        # Bookings can only be made from the 3rd day onwards
-        if calendar_id in ['calendar1', '1']:
-            if booking_date <= tomorrow:
-                raise serializers.ValidationError({
-                    'booking_date': 'Pour le calendrier Pose, vous ne pouvez pas réserver pour aujourd\'hui ou demain. Les réservations sont autorisées à partir du surlendemain.'
-                })
+        # Check if user is admin - admin can book for any date including today/tomorrow
+        request = self.context.get('request')
+        is_admin = False
+        if request and hasattr(request, 'user') and request.user:
+            # Check if user has admin role
+            user = request.user
+            if hasattr(user, 'role'):
+                is_admin = user.role == 'admin'
         
-        # For SAV (calendar2) and Metré (calendar3): Prevent bookings for today and tomorrow
-        if calendar_id in ['calendar2', '2', 'calendar3', '3']:
-            if booking_date <= tomorrow:
-                raise serializers.ValidationError({
-                    'booking_date': 'Pour les calendriers SAV et Metré, vous ne pouvez pas réserver pour aujourd\'hui ou demain. Les réservations sont autorisées à partir du surlendemain.'
-                })
+        # For non-admin users: Prevent bookings for today and tomorrow
+        # Admin users can book for any date
+        if not is_admin:
+            # For Pose calendar (calendar1): Prevent bookings for today and tomorrow
+            # Bookings can only be made from the 3rd day onwards
+            if calendar_id in ['calendar1', '1']:
+                if booking_date <= tomorrow:
+                    raise serializers.ValidationError({
+                        'booking_date': 'Pour le calendrier Pose, vous ne pouvez pas réserver pour aujourd\'hui ou demain. Les réservations sont autorisées à partir du surlendemain.'
+                    })
+            
+            # For SAV (calendar2) and Metré (calendar3): Prevent bookings for today and tomorrow
+            if calendar_id in ['calendar2', '2', 'calendar3', '3']:
+                if booking_date <= tomorrow:
+                    raise serializers.ValidationError({
+                        'booking_date': 'Pour les calendriers SAV et Metré, vous ne pouvez pas réserver pour aujourd\'hui ou demain. Les réservations sont autorisées à partir du surlendemain.'
+                    })
         
         # Check if the date is marked as a holiday/invalid day
         # Handle legacy calendar_id formats
