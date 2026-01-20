@@ -25,7 +25,8 @@ import {
   Minus,
   Percent,
   Menu,
-  X
+  X,
+  Store
 } from 'lucide-react'
 import './DashbordPage.css'
 
@@ -1155,6 +1156,20 @@ function DashbordPage() {
               isActive={location.pathname === '/jours-feries'}
               open={sidebarOpen}
               onClick={() => navigate('/jours-feries')}
+              isDarkMode={isDarkMode}
+              orangeColor={orangeColor}
+              textColor={textColor}
+              textSecondary={textSecondary}
+            />
+          )}
+          
+          {isAdmin && (
+            <SidebarItem
+              Icon={Store}
+              title="Magasins"
+              isActive={location.pathname === '/magasins'}
+              open={sidebarOpen}
+              onClick={() => navigate('/magasins')}
               isDarkMode={isDarkMode}
               orangeColor={orangeColor}
               textColor={textColor}

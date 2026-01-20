@@ -527,5 +527,277 @@
   }
 }
 
+/* Password Reset Styles */
+.forgot-password-link {
+  margin-top: 8px;
+  text-align: right;
+}
+
+.forgot-password-button {
+  background: none;
+  border: none;
+  color: #FF6B35;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 0;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.forgot-password-button:hover {
+  color: #F7931E;
+}
+
+.forgot-password-button:active {
+  color: #e55a2b;
+}
+
+/* Password Reset Modal */
+.password-reset-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.password-reset-modal {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.password-reset-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 28px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.password-reset-header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.password-reset-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.password-reset-close:hover {
+  background-color: #f3f4f6;
+  color: #1f2937;
+}
+
+.password-reset-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.password-reset-close svg {
+  width: 20px;
+  height: 20px;
+}
+
+.password-reset-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.password-reset-content {
+  padding: 28px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.password-reset-description {
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.password-reset-success {
+  background-color: #d1fae5;
+  border: 1px solid #10b981;
+  color: #065f46;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.password-reset-error {
+  background-color: #fee2e2;
+  border: 1px solid #ef4444;
+  color: #991b1b;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.password-reset-footer {
+  display: flex;
+  gap: 12px;
+  padding: 20px 28px;
+  border-top: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+}
+
+.password-reset-cancel,
+.password-reset-back {
+  flex: 1;
+  padding: 12px 24px;
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #374151;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.password-reset-cancel:hover,
+.password-reset-back:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.password-reset-cancel:disabled,
+.password-reset-back:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.password-reset-submit {
+  flex: 1;
+  padding: 12px 24px;
+  border: none;
+  background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+  color: white;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.password-reset-submit:hover:not(:disabled) {
+  background: linear-gradient(135deg, #F7931E 0%, #FF6B35 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+}
+
+.password-reset-submit:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.password-reset-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.password-reset-submit.loading {
+  pointer-events: none;
+}
+
+/* Responsive styles for password reset modal */
+@media (max-width: 768px) {
+  .password-reset-modal {
+    width: 95%;
+    max-height: 95vh;
+  }
+
+  .password-reset-header {
+    padding: 20px 24px;
+  }
+
+  .password-reset-header h2 {
+    font-size: 20px;
+  }
+
+  .password-reset-content {
+    padding: 24px;
+  }
+
+  .password-reset-footer {
+    padding: 16px 24px;
+    flex-direction: column;
+  }
+
+  .password-reset-cancel,
+  .password-reset-back,
+  .password-reset-submit {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .password-reset-modal {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .password-reset-header {
+    padding: 16px 20px;
+  }
+
+  .password-reset-content {
+    padding: 20px;
+  }
+
+  .password-reset-footer {
+    padding: 12px 20px;
+  }
+}
+
 /* Dark mode support disabled - login interface remains consistent regardless of browser dark mode */
 

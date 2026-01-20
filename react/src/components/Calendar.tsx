@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import './Calendar.css'
-import { getAllBookings, BookingRecord, getMaxBookingsPerDay, usesTimeSlots, getAllHolidays, HolidayRecord, updateBooking, deleteBooking } from '../services/bookingService'
+import { getAllBookings, BookingRecord, getMaxBookingsPerDay, usesTimeSlots, getAllHolidays, HolidayRecord, updateBooking, deleteBooking, CALENDAR_CONFIGS } from '../services/bookingService'
 import { getAllUsers, UserRecord } from '../services/userService'
-import BookingModal from './BookingModal'
+import AdminBookingModal, { AdminBookingFormData } from './AdminBookingModal'
 import TechnicienViewModal from './TechnicienViewModal'
 
 // Orange info icon component
@@ -975,7 +975,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     setBookingSelectPopup(null)
   }
 
-  const handleEditModalSubmit = async (bookingData: any) => {
+  const handleEditModalSubmit = async (formData: AdminBookingFormData) => {
     if (!editingBooking) return
 
     // Check if user is allowed to edit this booking
@@ -997,14 +997,25 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     }
 
     try {
-      const updateData = {
-        calendar_id: binId,
-        booking_date: bookingData.date,
-        booking_time: bookingData.timeSlot || '21h00',
-        client_name: bookingData.name,
-        client_phone: bookingData.phone,
-        designer_name: bookingData.designer,
-        message: bookingData.message,
+      // Use the existing booking's calendar_id to prevent changing calendar
+      const existingCalendarId = editingBooking.calendar_id || binId
+      const isPoseCalendar = existingCalendarId === CALENDAR_CONFIGS['calendar1']
+      
+      const updateData: any = {
+        calendar_id: existingCalendarId,
+        booking_date: formData.booking_date,
+        booking_time: isPoseCalendar && !formData.booking_time ? '21h00' : (formData.booking_time || ''),
+        client_name: formData.client_name,
+        client_phone: formData.client_phone,
+        designer_name: formData.designer_name,
+        message: formData.message || ''
+      }
+      
+      // Only include pose_effectue_par_wood_agency for SAV calendar (calendar2)
+      // AdminBookingModal handles the logic of preserving null values, so we only include if it's in formData
+      if (existingCalendarId === CALENDAR_CONFIGS['calendar2'] && formData.pose_effectue_par_wood_agency !== undefined) {
+        // Only send if it's explicitly set (AdminBookingModal will exclude it if original was null and user didn't change it)
+        updateData.pose_effectue_par_wood_agency = formData.pose_effectue_par_wood_agency
       }
       
       await updateBooking(editingBooking.id, updateData)
@@ -3180,23 +3191,28 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         </div>
       )}
 
-      {/* Edit Modal for Concepteur */}
+      {/* Edit Modal - Use AdminBookingModal for consistent interface */}
       {isEditModalOpen && editingBooking && (
-        <BookingModal
-          selectedDate={new Date(editingBooking.date + 'T00:00:00')}
-          selectedTimeSlot={editingBooking.time && editingBooking.time !== '21h00' ? editingBooking.time : undefined}
+        <AdminBookingModal
+          isOpen={isEditModalOpen}
           onClose={() => {
             setIsEditModalOpen(false)
             setEditingBooking(null)
           }}
           onSubmit={handleEditModalSubmit}
-          isDarkMode={isDarkMode}
-          initialData={{
+          booking={{
+            id: editingBooking.id,
+            calendarId: editingBooking.calendar_id || binId,
+            calendar_id: editingBooking.calendar_id || binId,
+            date: editingBooking.date,
+            time: editingBooking.time && editingBooking.time !== '21h00' ? editingBooking.time : '',
             name: editingBooking.name,
             phone: editingBooking.phone,
             designer: editingBooking.designer,
             message: editingBooking.message,
+            pose_effectue_par_wood_agency: editingBooking.pose_effectue_par_wood_agency ?? null,
           }}
+          isDarkMode={isDarkMode}
           users={isAdmin ? usersList : []}
         />
       )}

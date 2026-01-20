@@ -78,6 +78,17 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
               <div className="info-value message">{booking.message}</div>
             </div>
           )}
+
+          {booking.calendar_id === 'calendar2' && (
+            <div className="info-group">
+              <div className="info-label">Pose effectué par Wood agency</div>
+              <div className="info-value">
+                {booking.pose_effectue_par_wood_agency === null || booking.pose_effectue_par_wood_agency === undefined 
+                  ? '-' 
+                  : booking.pose_effectue_par_wood_agency ? 'Oui' : 'Non'}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="technicien-modal-footer">

@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from rest_framework import serializers
 
-from .models import Booking, ContactMessage, Holiday, User
+from .models import Booking, ContactMessage, Holiday, User, PasswordResetToken, Magasin
 
 CALENDAR_DAILY_LIMITS = {
     'calendar1': 2,  # Pose calendar: 2 bookings per day
@@ -67,6 +67,11 @@ class UserSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
         
+        # Check if email is being changed
+        old_email = instance.email
+        new_email = validated_data.get('email', old_email)
+        email_changed = old_email != new_email
+        
         # Update other fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -76,6 +81,149 @@ class UserSerializer(serializers.ModelSerializer):
             instance.set_password(password)
         
         instance.save()
+        
+        # If email was changed, invalidate all existing password reset tokens for this user
+        if email_changed:
+            from .models import PasswordResetToken
+            PasswordResetToken.objects.filter(user=instance, used=False).update(used=True)
+        
+        return instance
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Serializer for password reset request"""
+    email = serializers.EmailField(required=True)
+    
+    def validate_email(self, value):
+        """Validate that email exists in User model"""
+        if not User.objects.filter(email=value).exists():
+            # Don't reveal if email doesn't exist for security
+            # Just pass validation - the view will handle it silently
+            pass
+        return value
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Serializer for password reset confirmation"""
+    token = serializers.CharField(required=True, max_length=255)
+    new_password = serializers.CharField(required=True, write_only=True, min_length=6)
+    confirm_password = serializers.CharField(required=True, write_only=True)
+    
+    def validate(self, attrs):
+        """Validate token and passwords"""
+        token = attrs.get('token')
+        new_password = attrs.get('new_password')
+        confirm_password = attrs.get('confirm_password')
+        
+        # Check if token exists
+        try:
+            reset_token = PasswordResetToken.objects.get(token=token)
+        except PasswordResetToken.DoesNotExist:
+            raise serializers.ValidationError({
+                'token': 'Token invalide ou expiré.'
+            })
+        
+        # Check if token is valid (not expired, not used)
+        if not reset_token.is_valid():
+            raise serializers.ValidationError({
+                'token': 'Token invalide ou expiré.'
+            })
+        
+        # Validate passwords match
+        if new_password != confirm_password:
+            raise serializers.ValidationError({
+                'confirm_password': 'Les mots de passe ne correspondent pas.'
+            })
+        
+        # Validate password length
+        if len(new_password) < 6:
+            raise serializers.ValidationError({
+                'new_password': 'Le mot de passe doit contenir au moins 6 caractères.'
+            })
+        
+        # Store reset_token in validated_data for use in view
+        attrs['reset_token'] = reset_token
+        return attrs
+
+
+class MagasinSerializer(serializers.ModelSerializer):
+    concepteurs = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=User.objects.filter(role='concepteur'),
+        required=False,
+        allow_empty=True
+    )
+    concepteurs_details = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Magasin
+        fields = ['id', 'name', 'concepteurs', 'concepteurs_details', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'concepteurs_details']
+    
+    def get_concepteurs_details(self, obj):
+        """Return detailed information about concepteurs"""
+        concepteurs = obj.concepteurs.all()
+        return [
+            {
+                'id': c.id,
+                'name': c.name,
+                'email': c.email,
+                'phone': c.phone
+            }
+            for c in concepteurs
+        ]
+    
+    def validate_name(self, value):
+        """Validate that name is not empty"""
+        if not value or not value.strip():
+            raise serializers.ValidationError('Le nom du magasin est requis.')
+        return value.strip()
+    
+    def validate_concepteurs(self, value):
+        """Validate that all concepteurs exist and have the correct role"""
+        if value:
+            # Check that all IDs are valid concepteurs
+            concepteur_ids = [c.id for c in value]
+            valid_concepteurs = User.objects.filter(id__in=concepteur_ids, role='concepteur')
+            if valid_concepteurs.count() != len(concepteur_ids):
+                raise serializers.ValidationError('Un ou plusieurs concepteurs sont invalides.')
+        return value
+    
+    def create(self, validated_data):
+        """Create a new Magasin instance and set the ManyToMany relationship"""
+        # Extract concepteurs from validated_data
+        concepteurs = validated_data.pop('concepteurs', [])
+        
+        # Create the Magasin instance (without concepteurs)
+        magasin = Magasin.objects.create(**validated_data)
+        
+        # Set the ManyToMany relationship after the instance is saved
+        if concepteurs:
+            magasin.concepteurs.set(concepteurs)
+        else:
+            # Allow empty list (0 concepteurs)
+            magasin.concepteurs.clear()
+        
+        return magasin
+    
+    def update(self, instance, validated_data):
+        """Update a Magasin instance and update the ManyToMany relationship"""
+        # Extract concepteurs from validated_data
+        concepteurs = validated_data.pop('concepteurs', None)
+        
+        # Update other fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # Update the ManyToMany relationship if provided
+        if concepteurs is not None:
+            if concepteurs:
+                instance.concepteurs.set(concepteurs)
+            else:
+                # Allow empty list (0 concepteurs)
+                instance.concepteurs.clear()
+        
         return instance
 
 
@@ -98,6 +246,7 @@ class BookingSerializer(serializers.ModelSerializer):
             'client_phone',
             'designer_name',
             'message',
+            'pose_effectue_par_wood_agency',
             'created_at',
         ]
         read_only_fields = ['id', 'created_at']
@@ -201,24 +350,29 @@ class BookingSerializer(serializers.ModelSerializer):
         elif calendar_id == '3':
             calendar_ids_to_query.append('calendar3')
         
-        # Filter bookings for this calendar and date, excluding past dates
+        # Filter bookings for this calendar and date
         # Check all possible calendar_id formats
+        # Only check future/present dates (skip validation for past dates)
         queryset = Booking.objects.filter(
             calendar_id__in=calendar_ids_to_query,
             booking_date=booking_date
-        ).filter(booking_date__gte=today)  # Only count future/present dates
+        )
         
+        # Exclude the current booking instance when updating
         if self.instance:
             queryset = queryset.exclude(pk=self.instance.pk)
 
-        # For Pose (calendar1): Check total bookings per date
-        if calendar_id in ['calendar1', '1']:
-            max_per_day = CALENDAR_DAILY_LIMITS.get('calendar1')
-            if max_per_day is not None:
-                if queryset.count() >= max_per_day:
-                    raise serializers.ValidationError({
-                        'booking_date': f'Cette date a déjà atteint la limite de {max_per_day} réservations. Veuillez choisir une autre date.'
-                    })
+        # Only validate for future/present dates
+        if booking_date >= today:
+            # For Pose (calendar1): Check total bookings per date
+            if calendar_id in ['calendar1', '1']:
+                max_per_day = CALENDAR_DAILY_LIMITS.get('calendar1')
+                if max_per_day is not None:
+                    booking_count = queryset.count()
+                    if booking_count >= max_per_day:
+                        raise serializers.ValidationError({
+                            'booking_date': f'Cette date a déjà atteint la limite de {max_per_day} réservations. Veuillez choisir une autre date.'
+                        })
 
         # For SAV (calendar2) and Metré (calendar3): Check specific time slot
         # Also handle legacy calendar_id formats: "2" instead of "calendar2", "3" instead of "calendar3"
@@ -251,15 +405,17 @@ class BookingSerializer(serializers.ModelSerializer):
             attrs['booking_time'] = normalized_booking_time
             
             # Check if this exact time slot is already booked for this date
+            # Always validate time slot conflicts, even for past dates (when postponing)
             # Check all possible calendar_id formats
-            slot_qs = queryset.none()
+            slot_qs = Booking.objects.none()
             for cid in calendar_ids_to_check:
                 slot_qs = slot_qs | Booking.objects.filter(
                     calendar_id=cid,
                     booking_date=booking_date,
-                    booking_date__gte=today
-                ).filter(booking_time__iexact=normalized_booking_time)
+                    booking_time__iexact=normalized_booking_time
+                )
             
+            # Exclude the current booking instance when updating
             if self.instance:
                 slot_qs = slot_qs.exclude(pk=self.instance.pk)
             

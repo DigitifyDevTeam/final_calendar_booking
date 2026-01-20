@@ -14,6 +14,7 @@ import AdminPage from './pages/AdminPage'
 import UtilisateursPage from './pages/UtilisateursPage'
 import SettingsPage from './pages/SettingsPage'
 import HolidaysPage from './pages/HolidaysPage'
+import MagasinsPage from './pages/MagasinsPage'
 import './utils/resetBookings' // Makes resetAllBookings() available in browser console
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -27,6 +28,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/réservation" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
         <Route path="/jours-feries" element={<ProtectedRoute requireAdmin={true}><HolidaysPage /></ProtectedRoute>} />
         <Route path="/utilisateurs" element={<ProtectedRoute requireAdmin={true}><UtilisateursPage /></ProtectedRoute>} />
+        <Route path="/magasins" element={<ProtectedRoute requireAdmin={true}><MagasinsPage /></ProtectedRoute>} />
         <Route path="/parametres" element={<ProtectedRoute requireAdmin={true}><SettingsPage /></ProtectedRoute>} />
         <Route path="/pose" element={<ProtectedRoute><PoseRoute /></ProtectedRoute>} />
         <Route path="/sav" element={<ProtectedRoute><SavRoute /></ProtectedRoute>} />

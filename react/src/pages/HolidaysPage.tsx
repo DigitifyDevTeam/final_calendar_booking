@@ -18,7 +18,8 @@ import {
   Plus,
   Menu,
   X,
-  Bell
+  Bell,
+  Store
 } from 'lucide-react'
 import './AdminPage.css'
 
@@ -706,6 +707,18 @@ function HolidaysPage() {
             isActive={location.pathname === '/jours-feries'}
             open={sidebarOpen}
             onClick={() => navigate('/jours-feries')}
+            isDarkMode={isDarkMode}
+            orangeColor={orangeColor}
+            textColor={textColor}
+            textSecondary={textSecondary}
+          />
+          
+          <HolidaysSidebarItem
+            Icon={Store}
+            title="Magasins"
+            isActive={location.pathname === '/magasins'}
+            open={sidebarOpen}
+            onClick={() => navigate('/magasins')}
             isDarkMode={isDarkMode}
             orangeColor={orangeColor}
             textColor={textColor}

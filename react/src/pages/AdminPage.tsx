@@ -20,7 +20,8 @@ import {
   Minus,
   RefreshCw,
   Menu,
-  X
+  X,
+  Store
 } from 'lucide-react'
 import './AdminPage.css'
 
@@ -418,7 +419,7 @@ function AdminPage() {
         const existingCalendarId = editingBooking.calendarId || formData.calendar_id
         const isPoseCalendar = existingCalendarId === CALENDAR_CONFIGS['calendar1']
         
-        const updateData = {
+        const updateData: any = {
           calendar_id: existingCalendarId,
           booking_date: formData.booking_date,
           booking_time: isPoseCalendar && !formData.booking_time ? '21h00' : (formData.booking_time || ''),
@@ -426,6 +427,13 @@ function AdminPage() {
           client_phone: formData.client_phone,
           designer_name: formData.designer_name,
           message: formData.message || ''
+        }
+        
+        // Only include pose_effectue_par_wood_agency for SAV calendar (calendar2)
+        // AdminBookingModal handles the logic of preserving null values, so we only include if it's in formData
+        if (existingCalendarId === CALENDAR_CONFIGS['calendar2'] && formData.pose_effectue_par_wood_agency !== undefined) {
+          // Only send if it's explicitly set (AdminBookingModal will exclude it if original was null and user didn't change it)
+          updateData.pose_effectue_par_wood_agency = formData.pose_effectue_par_wood_agency
         }
         await updateBooking(editingBooking.id, updateData)
         alert('Réservation modifiée avec succès')
@@ -887,6 +895,18 @@ function AdminPage() {
             isActive={location.pathname === '/jours-feries'}
             open={sidebarOpen}
             onClick={() => navigate('/jours-feries')}
+            isDarkMode={isDarkMode}
+            orangeColor={orangeColor}
+            textColor={textColor}
+            textSecondary={textSecondary}
+          />
+          
+          <AdminSidebarItem
+            Icon={Store}
+            title="Magasins"
+            isActive={location.pathname === '/magasins'}
+            open={sidebarOpen}
+            onClick={() => navigate('/magasins')}
             isDarkMode={isDarkMode}
             orangeColor={orangeColor}
             textColor={textColor}
@@ -1466,6 +1486,7 @@ function AdminPage() {
                     <th>Client</th>
                     <th>Téléphone</th>
                     <th>Concepteur</th>
+                    <th>Pose Wood agency</th>
                     <th>Message</th>
                     <th>Créé le</th>
                     <th>Actions</th>
@@ -1490,6 +1511,15 @@ function AdminPage() {
                       <td>{booking.name}</td>
                       <td>{booking.phone}</td>
                       <td>{booking.designer}</td>
+                      <td>
+                        {(booking.calendarId === 'calendar2' || booking.calendar_id === 'calendar2') ? (
+                          (booking as any).pose_effectue_par_wood_agency === null || (booking as any).pose_effectue_par_wood_agency === undefined
+                            ? <span style={{ color: isDarkMode ? '#6b7280' : '#9ca3af' }}>-</span>
+                            : (booking as any).pose_effectue_par_wood_agency ? 'Oui' : 'Non'
+                        ) : (
+                          <span style={{ color: isDarkMode ? '#6b7280' : '#9ca3af' }}>-</span>
+                        )}
+                      </td>
                       <td className="message-cell">
                         {booking.message || <span className="no-message">-</span>}
                       </td>

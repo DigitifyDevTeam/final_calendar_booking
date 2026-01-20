@@ -112,7 +112,9 @@ const apiRequest = async <T>(
     
     try {
       const errorData = await response.json()
-      if (errorData.detail) {
+      if (errorData.error) {
+        errorMessage = errorData.error
+      } else if (errorData.detail) {
         errorMessage = errorData.detail
       } else if (errorData.password) {
         errorMessage = errorData.password[0] || errorMessage
@@ -223,3 +225,38 @@ export const deleteUser = async (id: number): Promise<void> => {
   }
 }
 
+// Request password reset
+export const requestPasswordReset = async (email: string): Promise<{ message: string }> => {
+  try {
+    const data = await apiRequest<{ message: string }>('/users/password-reset/', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    })
+    return data
+  } catch (error) {
+    console.error('Error requesting password reset:', error)
+    throw error
+  }
+}
+
+// Confirm password reset
+export const confirmPasswordReset = async (
+  token: string,
+  newPassword: string,
+  confirmPassword: string
+): Promise<{ message: string }> => {
+  try {
+    const data = await apiRequest<{ message: string }>('/users/password-reset/confirm/', {
+      method: 'POST',
+      body: JSON.stringify({
+        token,
+        new_password: newPassword,
+        confirm_password: confirmPassword,
+      }),
+    })
+    return data
+  } catch (error) {
+    console.error('Error confirming password reset:', error)
+    throw error
+  }
+}

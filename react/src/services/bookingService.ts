@@ -28,6 +28,7 @@ interface BookingApiResponse {
   client_phone: string
   designer_name: string
   message: string
+  pose_effectue_par_wood_agency?: boolean | null
   created_at: string
 }
 
@@ -41,6 +42,7 @@ const toBookingRecord = (apiBooking: BookingApiResponse): BookingRecord => ({
   time: apiBooking.booking_time || '21h00',
   timestamp: new Date(apiBooking.created_at).getTime(),
   calendar_id: apiBooking.calendar_id, // Include calendar_id from backend
+  pose_effectue_par_wood_agency: apiBooking.pose_effectue_par_wood_agency ?? null,
 })
 
 // Helper function to refresh the access token
@@ -190,6 +192,7 @@ export interface BookingRecord {
   time: string;
   timestamp: number;
   calendar_id?: string; // Calendar ID from backend
+  pose_effectue_par_wood_agency?: boolean | null;
 }
 
 export interface BookingData {
@@ -201,6 +204,7 @@ export interface BookingData {
   date: string;
   selectedDate: Date;
   timeSlot?: string;
+  pose_effectue_par_wood_agency?: boolean;
 }
 
 // Request cache to prevent duplicate API calls (especially from React StrictMode)
@@ -409,7 +413,7 @@ export const addBooking = async (bookingData: BookingData, binId?: string, maxBo
       bookingTime = '' // Let backend validation catch this
     }
     
-    const bookingPayload = {
+    const bookingPayload: any = {
       calendar_id: targetBinId,
       booking_date: bookingData.date,
       booking_time: bookingTime,
@@ -417,6 +421,12 @@ export const addBooking = async (bookingData: BookingData, binId?: string, maxBo
       client_phone: bookingData.phone,
       designer_name: bookingData.designer,
       message: bookingData.message,
+    }
+    
+    // Only include pose_effectue_par_wood_agency for SAV calendar (calendar2)
+    // For new bookings, always include the field (defaults to false if not checked)
+    if (targetBinId === CALENDAR_CONFIGS['calendar2']) {
+      bookingPayload.pose_effectue_par_wood_agency = bookingData.pose_effectue_par_wood_agency ?? false
     }
     
     console.log('[addBooking] Sending booking to API:', bookingPayload)
@@ -504,6 +514,7 @@ export const updateBooking = async (bookingId: string, bookingData: {
   client_phone?: string;
   designer_name?: string;
   message?: string;
+  pose_effectue_par_wood_agency?: boolean;
 }): Promise<BookingRecord> => {
   try {
     console.log('[updateBooking] Updating booking:', bookingId, bookingData)

@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
+from django.utils import timezone
+from datetime import timedelta
 
 
 class User(models.Model):
@@ -61,6 +63,7 @@ class Booking(models.Model):
     client_phone = models.CharField(max_length=50)
     designer_name = models.CharField(max_length=255)
     message = models.TextField(blank=True)
+    pose_effectue_par_wood_agency = models.BooleanField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
@@ -98,3 +101,54 @@ class Holiday(models.Model):
     
     def __str__(self) -> str:
         return f"{self.calendar_id} - {self.holiday_date} ({self.description or 'Jour férié'})"
+
+
+class PasswordResetToken(models.Model):
+    """Model to store password reset tokens"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset_tokens')
+    token = models.CharField(max_length=255, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['token']),
+            models.Index(fields=['expires_at', 'used']),
+        ]
+        verbose_name = 'Token de réinitialisation'
+        verbose_name_plural = 'Tokens de réinitialisation'
+    
+    def __str__(self) -> str:
+        return f"Token for {self.user.email} - {'Used' if self.used else 'Active'}"
+    
+    def is_valid(self) -> bool:
+        """Check if token is valid (not expired and not used)"""
+        if self.used:
+            return False
+        if timezone.now() > self.expires_at:
+            return False
+        return True
+    
+    def save(self, *args, **kwargs):
+        # Set expiry to 1 hour from creation if not set
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(hours=1)
+        super().save(*args, **kwargs)
+
+
+class Magasin(models.Model):
+    """Model to store magasins (stores) with associated concepteurs"""
+    name = models.CharField(max_length=255, unique=True)
+    concepteurs = models.ManyToManyField(User, related_name='magasins', limit_choices_to={'role': 'concepteur'}, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Magasin'
+        verbose_name_plural = 'Magasins'
+    
+    def __str__(self) -> str:
+        return self.name

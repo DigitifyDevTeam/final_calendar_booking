@@ -1,8 +1,10 @@
-from datetime import date
+from datetime import date, timedelta
 import logging
+import secrets
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.db.models import Count
+from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser, BasePermission
 from rest_framework.response import Response
@@ -10,8 +12,8 @@ from rest_framework.views import APIView
 from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Booking, ContactMessage, Holiday, User
-from .serializers import BookingSerializer, ContactMessageSerializer, HolidaySerializer, UserSerializer
+from .models import Booking, ContactMessage, Holiday, User, PasswordResetToken, Magasin
+from .serializers import BookingSerializer, ContactMessageSerializer, HolidaySerializer, UserSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer, MagasinSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -712,3 +714,302 @@ class UserLoginView(APIView):
                 {'detail': f'Une erreur s\'est produite: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class PasswordResetRequestView(APIView):
+    """View to handle password reset requests"""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            # Always return success for security (don't reveal if email exists)
+            return Response(
+                {'message': 'Si cette adresse e-mail existe dans notre système, vous recevrez un e-mail avec les instructions de réinitialisation.'},
+                status=status.HTTP_200_OK
+            )
+        
+        email = serializer.validated_data['email']
+        
+        try:
+            # Get user by email (case-insensitive lookup)
+            # This will only work if the email exists in the database
+            # If email was changed, old email won't be found here
+            user = User.objects.get(email__iexact=email)
+            
+            # Refresh from database to ensure we have the latest email value
+            user.refresh_from_db()
+            
+            # Double-check that the email in the database matches exactly (case-sensitive)
+            # This ensures we're using the current email from database, not a stale value
+            if user.email != email:
+                # Email doesn't match exactly - return error
+                logger.warning(f"Password reset requested for email '{email}' but user has email '{user.email}'")
+            return Response(
+                    {'error': 'Cette adresse e-mail n\'est associée à aucun compte. Veuillez vérifier l\'adresse e-mail.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except User.DoesNotExist:
+            # Email doesn't exist in database - return error
+            logger.info(f"Password reset requested for non-existent email: {email}")
+            return Response(
+                {'error': 'Cette adresse e-mail n\'est associée à aucun compte. Veuillez vérifier l\'adresse e-mail.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Generate secure random token
+        token = secrets.token_urlsafe(32)
+        
+        # Create password reset token with 1-hour expiry
+        expires_at = timezone.now() + timedelta(hours=1)
+        reset_token = PasswordResetToken.objects.create(
+            user=user,
+            token=token,
+            expires_at=expires_at
+        )
+        
+        # Send email with token
+        try:
+            default_from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com')
+            
+            subject = "🔐 Réinitialisation de votre mot de passe"
+            
+            # Create beautiful HTML email template
+            html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }}
+        .container {{
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }}
+        .header h1 {{
+            margin: 0;
+            font-size: 24px;
+        }}
+        .content {{
+            padding: 30px 20px;
+        }}
+        .token-box {{
+            background-color: #f8f9fa;
+            border: 2px dashed #FF6B35;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+        }}
+        .token-code {{
+            font-size: 24px;
+            font-weight: bold;
+            color: #FF6B35;
+            letter-spacing: 2px;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+        }}
+        .info-box {{
+            background-color: #e7f3ff;
+            border-left: 4px solid #0066cc;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }}
+        .warning-box {{
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }}
+        .footer {{
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+        }}
+        .button {{
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            margin-top: 20px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Réinitialisation de mot de passe</h1>
+        </div>
+        
+        <div class="content">
+            <p>Bonjour <strong>{user.name}</strong>,</p>
+            
+            <p>Vous avez demandé à réinitialiser votre mot de passe. Utilisez le code ci-dessous pour compléter la réinitialisation :</p>
+            
+            <div class="token-box">
+                <div style="margin-bottom: 10px; color: #666;">Votre code de réinitialisation :</div>
+                <div class="token-code">{token}</div>
+            </div>
+            
+            <div class="info-box">
+                <strong>⏰ Important :</strong> Ce code est valide pendant <strong>1 heure</strong> uniquement.
+            </div>
+            
+            <div class="warning-box">
+                <strong>🔒 Sécurité :</strong> Si vous n'avez pas demandé cette réinitialisation, ignorez cet e-mail. Votre mot de passe ne sera pas modifié.
+            </div>
+            
+            <p>Pour réinitialiser votre mot de passe :</p>
+            <ol>
+                <li>Retournez sur la page de connexion</li>
+                <li>Cliquez sur "Mot de passe oublié ?"</li>
+                <li>Entrez votre adresse e-mail et le code ci-dessus</li>
+                <li>Créez votre nouveau mot de passe</li>
+            </ol>
+        </div>
+        
+        <div class="footer">
+            <p>Cet e-mail a été envoyé automatiquement. Ne répondez pas à cet e-mail.</p>
+            <p>© {timezone.now().year} - Système de réservation</p>
+        </div>
+    </div>
+</body>
+</html>
+            """
+            
+            # Plain text fallback
+            text_body = f"""
+Réinitialisation de mot de passe
+
+Bonjour {user.name},
+
+Vous avez demandé à réinitialiser votre mot de passe. Utilisez le code ci-dessous pour compléter la réinitialisation :
+
+Code de réinitialisation : {token}
+
+Important : Ce code est valide pendant 1 heure uniquement.
+
+Sécurité : Si vous n'avez pas demandé cette réinitialisation, ignorez cet e-mail. Votre mot de passe ne sera pas modifié.
+
+Pour réinitialiser votre mot de passe :
+1. Retournez sur la page de connexion
+2. Cliquez sur "Mot de passe oublié ?"
+3. Entrez votre adresse e-mail et le code ci-dessus
+4. Créez votre nouveau mot de passe
+
+Cet e-mail a été envoyé automatiquement. Ne répondez pas à cet e-mail.
+            """.strip()
+            
+            email_message = EmailMessage(
+                subject=subject,
+                body=text_body,
+                from_email=default_from_email,
+                to=[user.email],
+            )
+            
+            # Set HTML content
+            email_message.content_subtype = "html"
+            email_message.body = html_body
+            
+            # Send email
+            email_message.send(fail_silently=False)
+            
+            logger.info(f"Password reset email sent to {user.email}")
+            
+        except Exception as e:
+            logger.error(f"Failed to send password reset email to {user.email}: {e}", exc_info=True)
+            # Still return success to not reveal if email sending failed
+        
+        # Always return success message (for security)
+            return Response(
+            {'message': 'Si cette adresse e-mail existe dans notre système, vous recevrez un e-mail avec les instructions de réinitialisation.'},
+            status=status.HTTP_200_OK
+            )
+        
+
+class PasswordResetConfirmView(APIView):
+    """View to handle password reset confirmation"""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        reset_token = serializer.validated_data['reset_token']
+        new_password = serializer.validated_data['new_password']
+            
+        try:
+            # Update user password
+            user = reset_token.user
+            user.set_password(new_password)
+            user.save()
+            
+            # Mark token as used
+            reset_token.used = True
+            reset_token.save()
+            
+            logger.info(f"Password reset completed for user {user.email}")
+            
+            return Response(
+                {'message': 'Votre mot de passe a été réinitialisé avec succès. Vous pouvez maintenant vous connecter.'},
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to reset password: {e}", exc_info=True)
+            return Response(
+                {'detail': 'Une erreur s\'est produite lors de la réinitialisation du mot de passe.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class MagasinListCreateView(generics.ListCreateAPIView):
+    """View to list and create magasins"""
+    permission_classes = [IsAdminUserCustom]
+    serializer_class = MagasinSerializer
+    queryset = Magasin.objects.all()
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # Prefetch concepteurs for better performance
+        return queryset.prefetch_related('concepteurs').all()
+
+
+class MagasinRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    """View to retrieve, update, and delete magasins"""
+    permission_classes = [IsAdminUserCustom]
+    serializer_class = MagasinSerializer
+    queryset = Magasin.objects.all()
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # Prefetch concepteurs for better performance
+        return queryset.prefetch_related('concepteurs').all()

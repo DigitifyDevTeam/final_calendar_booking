@@ -17,7 +17,8 @@ import {
   RefreshCw,
   Plus,
   Menu,
-  X
+  X,
+  Store
 } from 'lucide-react'
 import './AdminPage.css'
 import { getAllNotifications, getRecentUsersNotifications, NotificationItem, getTimeAgo as getNotificationTimeAgo } from '../services/notificationService'
@@ -754,6 +755,18 @@ function UtilisateursPage() {
             isActive={location.pathname === '/jours-feries'}
             open={sidebarOpen}
             onClick={() => navigate('/jours-feries')}
+            isDarkMode={isDarkMode}
+            orangeColor={orangeColor}
+            textColor={textColor}
+            textSecondary={textSecondary}
+          />
+          
+          <AdminSidebarItem
+            Icon={Store}
+            title="Magasins"
+            isActive={location.pathname === '/magasins'}
+            open={sidebarOpen}
+            onClick={() => navigate('/magasins')}
             isDarkMode={isDarkMode}
             orangeColor={orangeColor}
             textColor={textColor}
