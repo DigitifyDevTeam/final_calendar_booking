@@ -27,6 +27,7 @@ export interface AdminBookingFormData {
   designer_name: string
   message: string
   pose_effectue_par_wood_agency?: boolean
+  statut_facturation?: 'en_attente' | 'facture' | null
 }
 
 const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
@@ -48,7 +49,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
     client_phone: '',
     designer_name: '',
     message: '',
-    pose_effectue_par_wood_agency: false
+    pose_effectue_par_wood_agency: false,
+    statut_facturation: 'en_attente'
   })
   const [errors, setErrors] = useState<Partial<Record<keyof AdminBookingFormData, string>>>({})
   
@@ -92,7 +94,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
         client_phone: booking.phone || '',
         designer_name: booking.designer || '',
         message: booking.message || '',
-        pose_effectue_par_wood_agency: originalValue ?? false
+        pose_effectue_par_wood_agency: originalValue ?? false,
+        statut_facturation: (booking as any).statut_facturation ?? 'en_attente'
       })
     } else {
       // Create mode - reset form
@@ -105,7 +108,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
         client_phone: '',
         designer_name: '',
         message: '',
-        pose_effectue_par_wood_agency: false
+        pose_effectue_par_wood_agency: false,
+        statut_facturation: 'en_attente'
       })
     }
     setErrors({})
@@ -206,6 +210,12 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
           // New booking OR editing a booking that already had a value - send current value
           bookingData.pose_effectue_par_wood_agency = formData.pose_effectue_par_wood_agency
         }
+      }
+      
+      // Handle billing status - only when editing
+      if (booking) {
+        // Include statut_facturation only when editing, default to 'en_attente' if not set
+        bookingData.statut_facturation = formData.statut_facturation || 'en_attente'
       }
       
       onSubmit(bookingData)
@@ -543,6 +553,31 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
                 />
                 <span>Pose effectué par Wood agency</span>
               </label>
+            </div>
+          )}
+
+          {/* Billing status - only shown when editing (admin only) */}
+          {booking && (
+            <div className="form-group">
+              <label htmlFor="statut_facturation">Statut de facturation</label>
+              <select
+                id="statut_facturation"
+                name="statut_facturation"
+                value={formData.statut_facturation || 'en_attente'}
+                onChange={handleInputChange}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #333',
+                  backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                  color: isDarkMode ? '#ffffff' : '#111827',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="en_attente">En attente de facturation</option>
+                <option value="facture">Facturé</option>
+              </select>
             </div>
           )}
 

@@ -7,7 +7,8 @@ import Calendar1Page from './Calendar1Page'
 import Calendar2Page from './Calendar2Page'
 import { getAllBookings, BookingRecord, CALENDAR_NAMES, getCalendarName } from '../services/bookingService'
 import { getAllNotifications, NotificationItem, getTimeAgo as getNotificationTimeAgo } from '../services/notificationService'
-import { getAllUsers } from '../services/userService'
+import { getAllUsers, UserRecord } from '../services/userService'
+import { getAllMagasins, MagasinRecord } from '../services/magasinService'
 import {
   Calendar,
   CalendarCheck,
@@ -58,6 +59,9 @@ function DashbordPage() {
   const [topClientsAll, setTopClientsAll] = useState<
     Array<{ name: string; pose: number; sav: number; metre: number; total: number }>
   >([])
+  const [magasinComparison, setMagasinComparison] = useState<
+    Array<{ magasinId: number; magasinName: string; concepteurs: Array<{ name: string; pose: number; sav: number; metre: number; total: number }>; total: number }>
+  >([])
   const [allBookingsForChart, setAllBookingsForChart] = useState<BookingRecord[]>([])
   const [bookingRate, setBookingRate] = useState<number>(0)
   const [poseRate, setPoseRate] = useState<number>(0)
@@ -70,10 +74,118 @@ function DashbordPage() {
   const [chartViewMode, setChartViewMode] = useState<'month' | 'week'>('month')
   const [monthOffset, setMonthOffset] = useState<number>(0) // 0 = current month, -1 = previous, +1 = next
   const [weekOffset, setWeekOffset] = useState<number>(0) // 0 = current week, -1 = previous, +1 = next
-  const [topClientsView, setTopClientsView] = useState<'total' | 'year' | 'month' | 'week'>('total')
+  const [topClientsView, setTopClientsView] = useState<'total' | 'year' | 'month' | 'week' | 'magasin'>('total')
   const [topMonthOffset, setTopMonthOffset] = useState<number>(0) // independent month offset for top concepteurs
   const [topWeekOffset, setTopWeekOffset] = useState<number>(0) // independent week offset for top concepteurs
   const [topYearOffset, setTopYearOffset] = useState<number>(0) // independent year offset for top concepteurs
+  const [magasins, setMagasins] = useState<MagasinRecord[]>([])
+  const [selectedMagasinId, setSelectedMagasinId] = useState<number | null>(null)
+  const [allUsers, setAllUsers] = useState<UserRecord[]>([])
+
+  // Compute top concepteurs grouped by magasin for comparison
+  const computeTopClientsByMagasin = (
+    bookings: (BookingRecord & { calendarId?: string })[]
+  ) => {
+    if (!bookings || bookings.length === 0 || magasins.length === 0) return []
+
+    // Create a map of concepteur ID to magasin ID
+    const concepteurToMagasinMap = new Map<number, number>()
+    magasins.forEach(magasin => {
+      magasin.concepteurs.forEach(concepteurId => {
+        concepteurToMagasinMap.set(concepteurId, magasin.id)
+      })
+    })
+
+    // Create a map of concepteur name/email to concepteur ID
+    const concepteurNameToIdMap = new Map<string, number>()
+    allUsers.forEach(user => {
+      if (user.role === 'concepteur') {
+        concepteurNameToIdMap.set(user.name.toLowerCase().trim(), user.id)
+        if (user.email) {
+          concepteurNameToIdMap.set(user.email.toLowerCase().trim(), user.id)
+        }
+      }
+    })
+
+    // Group bookings by magasin
+    const magasinStatsMap = new Map<number, {
+      magasinName: string
+      concepteurs: Map<string, {
+        displayName: string
+        pose: number
+        sav: number
+        metre: number
+        total: number
+      }>
+    }>()
+
+    bookings.forEach((booking: any) => {
+      if (!booking.date || !booking.designer) return
+
+      const designer = (booking.designer || '').trim().toLowerCase()
+      const concepteurId = concepteurNameToIdMap.get(designer)
+      
+      if (!concepteurId) return // Skip if concepteur not found
+      
+      const magasinId = concepteurToMagasinMap.get(concepteurId)
+      if (!magasinId) return // Skip if concepteur not in any magasin
+
+      // Get or create magasin entry
+      if (!magasinStatsMap.has(magasinId)) {
+        const magasin = magasins.find(m => m.id === magasinId)
+        magasinStatsMap.set(magasinId, {
+          magasinName: magasin?.name || 'Unknown',
+          concepteurs: new Map()
+        })
+      }
+
+      const magasinEntry = magasinStatsMap.get(magasinId)!
+      const concepteurKey = designer
+      
+      // Get or create concepteur entry
+      if (!magasinEntry.concepteurs.has(concepteurKey)) {
+        const concepteur = allUsers.find(u => u.id === concepteurId)
+        magasinEntry.concepteurs.set(concepteurKey, {
+          displayName: concepteur?.name || booking.designer.trim(),
+          pose: 0,
+          sav: 0,
+          metre: 0,
+          total: 0
+        })
+      }
+
+      const concepteurEntry = magasinEntry.concepteurs.get(concepteurKey)!
+      
+      // Count by calendar type
+      const calendarId = booking.calendar_id || booking.calendarId
+      const calendarIdStr = String(calendarId || '').toLowerCase()
+      
+      if (calendarIdStr === 'calendar1' || calendarIdStr === '1') {
+        concepteurEntry.pose += 1
+      } else if (calendarIdStr === 'calendar2' || calendarIdStr === '2') {
+        concepteurEntry.sav += 1
+      } else if (calendarIdStr === 'calendar3' || calendarIdStr === '3') {
+        concepteurEntry.metre += 1
+      }
+      
+      concepteurEntry.total = concepteurEntry.pose + concepteurEntry.sav + concepteurEntry.metre
+    })
+
+    // Convert to array format: each magasin with its top concepteurs
+    return Array.from(magasinStatsMap.entries()).map(([magasinId, magasinData]) => {
+      const topConcepteurs = Array.from(magasinData.concepteurs.values())
+        .map(({ displayName, ...counts }) => ({ name: displayName, ...counts }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10)
+      
+      return {
+        magasinId,
+        magasinName: magasinData.magasinName,
+        concepteurs: topConcepteurs,
+        total: topConcepteurs.reduce((sum, c) => sum + c.total, 0)
+      }
+    }).sort((a, b) => b.total - a.total) // Sort magasins by total
+  }
 
   const computeTopClientsByView = (
     bookings: (BookingRecord & { calendarId?: string })[],
@@ -415,7 +527,13 @@ function DashbordPage() {
         
         setTopClients(topClientsList)
 
-        setTopClientsAll(computeTopClientsByView(allBookings as any, topClientsView))
+        if (topClientsView === 'magasin') {
+          setMagasinComparison(computeTopClientsByMagasin(allBookings as any))
+          setTopClientsAll([])
+        } else {
+          setTopClientsAll(computeTopClientsByView(allBookings as any, topClientsView))
+          setMagasinComparison([])
+        }
       } catch (error) {
         console.error('Error loading bookings data:', error)
         setTopClients([])
@@ -551,15 +669,40 @@ function DashbordPage() {
     setChartData(chartDataPoints)
   }, [allBookingsForChart, chartViewMode, monthOffset, weekOffset])
 
+  // Load magasins and users
+  useEffect(() => {
+    const loadMagasinsAndUsers = async () => {
+      try {
+        const [magasinsData, usersData] = await Promise.all([
+          getAllMagasins(),
+          getAllUsers()
+        ])
+        setMagasins(magasinsData)
+        setAllUsers(usersData)
+      } catch (error) {
+        console.error('Error loading magasins and users:', error)
+      }
+    }
+    if (isAdmin) {
+      loadMagasinsAndUsers()
+    }
+  }, [isAdmin])
+
   // Recompute top concepteurs when view or top offsets change (independent from chart offsets)
   useEffect(() => {
-    setTopClientsAll(
-      computeTopClientsByView(
-        allBookingsForChart as any,
-        topClientsView
+    if (topClientsView === 'magasin') {
+      setMagasinComparison(computeTopClientsByMagasin(allBookingsForChart as any))
+      setTopClientsAll([])
+    } else {
+      setTopClientsAll(
+        computeTopClientsByView(
+          allBookingsForChart as any,
+          topClientsView
+        )
       )
-    )
-  }, [allBookingsForChart, topClientsView, topMonthOffset, topWeekOffset, topYearOffset])
+      setMagasinComparison([])
+    }
+  }, [allBookingsForChart, topClientsView, topMonthOffset, topWeekOffset, topYearOffset, selectedMagasinId, magasins, allUsers])
 
   // Load users count
   useEffect(() => {
@@ -3151,6 +3294,7 @@ function DashbordPage() {
                     setTopMonthOffset(0)
                     setTopWeekOffset(0)
                     setTopYearOffset(0)
+                    setSelectedMagasinId(null)
                   }}
                   style={{
                     padding: '8px 14px',
@@ -3173,6 +3317,7 @@ function DashbordPage() {
                     setTopClientsView('year')
                     setTopMonthOffset(0)
                     setTopWeekOffset(0)
+                    setSelectedMagasinId(null)
                   }}
                   style={{
                     padding: '8px 14px',
@@ -3195,6 +3340,7 @@ function DashbordPage() {
                     setTopClientsView('month')
                     setTopWeekOffset(0)
                     setTopYearOffset(0)
+                    setSelectedMagasinId(null)
                   }}
                   style={{
                     padding: '8px 14px',
@@ -3217,6 +3363,7 @@ function DashbordPage() {
                     setTopClientsView('week')
                     setTopMonthOffset(0)
                     setTopYearOffset(0)
+                    setSelectedMagasinId(null)
                   }}
                   style={{
                     padding: '8px 14px',
@@ -3234,10 +3381,36 @@ function DashbordPage() {
                 >
                   Par semaine
                 </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      setTopClientsView('magasin')
+                      setTopMonthOffset(0)
+                      setTopWeekOffset(0)
+                      setTopYearOffset(0)
+                    }}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '10px',
+                      border: `1px solid ${topClientsView === 'magasin' ? orangeColor : borderColor}`,
+                      backgroundColor: topClientsView === 'magasin'
+                        ? orangeColor
+                        : 'transparent',
+                      color: topClientsView === 'magasin' ? '#ffffff' : textSecondary,
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Par magasin
+                  </button>
+                )}
               </div>
             </div>
 
-            {topClientsView !== 'total' && (
+
+            {topClientsView !== 'total' && topClientsView !== 'magasin' && (
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -3442,6 +3615,158 @@ function DashbordPage() {
                 <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
                   Chargement...
                 </div>
+              ) : topClientsView === 'magasin' ? (
+                magasinComparison.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
+                    Aucun magasin avec des réservations
+                  </div>
+                ) : (
+                  magasinComparison.map((magasinData) => (
+                    <div key={magasinData.magasinId} style={{ marginBottom: '24px' }}>
+                      <div style={{
+                        padding: '12px 16px',
+                        borderRadius: '12px',
+                        backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                        border: `2px solid ${orangeColor}`,
+                        marginBottom: '12px'
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: '8px'
+                        }}>
+                          <h4 style={{
+                            fontSize: '16px',
+                            fontWeight: 700,
+                            color: textColor,
+                            margin: 0
+                          }}>
+                            🏪 {magasinData.magasinName}
+                          </h4>
+                          <span style={{
+                            padding: '6px 12px',
+                            borderRadius: '10px',
+                            backgroundColor: `${orangeColor}20`,
+                            color: orangeColor,
+                            fontSize: '14px',
+                            fontWeight: 700
+                          }}>
+                            Total: {magasinData.total}
+                          </span>
+                        </div>
+                        <div style={{
+                          display: 'flex',
+                          gap: '8px',
+                          flexWrap: 'wrap'
+                        }}>
+                          <span style={{
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            backgroundColor: isDarkMode ? `${orangeColor}25` : `${orangeColor}20`,
+                            color: orangeColor,
+                            fontSize: '12px',
+                            fontWeight: 600
+                          }}>
+                            Pose: {magasinData.concepteurs.reduce((sum, c) => sum + c.pose, 0)}
+                          </span>
+                          <span style={{
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.12)',
+                            color: '#10b981',
+                            fontSize: '12px',
+                            fontWeight: 600
+                          }}>
+                            SAV: {magasinData.concepteurs.reduce((sum, c) => sum + c.sav, 0)}
+                          </span>
+                          <span style={{
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.12)',
+                            color: '#3b82f6',
+                            fontSize: '12px',
+                            fontWeight: 600
+                          }}>
+                            Metré: {magasinData.concepteurs.reduce((sum, c) => sum + c.metre, 0)}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingLeft: '12px' }}>
+                        {magasinData.concepteurs.length === 0 ? (
+                          <div style={{ padding: '12px', textAlign: 'center', color: textSecondary, fontSize: '13px' }}>
+                            Aucun concepteur avec des réservations
+                          </div>
+                        ) : (
+                          magasinData.concepteurs.map((concepteur, concepteurIndex) => (
+                            <div
+                              key={concepteurIndex}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '10px 14px',
+                                borderRadius: '10px',
+                                backgroundColor: isDarkMode ? '#0f1115' : '#f5f6fb',
+                                border: `1px solid ${isDarkMode ? '#1f2933' : '#e5e7eb'}`
+                              }}
+                            >
+                              <span style={{
+                                fontSize: '13px',
+                                color: textColor,
+                                fontWeight: 600
+                              }}>
+                                {concepteur.name}
+                              </span>
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <span style={{
+                                  padding: '4px 8px',
+                                  borderRadius: '8px',
+                                  backgroundColor: isDarkMode ? `${orangeColor}25` : `${orangeColor}20`,
+                                  color: orangeColor,
+                                  fontSize: '11px',
+                                  fontWeight: 600
+                                }}>
+                                  P: {concepteur.pose}
+                                </span>
+                                <span style={{
+                                  padding: '4px 8px',
+                                  borderRadius: '8px',
+                                  backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.12)',
+                                  color: '#10b981',
+                                  fontSize: '11px',
+                                  fontWeight: 600
+                                }}>
+                                  S: {concepteur.sav}
+                                </span>
+                                <span style={{
+                                  padding: '4px 8px',
+                                  borderRadius: '8px',
+                                  backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.12)',
+                                  color: '#3b82f6',
+                                  fontSize: '11px',
+                                  fontWeight: 600
+                                }}>
+                                  M: {concepteur.metre}
+                                </span>
+                                <span style={{
+                                  padding: '4px 8px',
+                                  borderRadius: '8px',
+                                  backgroundColor: isDarkMode ? '#1a1a1a' : '#e5e7eb',
+                                  color: textColor,
+                                  fontSize: '11px',
+                                  fontWeight: 700
+                                }}>
+                                  Total: {concepteur.total}
+                                </span>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )
               ) : topClientsAll.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
                   Aucun client

@@ -311,6 +311,7 @@ class GmailOAuth2Backend(BaseEmailBackend):
         
         # Add attachments
         if email_message.attachments:
+            from email import encoders
             for attachment in email_message.attachments:
                 if isinstance(attachment, tuple):
                     if len(attachment) == 2:
@@ -321,8 +322,14 @@ class GmailOAuth2Backend(BaseEmailBackend):
                     else:
                         continue
                     
+                    # Ensure content is bytes
+                    if isinstance(content, str):
+                        content = content.encode('utf-8')
+                    
                     part = MIMEBase(*mimetype.split('/'))
                     part.set_payload(content)
+                    # Encode the payload in base64 for binary content
+                    encoders.encode_base64(part)
                     part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
                     message.attach(part)
         

@@ -1,21 +1,37 @@
-import React from 'react'
+import React, { useState } from 'react'
 import './TechnicienViewModal.css'
 import { BookingRecord } from '../services/bookingService'
+import TechnicienCompleteModal from './TechnicienCompleteModal'
 
 interface TechnicienViewModalProps {
   isOpen: boolean
   onClose: () => void
   booking: BookingRecord | null
   isDarkMode?: boolean
+  onFinish?: (payload: {
+    bookingId: string
+    menageFait: boolean
+    cftSigne: boolean
+    electromenagerFonctionnel?: boolean
+    attachments: File[]
+  }) => void
 }
 
 const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
   isOpen,
   onClose,
   booking,
-  isDarkMode = true
+  isDarkMode = true,
+  onFinish
 }) => {
+  const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false)
+
   if (!isOpen || !booking) return null
+
+  const isPoseCalendar = ['calendar1', '1'].includes(booking.calendar_id || '')
+  const isSavCalendar = ['calendar2', '2'].includes(booking.calendar_id || '')
+  const isMetreCalendar = ['calendar3', '3'].includes(booking.calendar_id || '')
+  const canFinish = isPoseCalendar || isSavCalendar || isMetreCalendar
 
   const formatDate = (dateStr: string): string => {
     try {
@@ -92,11 +108,34 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
         </div>
 
         <div className="technicien-modal-footer">
+          {canFinish && (
+            <button 
+              className="finish-action-button" 
+              onClick={() => setIsCompleteModalOpen(true)}
+            >
+              Terminer
+            </button>
+          )}
           <button className="close-action-button" onClick={onClose}>
             Fermer
           </button>
         </div>
       </div>
+
+      <TechnicienCompleteModal
+        isOpen={isCompleteModalOpen}
+        onClose={() => setIsCompleteModalOpen(false)}
+        bookingId={booking.id}
+        bookingCalendarId={booking.calendar_id}
+        isDarkMode={isDarkMode}
+        onFinish={async (payload) => {
+          if (onFinish) {
+            await onFinish(payload)
+          }
+          setIsCompleteModalOpen(false)
+          onClose() // Close the parent modal after finishing
+        }}
+      />
     </div>
   )
 }

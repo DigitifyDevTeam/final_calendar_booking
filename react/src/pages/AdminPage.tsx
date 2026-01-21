@@ -435,6 +435,12 @@ function AdminPage() {
           // Only send if it's explicitly set (AdminBookingModal will exclude it if original was null and user didn't change it)
           updateData.pose_effectue_par_wood_agency = formData.pose_effectue_par_wood_agency
         }
+        
+        // Include statut_facturation if it's in formData (admin can change billing status)
+        if (formData.statut_facturation !== undefined) {
+          updateData.statut_facturation = formData.statut_facturation
+        }
+        
         await updateBooking(editingBooking.id, updateData)
         alert('Réservation modifiée avec succès')
       } else {
@@ -1487,6 +1493,7 @@ function AdminPage() {
                     <th>Téléphone</th>
                     <th>Concepteur</th>
                     <th>Pose Wood agency</th>
+                    <th>Statut</th>
                     <th>Message</th>
                     <th>Créé le</th>
                     <th>Actions</th>
@@ -1519,6 +1526,20 @@ function AdminPage() {
                         ) : (
                           <span style={{ color: isDarkMode ? '#6b7280' : '#9ca3af' }}>-</span>
                         )}
+                      </td>
+                      <td>
+                        <span
+                          style={{
+                            width: '12px',
+                            height: '12px',
+                            borderRadius: '50%',
+                            backgroundColor: ((booking as any).statut_facturation || 'en_attente') === 'facture' 
+                              ? '#10b981' 
+                              : '#ef4444',
+                            display: 'inline-block'
+                          }}
+                          title={((booking as any).statut_facturation || 'en_attente') === 'facture' ? 'Facturé' : 'En attente de facturation'}
+                        />
                       </td>
                       <td className="message-cell">
                         {booking.message || <span className="no-message">-</span>}

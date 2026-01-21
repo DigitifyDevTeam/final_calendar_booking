@@ -1,10 +1,13 @@
 from datetime import date, timedelta
 import logging
 import secrets
+import os
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.db.models import Count
 from django.utils import timezone
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser, BasePermission
 from rest_framework.response import Response
@@ -1013,3 +1016,354 @@ class MagasinRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         queryset = super().get_queryset()
         # Prefetch concepteurs for better performance
         return queryset.prefetch_related('concepteurs').all()
+
+
+def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_files: list):
+    """Send email notification to the designer when a technician finishes a booking"""
+    try:
+        # Find the designer (concepteur) by name
+        designer = User.objects.filter(name__iexact=booking.designer_name, role='concepteur').first()
+        
+        if not designer:
+            # Try partial match
+            designer = User.objects.filter(name__icontains=booking.designer_name.split()[0] if booking.designer_name else '', role='concepteur').first()
+        
+        if not designer or not designer.email:
+            logger.warning(f"Could not find designer email for booking #{booking.id}, designer name: {booking.designer_name}")
+            return
+        
+        calendar_label = CALENDAR_LABELS.get(booking.calendar_id, booking.calendar_id)
+        subject = f"✅ Intervention terminée - {booking.client_name} - {calendar_label}"
+        
+        # Format date
+        from django.utils import timezone as dj_timezone
+        completed_at = booking.completed_at
+        if completed_at and dj_timezone.is_aware(completed_at):
+            completed_at = dj_timezone.localtime(completed_at)
+        formatted_completed = completed_at.strftime('%d/%m/%Y à %H:%M') if completed_at else 'Non spécifiée'
+        
+        # Format time display
+        time_display = ""
+        if booking.calendar_id in ['calendar2', 'calendar3', '2', '3']:
+            if booking.booking_time and booking.booking_time.strip():
+                time_display = booking.booking_time.strip()
+        elif booking.booking_time and booking.booking_time.strip() and booking.booking_time.strip() != '21h00':
+            time_display = booking.booking_time.strip()
+        
+        # Build checkmarks section
+        check_icon = "✅"
+        cross_icon = "❌"
+        
+        checks_html = f"""
+        <div style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #28a745;">
+            <h3 style="margin: 0 0 15px 0; color: #28a745;">État de l'intervention</h3>
+            <div style="margin: 8px 0;">
+                <span style="font-size: 18px;">{check_icon if booking.menage_fait else cross_icon}</span>
+                <span style="margin-left: 8px;">Le ménage est fait</span>
+            </div>
+            <div style="margin: 8px 0;">
+                <span style="font-size: 18px;">{check_icon if booking.cft_signe else cross_icon}</span>
+                <span style="margin-left: 8px;">Le CFT est signé</span>
+            </div>
+            {"<div style='margin: 8px 0;'><span style='font-size: 18px;'>" + (check_icon if booking.electromenager_fonctionnel else cross_icon) + "</span><span style='margin-left: 8px;'>L'électroménager est fonctionnel</span></div>" if booking.electromenager_fonctionnel is not None else ""}
+        </div>
+        """
+        
+        # Build files section
+        files_html = ""
+        if uploaded_files:
+            files_list = "".join([
+                f"<li style='margin: 5px 0;'>📎 {f['original_name']}</li>"
+                for f in uploaded_files
+            ])
+            files_html = f"""
+            <div style="margin: 20px 0; padding: 15px; background-color: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+                <h3 style="margin: 0 0 15px 0; color: #856404;">📁 Fichiers joints ({len(uploaded_files)})</h3>
+                <ul style="margin: 0; padding-left: 20px;">
+                    {files_list}
+                </ul>
+                <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">
+                    Les fichiers sont disponibles dans le dossier de la réservation.
+                </p>
+            </div>
+            """
+        
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 30px; text-align: center;">
+            <h1 style="margin: 0; font-size: 24px;">✅ Intervention Terminée</h1>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">Le technicien a finalisé l'intervention</p>
+        </div>
+        
+        <div style="padding: 30px;">
+            <div style="background-color: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #28a745;">
+                <p style="margin: 0; font-size: 16px;">
+                    <strong>👷 Technicien :</strong> {technicien_name}
+                </p>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: #666;">
+                    Terminé le {formatted_completed}
+                </p>
+            </div>
+            
+            <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #2196f3;">
+                <h3 style="margin: 0 0 15px 0; color: #1976d2;">📋 Détails de la réservation</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px 0; color: #666;">📅 Calendrier:</td>
+                        <td style="padding: 8px 0; font-weight: bold;">{calendar_label}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; color: #666;">📆 Date:</td>
+                        <td style="padding: 8px 0; font-weight: bold;">{booking.booking_date}</td>
+                    </tr>
+                    {"<tr><td style='padding: 8px 0; color: #666;'>🕐 Heure:</td><td style='padding: 8px 0; font-weight: bold;'>" + time_display + "</td></tr>" if time_display else ""}
+                    <tr>
+                        <td style="padding: 8px 0; color: #666;">👤 Client:</td>
+                        <td style="padding: 8px 0; font-weight: bold;">{booking.client_name}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; color: #666;">📞 Téléphone:</td>
+                        <td style="padding: 8px 0;"><a href="tel:{booking.client_phone}" style="color: #2196f3;">{booking.client_phone}</a></td>
+                    </tr>
+                </table>
+            </div>
+            
+            {checks_html}
+            
+            {files_html}
+            
+            {"<div style='background-color: #f5f5f5; padding: 15px; border-radius: 8px; margin-top: 20px;'><strong>💬 Message / Commentaire:</strong><br><br>" + booking.message + "</div>" if booking.message else ""}
+        </div>
+        
+        <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e9ecef;">
+            <p style="margin: 0; color: #6c757d; font-size: 12px;">
+                Notification automatique du système de réservation
+            </p>
+            <p style="margin: 5px 0 0 0; color: #6c757d; font-size: 12px;">
+                Réservation #{booking.id}
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+        """
+        
+        # Plain text fallback
+        checks_text = f"""
+État de l'intervention:
+- Le ménage est fait: {'Oui' if booking.menage_fait else 'Non'}
+- Le CFT est signé: {'Oui' if booking.cft_signe else 'Non'}
+{"- L'électroménager est fonctionnel: " + ('Oui' if booking.electromenager_fonctionnel else 'Non') if booking.electromenager_fonctionnel is not None else ""}
+        """.strip()
+        
+        files_text = ""
+        if uploaded_files:
+            files_text = "\nFichiers joints:\n" + "\n".join([f"- {f['original_name']}" for f in uploaded_files])
+        
+        text_body = f"""
+Intervention Terminée - {calendar_label}
+
+Technicien: {technicien_name}
+Terminé le: {formatted_completed}
+
+--- Détails de la réservation ---
+Calendrier: {calendar_label}
+Date: {booking.booking_date}
+{f'Heure: {time_display}' if time_display else ''}
+Client: {booking.client_name}
+Téléphone: {booking.client_phone}
+
+{checks_text}
+{files_text}
+
+{f'Message/Commentaire: {booking.message}' if booking.message else ''}
+
+---
+Réservation #{booking.id}
+Notification automatique du système de réservation
+        """.strip()
+        
+        # Get email settings
+        default_from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com')
+        
+        logger.info(f"Sending completion notification to designer {designer.email} for booking #{booking.id}")
+        
+        email_message = EmailMessage(
+            subject=subject,
+            body=text_body,
+            from_email=default_from_email,
+            to=[designer.email],
+        )
+        
+        # Set HTML content
+        email_message.content_subtype = "html"
+        email_message.body = html_body
+        
+        # Attach uploaded files to the email
+        if uploaded_files:
+            import mimetypes
+            media_root = getattr(settings, 'MEDIA_ROOT', os.path.join(settings.BASE_DIR, 'media'))
+            for file_info in uploaded_files:
+                try:
+                    # Construct full file path
+                    file_path = os.path.join(media_root, file_info['path'])
+                    
+                    # Check if file exists
+                    if os.path.exists(file_path):
+                        # Detect MIME type based on file extension
+                        original_name = file_info['original_name']
+                        mime_type, _ = mimetypes.guess_type(original_name)
+                        
+                        # Default MIME types for common formats
+                        if not mime_type:
+                            ext = os.path.splitext(original_name)[1].lower()
+                            mime_map = {
+                                '.jpg': 'image/jpeg',
+                                '.jpeg': 'image/jpeg',
+                                '.png': 'image/png',
+                                '.gif': 'image/gif',
+                                '.pdf': 'application/pdf',
+                                '.doc': 'application/msword',
+                                '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                            }
+                            mime_type = mime_map.get(ext, 'application/octet-stream')
+                        
+                        # Read file in binary mode to preserve quality
+                        with open(file_path, 'rb') as f:
+                            file_content = f.read()
+                            
+                            # Attach file with proper MIME type
+                            email_message.attach(
+                                filename=original_name,
+                                content=file_content,
+                                mimetype=mime_type
+                            )
+                        logger.info(f"Attached file {original_name} (MIME: {mime_type}, Size: {len(file_content)} bytes) to email for booking #{booking.id}")
+                    else:
+                        logger.warning(f"File not found: {file_path} for booking #{booking.id}")
+                except Exception as e:
+                    logger.error(f"Failed to attach file {file_info.get('original_name', 'unknown')} to email: {e}", exc_info=True)
+        
+        email_message.send(fail_silently=False)
+        
+        logger.info(f"Completion notification sent to {designer.email} for booking #{booking.id} with {len(uploaded_files)} attached files")
+        
+    except Exception as e:
+        logger.error(f"Failed to send completion notification for booking #{booking.id}: {e}", exc_info=True)
+
+
+class BookingFinishView(APIView):
+    """View to handle technician finishing a booking with completion data and file uploads"""
+    permission_classes = [IsAuthenticatedCustom]
+    
+    def post(self, request, pk):
+        """
+        Finish a booking - update completion fields and save uploaded files
+        Expected data:
+        - menage_fait: boolean
+        - cft_signe: boolean
+        - electromenager_fonctionnel: boolean (optional, for SAV/Metré)
+        - files: list of files (multipart/form-data)
+        """
+        try:
+            # Get the booking
+            try:
+                booking = Booking.objects.get(pk=pk)
+            except Booking.DoesNotExist:
+                return Response(
+                    {'detail': 'Réservation introuvable.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Get the technician name from the authenticated user
+            technicien_name = request.user.name if hasattr(request.user, 'name') else 'Technicien'
+            
+            # Helper function to convert string boolean to actual boolean
+            def str_to_bool(value):
+                if isinstance(value, bool):
+                    return value
+                if isinstance(value, str):
+                    return value.lower() in ('true', '1', 'yes', 'on')
+                return bool(value)
+            
+            # Update completion fields - convert string booleans from FormData
+            booking.menage_fait = str_to_bool(request.data.get('menage_fait', False))
+            booking.cft_signe = str_to_bool(request.data.get('cft_signe', False))
+            
+            # Only set electromenager_fonctionnel if provided (for SAV/Metré calendars)
+            if 'electromenager_fonctionnel' in request.data:
+                booking.electromenager_fonctionnel = str_to_bool(request.data.get('electromenager_fonctionnel'))
+            
+            booking.completed_at = timezone.now()
+            booking.save()
+            
+            # Handle file uploads
+            uploaded_files = []
+            if 'files' in request.FILES:
+                # Create folder name from client name and booking date
+                # Sanitize client name for folder name (remove special characters)
+                client_name_safe = "".join(c for c in booking.client_name if c.isalnum() or c in (' ', '-', '_')).strip()
+                client_name_safe = client_name_safe.replace(' ', '_')
+                folder_name = f"{client_name_safe}_{booking.booking_date}_{booking.id}"
+                
+                # Create folder path
+                media_root = getattr(settings, 'MEDIA_ROOT', os.path.join(settings.BASE_DIR, 'media'))
+                booking_folder = os.path.join(media_root, 'bookings', folder_name)
+                os.makedirs(booking_folder, exist_ok=True)
+                
+                # Save each file
+                files_list = request.FILES.getlist('files')
+                for file in files_list:
+                    # Generate safe filename
+                    original_filename = file.name
+                    # Keep original extension
+                    file_extension = os.path.splitext(original_filename)[1]
+                    # Create unique filename with timestamp
+                    from datetime import datetime
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    safe_filename = f"{timestamp}_{original_filename}"
+                    
+                    # Save file
+                    file_path = os.path.join(booking_folder, safe_filename)
+                    with open(file_path, 'wb+') as destination:
+                        for chunk in file.chunks():
+                            destination.write(chunk)
+                    
+                    # Store relative path for response
+                    relative_path = f"bookings/{folder_name}/{safe_filename}"
+                    uploaded_files.append({
+                        'original_name': original_filename,
+                        'saved_name': safe_filename,
+                        'path': relative_path
+                    })
+            
+            logger.info(f"Booking {booking.id} completed by technician {technicien_name}. Files uploaded: {len(uploaded_files)}")
+            
+            # Send email notification to the designer (concepteur)
+            _notify_booking_completion(booking, technicien_name, uploaded_files)
+            
+            return Response({
+                'message': 'Réservation finalisée avec succès.',
+                'booking_id': booking.id,
+                'uploaded_files': uploaded_files,
+                'completion_data': {
+                    'menage_fait': booking.menage_fait,
+                    'cft_signe': booking.cft_signe,
+                    'electromenager_fonctionnel': booking.electromenager_fonctionnel,
+                    'completed_at': booking.completed_at.isoformat() if booking.completed_at else None
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error finishing booking {pk}: {e}", exc_info=True)
+            return Response(
+                {'detail': f'Une erreur s\'est produite lors de la finalisation de la réservation: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

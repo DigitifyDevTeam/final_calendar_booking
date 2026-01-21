@@ -247,6 +247,11 @@ class BookingSerializer(serializers.ModelSerializer):
             'designer_name',
             'message',
             'pose_effectue_par_wood_agency',
+            'statut_facturation',
+            'menage_fait',
+            'cft_signe',
+            'electromenager_fonctionnel',
+            'completed_at',
             'created_at',
         ]
         read_only_fields = ['id', 'created_at']
@@ -277,12 +282,8 @@ class BookingSerializer(serializers.ModelSerializer):
         # Only check bookings for future dates (exclude past dates)
         today = date.today()
         tomorrow = today + timedelta(days=1)
-        if booking_date < today:
-            raise serializers.ValidationError({
-                'booking_date': 'Vous ne pouvez pas réserver une date passée.'
-            })
-        
-        # Check if user is admin - admin can book for any date including today/tomorrow
+
+        # Check if user is admin - admin can book for any date including past/today/tomorrow
         request = self.context.get('request')
         is_admin = False
         if request and hasattr(request, 'user') and request.user:
@@ -290,6 +291,17 @@ class BookingSerializer(serializers.ModelSerializer):
             user = request.user
             if hasattr(user, 'role'):
                 is_admin = user.role == 'admin'
+
+        # For non-admin users: disallow creating or moving bookings to a past date.
+        # Allow:
+        #   - admin (can modifier/ajouter librement)
+        #   - updates where the date stays the same (ex: changer seulement le statut de facturation)
+        if booking_date < today and not is_admin:
+            # If this is an update and the date is unchanged, allow it
+            if not (self.instance and self.instance.booking_date == booking_date):
+                raise serializers.ValidationError({
+                    'booking_date': 'Vous ne pouvez pas réserver une date passée.'
+                })
         
         # For non-admin users: Prevent bookings for today and tomorrow
         # Admin users can book for any date

@@ -56,6 +56,11 @@ class User(models.Model):
 
 
 class Booking(models.Model):
+    STATUT_FACTURATION_CHOICES = [
+        ('en_attente', 'En attente de facturation'),
+        ('facture', 'Facturé'),
+    ]
+    
     calendar_id = models.CharField(max_length=100)
     booking_date = models.DateField()
     booking_time = models.CharField(max_length=20, blank=True)
@@ -64,6 +69,12 @@ class Booking(models.Model):
     designer_name = models.CharField(max_length=255)
     message = models.TextField(blank=True)
     pose_effectue_par_wood_agency = models.BooleanField(null=True, blank=True)
+    statut_facturation = models.CharField(max_length=20, choices=STATUT_FACTURATION_CHOICES, default='en_attente')
+    # Completion fields for technician
+    menage_fait = models.BooleanField(default=False)
+    cft_signe = models.BooleanField(default=False)
+    electromenager_fonctionnel = models.BooleanField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:

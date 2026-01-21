@@ -360,7 +360,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         
         // Calculate counts for ALL dates (all months), not just visible month
         // This way when user navigates to December, fully-booked dates are already gray
-        // IMPORTANT: Only count bookings for future dates (exclude past dates)
+        // IMPORTANT: Only count bookings for future dates (exclude past dates) for counts
+        // BUT: For admin on SAV/Metré calendars, include past bookings in bookedTimeSlots and bookingDetails
         const counts: {[key: string]: number} = {}
         const slots: {[key: string]: boolean} = {}
         const details: {[key: string]: BookingRecord} = {}
@@ -372,8 +373,13 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           const bookingDate = new Date(booking.date + 'T00:00:00')
           bookingDate.setHours(0, 0, 0, 0)
           
-          // Only count bookings for today or future dates (exclude past dates)
-          if (bookingDate >= today) {
+          const isPastDate = bookingDate < today
+          const isAdminOnSavMetre = isAdmin && usesTimeSlots(binId) && (binId === 'calendar2' || binId === 'calendar3')
+          
+          // For admin on SAV/Metré: include past bookings in slots/details but not in counts
+          // For technicien: include today and all future bookings (bookingDate >= today)
+          // For all others: only include today and future bookings (bookingDate >= today)
+          if (bookingDate >= today || (isPastDate && isAdminOnSavMetre)) {
             // For calendars with time slots (calendar2/SAV and calendar3/Metré), only count if time slot is present
             // For calendar1/Pose, count all bookings
             if (usesTimeSlots(binId)) {
@@ -392,12 +398,19 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                 const slotKey = `${booking.date}|${slotTime}`
                 slots[slotKey] = true
                 details[slotKey] = booking // Store booking details for admin
+                
+                // Only add to counts if not a past date (past dates should not affect booking counts)
+                if (!isPastDate) {
+                  // Counts are not used for time-slot calendars, but we keep the structure for consistency
+                }
               } else {
                 filteredTimeSlotCount++
               }
             } else {
-              // For Pose calendar (calendar1), count all bookings per date
-              counts[booking.date] = (counts[booking.date] || 0) + 1
+              // For Pose calendar (calendar1), only count future bookings
+              if (!isPastDate) {
+                counts[booking.date] = (counts[booking.date] || 0) + 1
+              }
             }
           } else {
             filteredPastCount++
@@ -444,7 +457,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         bookingsLoadingRef.current = null
       }
     }
-  }, [refreshTrigger, binId, internalRefreshTrigger]) // Remove monthDays dependency - load all dates once, update on refreshTrigger
+  }, [refreshTrigger, binId, internalRefreshTrigger, isAdmin]) // Include isAdmin to reload when admin status changes
 
   // Get booking status for a date
   const getBookingStatus = (date: Date) => {
@@ -493,14 +506,20 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
 
   // Helper function to check if a time slot is booked
   const isSlotBooked = (date: Date, timeSlot: string): boolean => {
-    // Don't check past dates
+    // Get today's date for comparison
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const checkDate = new Date(date)
     checkDate.setHours(0, 0, 0, 0)
     
-    if (checkDate < today) {
-      return false // Past dates are not considered booked
+    const isPastDate = checkDate < today
+    const isAdminOnSavMetre = isAdmin && usesTimeSlots(binId) && (binId === 'calendar2' || binId === 'calendar3')
+    
+    // Technicien can see today and all future dates
+    // Admin on SAV/Metré can see past dates
+    // For other users, don't check past dates
+    if (isPastDate && !isAdminOnSavMetre && !isTechnicien) {
+      return false // Past dates are not considered booked for non-admin/non-technicien or non-SAV/Metré
     }
     
     // Use local date string to avoid timezone issues (same format as getBookingStatus)
@@ -545,8 +564,13 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     const checkDate = new Date(date)
     checkDate.setHours(0, 0, 0, 0)
     
-    // Only show bookings for future dates
-    if (checkDate < today) {
+    const isPastDate = checkDate < today
+    const isAdminOnSavMetre = isAdmin && usesTimeSlots(binId) && (binId === 'calendar2' || binId === 'calendar3')
+    
+    // Technicien can see today and all future dates
+    // Admin on SAV/Metré can see past dates
+    // For other users, only show bookings for future dates
+    if (isPastDate && !isAdminOnSavMetre && !isTechnicien) {
       return []
     }
     
@@ -565,6 +589,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     } else {
       // For Pose calendar, get all bookings for this date
       // Show all bookings so users can see who has booked (for info icon)
+      // But only for future dates (or past dates if admin on SAV/Metré, but Pose doesn't use time slots)
       const bookings: BookingRecord[] = []
       allBookingsData.forEach((booking: BookingRecord) => {
         if (booking.date === dateString) {
@@ -2181,6 +2206,30 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                         </button>
                       </div>
                     )}
+                    {(isAdmin || isConcepteur || isRegularUser) && !usesTimeSlots(binId) && getBookingForDateAndSlot(date) && (
+                      <div className="date-header-actions">
+                        <button
+                          className="calendar-edit-button-pose"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleEditBooking(date, undefined, e)
+                          }}
+                          title="Modifier"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          className="calendar-delete-button-pose"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteBooking(date, undefined, e)
+                          }}
+                          title="Supprimer"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    )}
                     <div 
                       className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''}`}
                       onClick={isDateNumberClickable ? (() => !isDisabled && !isFullyBooked && handleDateClick(date)) : undefined}
@@ -3080,40 +3129,58 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
 
       {/* Booking Selection Popup for multiple bookings on same date */}
       {bookingSelectPopup && (
-        <div 
-          className="booking-select-popup"
-          style={{
-            position: 'fixed',
-            left: Math.min(bookingSelectPopup.x, window.innerWidth - 280),
-            top: bookingSelectPopup.y,
-            zIndex: 10000,
-            backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-            border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
-            borderRadius: '12px',
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)',
-            padding: '12px',
-            minWidth: '250px',
-            maxWidth: '350px'
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div style={{
-            fontSize: '14px',
-            fontWeight: 600,
-            color: isDarkMode ? '#ffffff' : '#111827',
-            marginBottom: '12px',
-            paddingBottom: '8px',
-            borderBottom: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`
-          }}>
-            {bookingSelectPopup.action === 'edit' ? '✏️ Sélectionner une réservation à modifier' : '🗑️ Sélectionner une réservation à supprimer'}
-          </div>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            maxHeight: '300px',
-            overflowY: 'auto'
-          }}>
+        <>
+          {/* Overlay backdrop */}
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              zIndex: 9999
+            }}
+            onClick={() => setBookingSelectPopup(null)}
+          />
+          <div 
+            className="booking-select-popup"
+            style={{
+              position: 'fixed',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 10000,
+              backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+              border: `2px solid ${isDarkMode ? '#fa541c' : '#fa541c'}`,
+              borderRadius: '16px',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.4)',
+              padding: '20px',
+              minWidth: '320px',
+              maxWidth: '420px',
+              maxHeight: '80vh',
+              overflowY: 'auto'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              fontSize: '16px',
+              fontWeight: 700,
+              color: isDarkMode ? '#ffffff' : '#111827',
+              marginBottom: '16px',
+              paddingBottom: '12px',
+              borderBottom: `2px solid ${isDarkMode ? '#fa541c' : '#fa541c'}`
+            }}>
+              {bookingSelectPopup.action === 'edit' ? '✏️ Sélectionner une réservation à modifier' : '🗑️ Sélectionner une réservation à supprimer'}
+            </div>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              maxHeight: '50vh',
+              overflowY: 'auto',
+              paddingRight: '4px'
+            }}>
             {bookingSelectPopup.bookings
               .sort((a, b) => a.name.localeCompare(b.name))
               .map((booking, index) => (
@@ -3124,41 +3191,44 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'flex-start',
-                    gap: '4px',
-                    padding: '10px 12px',
-                    borderRadius: '8px',
-                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
-                    backgroundColor: isDarkMode ? '#0a0a0a' : '#f9fafb',
+                    gap: '6px',
+                    padding: '14px 16px',
+                    borderRadius: '10px',
+                    border: `2px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
                     width: '100%',
                     textAlign: 'left'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f0f0f0'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#fff7ed'
                     e.currentTarget.style.borderColor = '#fa541c'
+                    e.currentTarget.style.transform = 'translateX(4px)'
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = isDarkMode ? '#0a0a0a' : '#f9fafb'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#0a0a0a' : '#ffffff'
                     e.currentTarget.style.borderColor = isDarkMode ? '#333333' : '#e5e7eb'
+                    e.currentTarget.style.transform = 'translateX(0)'
                   }}
                 >
                   <div style={{
-                    fontSize: '14px',
-                    fontWeight: 600,
+                    fontSize: '15px',
+                    fontWeight: 700,
                     color: isDarkMode ? '#ffffff' : '#111827'
                   }}>
                     👤 {booking.name}
                   </div>
                   <div style={{
-                    fontSize: '12px',
+                    fontSize: '13px',
                     color: isDarkMode ? '#9ca3af' : '#6b7280'
                   }}>
                     📞 {booking.phone}
                   </div>
                   <div style={{
-                    fontSize: '11px',
-                    color: isDarkMode ? '#6b7280' : '#9ca3af'
+                    fontSize: '12px',
+                    color: '#fa541c',
+                    fontWeight: 500
                   }}>
                     🎨 Concepteur: {booking.designer}
                   </div>
@@ -3168,27 +3238,31 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           <button
             onClick={() => setBookingSelectPopup(null)}
             style={{
-              marginTop: '12px',
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
-              backgroundColor: 'transparent',
-              color: isDarkMode ? '#9ca3af' : '#6b7280',
+              marginTop: '16px',
+              padding: '12px 20px',
+              borderRadius: '8px',
+              border: `1px solid ${isDarkMode ? '#444' : '#d1d5db'}`,
+              backgroundColor: isDarkMode ? '#2a2a2a' : '#f3f4f6',
+              color: isDarkMode ? '#ffffff' : '#374151',
               cursor: 'pointer',
-              fontSize: '13px',
+              fontSize: '14px',
+              fontWeight: 600,
               width: '100%',
               transition: 'all 0.2s'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f0f0f0'
+              e.currentTarget.style.backgroundColor = isDarkMode ? '#3a3a3a' : '#e5e7eb'
+              e.currentTarget.style.borderColor = '#fa541c'
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent'
+              e.currentTarget.style.backgroundColor = isDarkMode ? '#2a2a2a' : '#f3f4f6'
+              e.currentTarget.style.borderColor = isDarkMode ? '#444' : '#d1d5db'
             }}
           >
             Annuler
           </button>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Edit Modal - Use AdminBookingModal for consistent interface */}

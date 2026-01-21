@@ -29,6 +29,7 @@ interface BookingApiResponse {
   designer_name: string
   message: string
   pose_effectue_par_wood_agency?: boolean | null
+  statut_facturation?: 'en_attente' | 'facture' | null
   created_at: string
 }
 
@@ -43,6 +44,7 @@ const toBookingRecord = (apiBooking: BookingApiResponse): BookingRecord => ({
   timestamp: new Date(apiBooking.created_at).getTime(),
   calendar_id: apiBooking.calendar_id, // Include calendar_id from backend
   pose_effectue_par_wood_agency: apiBooking.pose_effectue_par_wood_agency ?? null,
+  statut_facturation: apiBooking.statut_facturation ?? null,
 })
 
 // Helper function to refresh the access token
@@ -193,6 +195,7 @@ export interface BookingRecord {
   timestamp: number;
   calendar_id?: string; // Calendar ID from backend
   pose_effectue_par_wood_agency?: boolean | null;
+  statut_facturation?: 'en_attente' | 'facture' | null; // Billing status: 'en_attente' (awaiting) or 'facture' (invoiced)
 }
 
 export interface BookingData {
@@ -515,6 +518,7 @@ export const updateBooking = async (bookingId: string, bookingData: {
   designer_name?: string;
   message?: string;
   pose_effectue_par_wood_agency?: boolean;
+  statut_facturation?: 'en_attente' | 'facture' | null;
 }): Promise<BookingRecord> => {
   try {
     console.log('[updateBooking] Updating booking:', bookingId, bookingData)
@@ -549,6 +553,79 @@ export const deleteBooking = async (bookingId: string, calendarId?: string): Pro
     return true
   } catch (error) {
     console.error('Error deleting booking:', error)
+    throw error
+  }
+}
+
+// Finish a booking (technician completion)
+export const finishBooking = async (
+  bookingId: string,
+  data: {
+    menageFait: boolean
+    cftSigne: boolean
+    electromenagerFonctionnel?: boolean
+    attachments: File[]
+  }
+): Promise<{
+  message: string
+  booking_id: number
+  uploaded_files: Array<{
+    original_name: string
+    saved_name: string
+    path: string
+  }>
+  completion_data: {
+    menage_fait: boolean
+    cft_signe: boolean
+    electromenager_fonctionnel: boolean | null
+    completed_at: string | null
+  }
+}> => {
+  try {
+    console.log('[finishBooking] Finishing booking:', bookingId, data)
+    
+    // Create FormData for multipart/form-data request
+    const formData = new FormData()
+    formData.append('menage_fait', String(data.menageFait))
+    formData.append('cft_signe', String(data.cftSigne))
+    
+    if (data.electromenagerFonctionnel !== undefined) {
+      formData.append('electromenager_fonctionnel', String(data.electromenagerFonctionnel))
+    }
+    
+    // Append all files
+    data.attachments.forEach((file) => {
+      formData.append('files', file)
+    })
+    
+    // Get access token
+    const accessToken = sessionStorage.getItem('access_token')
+    if (!accessToken) {
+      throw new Error('No access token found')
+    }
+    
+    // Make request with FormData (don't use apiRequest as it uses JSON)
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/finish/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: formData,
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }))
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+    }
+    
+    const result = await response.json()
+    
+    // Clear cache after successful finish
+    clearBookingsCache()
+    
+    return result
+  } catch (error) {
+    console.error('Error finishing booking:', error)
     throw error
   }
 }

@@ -199,6 +199,7 @@
   padding: 16px 24px 24px;
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
 }
 
 .close-action-button {
@@ -222,6 +223,29 @@
 .close-action-button:active {
   transform: translateY(0);
 }
+
+.finish-action-button {
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+  color: #0b1f16;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.finish-action-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.finish-action-button:active {
+  transform: translateY(0);
+}
+
 
 /* Responsive */
 @media (max-width: 500px) {
