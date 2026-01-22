@@ -394,7 +394,7 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
           users={isAdmin ? usersList : []}
           existingBookings={existingBookings.map(b => ({ date: b.date }))}
           holidays={holidays.map(h => ({ holiday_date: h.holiday_date }))}
-          maxBookingsPerDay={2}
+          maxBookingsPerDay={3}
           showDurationField={true}
         />
       )}

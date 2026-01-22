@@ -44,7 +44,7 @@ interface BookingModalProps {
   // Props for duration availability (Pose calendar)
   existingBookings?: ExistingBooking[] // All bookings for this calendar
   holidays?: HolidayRecord[] // All holidays for this calendar
-  maxBookingsPerDay?: number // Max bookings per day (default: 2 for Pose)
+  maxBookingsPerDay?: number // Max bookings per day (default: 3 for Pose)
   showDurationField?: boolean // Whether to show duration field (only for Pose)
 }
 

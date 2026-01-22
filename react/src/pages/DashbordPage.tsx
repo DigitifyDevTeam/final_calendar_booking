@@ -353,8 +353,8 @@ function DashbordPage() {
         }) || []
         
         // Calculate rates based on capacity
-        // Pose: 2 per day, Metré: 8 per day, SAV: 3 per day
-        const poseCapacity = daysInMonth * 2
+        // Pose: 3 per day, Metré: 8 per day, SAV: 3 per day
+        const poseCapacity = daysInMonth * 3
         const metreCapacity = daysInMonth * 8
         const savCapacity = daysInMonth * 3
         const totalCapacity = poseCapacity + metreCapacity + savCapacity

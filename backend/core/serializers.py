@@ -4,7 +4,7 @@ from rest_framework import serializers
 from .models import Booking, ContactMessage, Holiday, User
 
 CALENDAR_DAILY_LIMITS = {
-    'calendar1': 2,  # Pose calendar: 2 bookings per day
+    'calendar1': 3,  # Pose calendar: 3 bookings per day
 }
 
 TIME_SLOT_CALENDARS = {'calendar2', 'calendar3'}  # SAV and Metré use time slots

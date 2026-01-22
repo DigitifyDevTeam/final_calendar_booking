@@ -477,7 +477,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     
     // Data is loaded or date is disabled - show actual status
     const count = bookingCounts[dateString] || 0
-    // For calendar1 (Pose): if count >= 2, date is fully booked
+    // For calendar1 (Pose): if count >= 3, date is fully booked
     // For other calendars with time slots: isFullyBooked is handled per time slot
     const isFullyBooked = !isDisabled && !isHoliday && count >= maxBookings
     
