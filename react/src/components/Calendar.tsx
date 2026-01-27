@@ -281,7 +281,12 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   }
 
   // Check if today/tomorrow should be disabled for the current user (non-admin users cannot book today/tomorrow)
+  // Technicien accounts can view today and tomorrow (but cannot book)
   const isTodayOrTomorrowDisabledForUser = (date: Date): boolean => {
+    // Allow technicien to see today and tomorrow (they can view but not book)
+    if (isTechnicien) {
+      return false
+    }
     return !isAdmin && isTodayOrTomorrow(date)
   }
 
