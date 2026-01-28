@@ -617,23 +617,6 @@ function AdminPage() {
                 </span>
               )}
             </button>
-            <button
-              onClick={toggleDarkMode}
-              style={{
-                width: '36px',
-                height: '36px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: 'transparent',
-                color: textSecondary,
-                cursor: 'pointer'
-              }}
-            >
-              {isDarkMode ? <Sun style={{ width: '18px', height: '18px' }} /> : <Moon style={{ width: '18px', height: '18px' }} />}
-            </button>
             <button 
               onClick={handleLogout}
               style={{
@@ -1067,17 +1050,6 @@ function AdminPage() {
               Paramètres
             </div>
             <AdminSidebarItem
-              Icon={isDarkMode ? Sun : Moon}
-              title={isDarkMode ? 'Mode clair' : 'Mode sombre'}
-              isActive={false}
-              open={sidebarOpen}
-              onClick={toggleDarkMode}
-              isDarkMode={isDarkMode}
-              orangeColor={orangeColor}
-              textColor={textColor}
-              textSecondary={textSecondary}
-            />
-            <AdminSidebarItem
               Icon={Settings}
               title="Paramètres"
               isActive={location.pathname === '/parametres'}
@@ -1397,36 +1369,6 @@ function AdminPage() {
                     )}
                   </div>
                 )}
-                <button
-                  onClick={toggleDarkMode}
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '8px',
-                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
-                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                    color: isDarkMode ? '#9ca3af' : '#6b7280',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
-                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
-                    e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
-                  }}
-                >
-                  {isDarkMode ? (
-                    <Sun style={{ width: '16px', height: '16px' }} />
-                  ) : (
-                    <Moon style={{ width: '16px', height: '16px' }} />
-                  )}
-                </button>
                 <button 
                   onClick={handleLogout}
                   style={{

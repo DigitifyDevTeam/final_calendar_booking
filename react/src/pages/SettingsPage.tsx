@@ -433,23 +433,6 @@ function SettingsPage() {
                 </span>
               )}
             </button>
-            <button
-              onClick={toggleDarkMode}
-              style={{
-                width: '36px',
-                height: '36px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: 'transparent',
-                color: textSecondary,
-                cursor: 'pointer'
-              }}
-            >
-              {isDarkMode ? <Sun style={{ width: '18px', height: '18px' }} /> : <Moon style={{ width: '18px', height: '18px' }} />}
-            </button>
             <button 
               onClick={handleLogout}
               style={{
@@ -887,17 +870,6 @@ function SettingsPage() {
             }}>
               Paramètres
             </div>
-            <AdminSidebarItem
-              Icon={isDarkMode ? Sun : Moon}
-              title={isDarkMode ? 'Mode clair' : 'Mode sombre'}
-              isActive={false}
-              open={sidebarOpen}
-              onClick={toggleDarkMode}
-              isDarkMode={isDarkMode}
-              orangeColor={orangeColor}
-              textColor={textColor}
-              textSecondary={textSecondary}
-            />
             <AdminSidebarItem
               Icon={Settings}
               title="Paramètres"

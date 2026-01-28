@@ -547,17 +547,6 @@ function MagasinsPage() {
               Paramètres
             </div>
             <AdminSidebarItem
-              Icon={isDarkMode ? Sun : Moon}
-              title={isDarkMode ? 'Mode clair' : 'Mode sombre'}
-              isActive={false}
-              open={sidebarOpen}
-              onClick={toggleDarkMode}
-              isDarkMode={isDarkMode}
-              orangeColor={orangeColor}
-              textColor={textColor}
-              textSecondary={textSecondary}
-            />
-            <AdminSidebarItem
               Icon={Settings}
               title="Paramètres"
               isActive={location.pathname === '/parametres'}
@@ -639,23 +628,46 @@ function MagasinsPage() {
                 <p>Gestion des magasins</p>
               </div>
               <div style={{ display: isMobile ? 'none' : 'flex', alignItems: 'center', gap: '16px' }}>
-                <button
-                  onClick={toggleDarkMode}
+                <button 
+                  data-notifications-dropdown
+                  onClick={() => setNotificationsOpen(!notificationsOpen)}
                   style={{
-                    width: '40px',
-                    height: '40px',
+                    position: 'relative',
+                    width: '36px',
+                    height: '36px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     borderRadius: '8px',
-                    border: `1px solid ${borderColor}`,
-                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                    color: isDarkMode ? '#9ca3af' : '#6b7280',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    color: textSecondary,
+                    cursor: 'pointer'
                   }}
                 >
-                  {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+                  <Bell style={{ width: '18px', height: '18px' }} />
+                  {unreadCount > 0 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '-2px',
+                        right: '-2px',
+                        minWidth: '16px',
+                        height: '16px',
+                        backgroundColor: '#ef4444',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        color: '#ffffff',
+                        padding: '0 3px'
+                      }}
+                    >
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
                 </button>
                 <button 
                   onClick={handleLogout}
