@@ -305,12 +305,13 @@ function AdminPage() {
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString + 'T00:00:00')
-    return date.toLocaleDateString('fr-FR', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
+    if (isNaN(date.getTime())) {
+      return dateString
+    }
+    const day = String(date.getDate()).padStart(2, '0')
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const year = String(date.getFullYear()).slice(-2)
+    return `${day}/${month}/${year}`
   }
 
   const formatDateTime = (timestamp: number): string => {
@@ -1521,13 +1522,12 @@ function AdminPage() {
                 <thead>
                   <tr>
                     <th>Date</th>
-                    <th>Heure</th>
                     <th>Calendrier</th>
                     <th>Client</th>
                     <th>Téléphone</th>
                     <th>Concepteur</th>
-                    <th>Pose non Wood agency</th>
-                    <th>Facturation</th>
+                    <th>Pose Wood agency</th>
+                    <th>Facturé</th>
                     <th>Statut</th>
                     <th>Message</th>
                     <th>Créé le</th>
@@ -1541,9 +1541,11 @@ function AdminPage() {
                       id={`booking-row-${booking.id}`}
                       className={highlightBookingId === booking.id ? 'highlighted-booking-row' : ''}
                     >
-                      <td>{formatDate(booking.date)}</td>
-                      <td className="time-slot-cell">
-                        {booking.time && booking.time !== '21h00' ? booking.time : '-'}
+                      <td className="date-cell">
+                        <div className="date-value">{formatDate(booking.date)}</div>
+                        <div className="time-value">
+                          {booking.time && booking.time !== '21h00' ? booking.time : '-'}
+                        </div>
                       </td>
                       <td>
                         <span className="calendar-badge">
@@ -1602,7 +1604,8 @@ function AdminPage() {
                                 fontWeight: 600,
                                 backgroundColor: `${statusColor}20`,
                                 color: statusColor,
-                                border: `1px solid ${statusColor}40`
+                                border: `1px solid ${statusColor}40`,
+                                whiteSpace: 'nowrap'
                               }}
                             >
                               {statusText}
@@ -1616,22 +1619,22 @@ function AdminPage() {
                       <td>{formatDateTime(booking.timestamp)}</td>
                       <td className="actions-cell">
                         {isAdmin || isBookingOwnedByUser(booking) ? (
-                          <>
-                        <button
-                          className="edit-button"
-                          onClick={() => handleEditClick(booking)}
-                          title="Modifier"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          className="delete-button"
-                          onClick={() => handleDeleteClick(booking)}
-                          title="Supprimer"
-                        >
-                          🗑️
-                        </button>
-                          </>
+                          <div className="actions-stack">
+                            <button
+                              className="edit-button"
+                              onClick={() => handleEditClick(booking)}
+                              title="Modifier"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              className="delete-button"
+                              onClick={() => handleDeleteClick(booking)}
+                              title="Supprimer"
+                            >
+                              🗑️
+                            </button>
+                          </div>
                         ) : (
                           <span style={{ color: isDarkMode ? '#6b7280' : '#9ca3af', fontSize: '12px' }}>
                             Non autorisé

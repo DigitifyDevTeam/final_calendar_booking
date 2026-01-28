@@ -556,7 +556,7 @@
 }
 
 .bookings-table th {
-  padding: 15px;
+  padding: 5px;
   text-align: left;
   font-weight: 700;
   font-size: 0.9rem;
@@ -656,8 +656,14 @@
 }
 
 .actions-cell {
-  white-space: nowrap;
   padding: 10px 15px;
+}
+
+.actions-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
 
 .edit-button,
@@ -666,10 +672,12 @@
   border: none;
   font-size: 1.2rem;
   cursor: pointer;
-  padding: 5px 10px;
-  margin: 0 2px;
-  border-radius: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
   transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .edit-button:hover {
@@ -700,6 +708,20 @@
 
 .time-slot-cell {
   white-space: nowrap;
+}
+
+.date-cell {
+  white-space: nowrap;
+}
+
+.date-value {
+  font-weight: 600;
+}
+
+.time-value {
+  font-size: 0.8rem;
+  opacity: 0.7;
+  margin-top: 2px;
 }
 
 .time-slot-with-info {

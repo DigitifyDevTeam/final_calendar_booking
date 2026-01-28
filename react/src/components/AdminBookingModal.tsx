@@ -82,6 +82,17 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
     }
   }
 
+  // Helper function to display date as dd/MM/yy
+  const formatDateDisplay = (dateString: string): string => {
+    if (!dateString) return ''
+    const date = new Date(dateString + 'T00:00:00')
+    if (isNaN(date.getTime())) return dateString
+    const day = String(date.getDate()).padStart(2, '0')
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const year = String(date.getFullYear()).slice(-2)
+    return `${day}/${month}/${year}`
+  }
+
   useEffect(() => {
     if (booking) {
       // Edit mode - populate form with existing booking data
@@ -472,12 +483,7 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
             <label htmlFor="booking_date">Date * {booking && <span style={{ fontSize: '0.85rem', fontWeight: 'normal', color: '#666', marginLeft: '8px' }}>(Vous pouvez modifier la date)</span>}</label>
             {formData.booking_date && (
               <div className="selected-date-display">
-                Date sélectionnée : {new Date(formData.booking_date + 'T00:00:00').toLocaleDateString('fr-FR', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
+                Date sélectionnée : {formatDateDisplay(formData.booking_date)}
               </div>
             )}
             <input
