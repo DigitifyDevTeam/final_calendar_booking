@@ -27,9 +27,10 @@ interface CalendarProps {
   view?: 'monthly' | 'weekly' // View mode for the calendar
   showTimeSlots?: boolean // Show time slot boxes
   timeSlotType?: 'basic' | 'numerical' | 'pose' | 'sav' // Time slot display type
+  clientSearch?: string // Search term to filter bookings by client name
 }
 
-const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, refreshTrigger, binId, view = 'monthly', showTimeSlots = true, timeSlotType = 'numerical' }) => {
+const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, refreshTrigger, binId, view = 'monthly', showTimeSlots = true, timeSlotType = 'numerical', clientSearch = '' }) => {
   // Restore currentDate from localStorage or use today's date
   const getStoredDate = (): Date => {
     const stored = localStorage.getItem(`calendar_currentDate_${binId || 'default'}`)
@@ -280,9 +281,12 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     return checkDate.getTime() === today.getTime() || checkDate.getTime() === tomorrow.getTime()
   }
 
-  // Check if today/tomorrow should be disabled for the current user (non-admin users cannot book today/tomorrow)
+  // Check if today/tomorrow should be disabled for the current user (non-admin, non-technicien users cannot book today/tomorrow)
   const isTodayOrTomorrowDisabledForUser = (date: Date): boolean => {
-    return !isAdmin && isTodayOrTomorrow(date)
+    // Technicien has a read-only view and must still be able to access
+    // today's and tomorrow's bookings, so we only disable these dates
+    // for users who are neither admin nor technicien.
+    return !isAdmin && !isTechnicien && isTodayOrTomorrow(date)
   }
 
   // Check if a date should be disabled (past date, Sunday, holiday, or today/tomorrow for non-admin)
@@ -352,7 +356,16 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     const loadBookingCounts = async () => {
       try {
         // Fetch all bookings for this calendar
-        const allBookings = await getAllBookings(binId)
+        let allBookings = await getAllBookings(binId)
+        
+        // Filter by client name search if provided
+        if (clientSearch && clientSearch.trim()) {
+          const searchTerm = clientSearch.trim().toLowerCase()
+          allBookings = allBookings.filter((booking: BookingRecord) => {
+            const clientName = (booking.name || '').toLowerCase()
+            return clientName.includes(searchTerm)
+          })
+        }
         
         // Get today's date (without time) for comparison
         const today = new Date()
@@ -457,7 +470,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         bookingsLoadingRef.current = null
       }
     }
-  }, [refreshTrigger, binId, internalRefreshTrigger, isAdmin]) // Include isAdmin to reload when admin status changes
+  }, [refreshTrigger, binId, internalRefreshTrigger, isAdmin, clientSearch]) // Include clientSearch to reload when search changes
 
   // Get booking status for a date
   const getBookingStatus = (date: Date) => {
@@ -578,6 +591,10 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
       // For time slot calendars (Metré, SAV), get the booking for this specific time slot
       const booking = getBookingForSlot(date, timeSlot)
       if (booking) {
+        // If search is active, show all matching bookings (search already filtered allBookingsData)
+        if (clientSearch && clientSearch.trim()) {
+          return [booking]
+        }
         // For admin, show all bookings. For concepteur, only show if it's by another concepteur
         if (isAdmin) {
           return [booking]
@@ -1036,13 +1053,24 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         message: formData.message || ''
       }
       
-      // Only include pose_effectue_par_wood_agency for SAV calendar (calendar2)
+      // Only include pose_effectue_par_wood_agency, livraison, and raison for SAV calendar (calendar2)
       // AdminBookingModal handles the logic of preserving null values, so we only include if it's in formData
-      if (existingCalendarId === CALENDAR_CONFIGS['calendar2'] && formData.pose_effectue_par_wood_agency !== undefined) {
-        // Only send if it's explicitly set (AdminBookingModal will exclude it if original was null and user didn't change it)
-        updateData.pose_effectue_par_wood_agency = formData.pose_effectue_par_wood_agency
+      if (existingCalendarId === CALENDAR_CONFIGS['calendar2'] || existingCalendarId === 'calendar2' || existingCalendarId === '2') {
+        if (formData.pose_effectue_par_wood_agency !== undefined) {
+          // Only send if it's explicitly set (AdminBookingModal will exclude it if original was null and user didn't change it)
+          updateData.pose_effectue_par_wood_agency = formData.pose_effectue_par_wood_agency
+        }
+        // Include livraison for SAV calendar (required) - always include it, backend will validate
+        // Trim whitespace to prevent length issues
+        updateData.livraison = (formData.livraison || '').trim()
+        console.log('[Calendar] handleEditModalSubmit - updateData.livraison:', updateData.livraison, 'length:', updateData.livraison.length)
+        // Include raison for SAV calendar (required) - always include it, backend will validate
+        // Trim whitespace to prevent length issues
+        updateData.raison = (formData.raison || '').trim()
+        console.log('[Calendar] handleEditModalSubmit - updateData.raison:', updateData.raison, 'length:', updateData.raison.length)
       }
       
+      console.log('[Calendar] handleEditModalSubmit - final updateData:', updateData)
       await updateBooking(editingBooking.id, updateData)
       alert('✅ Réservation modifiée avec succès')
       setIsEditModalOpen(false)
@@ -1072,6 +1100,19 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     } else {
       return `${monday.getDate()} ${monthNames[monday.getMonth()].slice(0, 3)} - ${lastDay.getDate()} ${monthNames[lastDay.getMonth()].slice(0, 3)} ${lastDay.getFullYear()}`
     }
+  }
+
+  // Check if a given date has at least one booking for the currently searched client
+  const hasClientMatchForDate = (date: Date): boolean => {
+    if (!clientSearch || !clientSearch.trim()) return false
+
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const dateString = `${year}-${month}-${day}`
+
+    // allBookingsData already respects clientSearch filtering when it's active
+    return allBookingsData.some((booking: BookingRecord) => booking.date === dateString)
   }
 
   return (
@@ -1137,7 +1178,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                       </div>
                     )}
                     <div 
-                      className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''}`}
+                      className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''} ${hasClientMatchForDate(date) ? 'client-match-pulse' : ''}`}
                       onClick={isDateNumberClickable ? (() => !isDisabled && !isFullyBooked && handleDateClick(date)) : undefined}
                       style={{ cursor: !isDateNumberClickable ? 'default' : (isDisabled || isFullyBooked ? 'not-allowed' : 'pointer') }}
                     >
@@ -1912,7 +1953,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                       </div>
                     )}
                     <div 
-                      className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''} ${!isDateNumberClickable ? 'not-clickable' : ''}`}
+                      className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''} ${!isDateNumberClickable ? 'not-clickable' : ''} ${hasClientMatchForDate(date) ? 'client-match-pulse' : ''}`}
                       onClick={isDateNumberClickable ? (() => !isDisabled && !isFullyBooked && handleDateClick(date)) : undefined}
                       style={{ cursor: !isDateNumberClickable ? 'default' : (isDisabled || isFullyBooked ? 'not-allowed' : 'pointer') }}
                     >
@@ -1992,7 +2033,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                     </div>
                   )}
                   <div 
-                    className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''}`}
+                    className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''} ${hasClientMatchForDate(date) ? 'client-match-pulse' : ''}`}
                     onClick={isDateNumberClickable ? (() => !isDisabled && !isFullyBooked && handleDateClick(date)) : undefined}
                     style={{ cursor: !isDateNumberClickable ? 'default' : (isDisabled || isFullyBooked ? 'not-allowed' : 'pointer') }}
                   >
@@ -2072,7 +2113,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                     </div>
                   )}
                   <div 
-                    className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''}`}
+                    className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''} ${hasClientMatchForDate(date) ? 'client-match-pulse' : ''}`}
                     onClick={isDateNumberClickable ? (() => !isDisabled && !isFullyBooked && handleDateClick(date)) : undefined}
                     style={{ cursor: !isDateNumberClickable ? 'default' : (isDisabled || isFullyBooked ? 'not-allowed' : 'pointer') }}
                   >
@@ -2152,7 +2193,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                     </div>
                   )}
                   <div 
-                    className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''}`}
+                    className={`date-number ${isDisabled ? 'past' : ''} ${isFullyBooked ? 'fully-booked-number' : ''} ${hasClientMatchForDate(date) ? 'client-match-pulse' : ''}`}
                     onClick={isDateNumberClickable ? (() => !isDisabled && !isFullyBooked && handleDateClick(date)) : undefined}
                     style={{ cursor: !isDateNumberClickable ? 'default' : (isDisabled || isFullyBooked ? 'not-allowed' : 'pointer') }}
                   >
@@ -3285,6 +3326,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
             designer: editingBooking.designer,
             message: editingBooking.message,
             pose_effectue_par_wood_agency: editingBooking.pose_effectue_par_wood_agency ?? null,
+            livraison: editingBooking.livraison ?? null,
+            raison: editingBooking.raison ?? null,
           }}
           isDarkMode={isDarkMode}
           users={isAdmin ? usersList : []}

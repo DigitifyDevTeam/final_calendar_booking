@@ -27,6 +27,8 @@ export interface AdminBookingFormData {
   designer_name: string
   message: string
   pose_effectue_par_wood_agency?: boolean
+  livraison?: string
+  raison?: string
   statut_facturation?: 'en_attente' | 'facture' | null
 }
 
@@ -50,6 +52,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
     designer_name: '',
     message: '',
     pose_effectue_par_wood_agency: false,
+    livraison: '',
+    raison: '',
     statut_facturation: 'en_attente'
   })
   const [errors, setErrors] = useState<Partial<Record<keyof AdminBookingFormData, string>>>({})
@@ -86,6 +90,17 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
       // Get calendar_id from booking (check both calendarId and calendar_id properties)
       const bookingCalendarId = (booking as any).calendarId || (booking as any).calendar_id || CALENDAR_CONFIGS['calendar1']
       
+      // Get livraison and raison values - for SAV bookings, use existing values or empty string
+      const existingLivraison = (booking as any).livraison
+      const livraisonValue = existingLivraison !== null && existingLivraison !== undefined && existingLivraison !== '' ? existingLivraison : ''
+      const existingRaison = (booking as any).raison
+      const raisonValue = existingRaison !== null && existingRaison !== undefined && existingRaison !== '' ? existingRaison : ''
+      
+      console.log('[AdminBookingModal] Edit mode - Full booking object:', booking)
+      console.log('[AdminBookingModal] Edit mode - booking.livraison:', existingLivraison, 'type:', typeof existingLivraison)
+      console.log('[AdminBookingModal] Edit mode - booking.raison:', existingRaison, 'type:', typeof existingRaison)
+      console.log('[AdminBookingModal] Edit mode - livraisonValue:', livraisonValue, 'raisonValue:', raisonValue)
+      
       setFormData({
         calendar_id: bookingCalendarId,
         booking_date: formatDateForInput(booking.date || ''),
@@ -95,6 +110,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
         designer_name: booking.designer || '',
         message: booking.message || '',
         pose_effectue_par_wood_agency: originalValue ?? false,
+        livraison: livraisonValue,
+        raison: raisonValue,
         statut_facturation: (booking as any).statut_facturation ?? 'en_attente'
       })
     } else {
@@ -109,6 +126,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
         designer_name: '',
         message: '',
         pose_effectue_par_wood_agency: false,
+        livraison: '',
+        raison: '',
         statut_facturation: 'en_attente'
       })
     }
@@ -174,6 +193,21 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
       newErrors.designer_name = 'Le nom du concepteur est requis'
     }
 
+    // Validate livraison and raison for SAV calendar (required)
+    if (currentCalendarId === CALENDAR_CONFIGS['calendar2'] || currentCalendarId === 'calendar2' || currentCalendarId === '2') {
+      console.log('[AdminBookingModal] validateForm - checking livraison:', formData.livraison, 'trimmed:', formData.livraison?.trim())
+      if (!formData.livraison || !formData.livraison.trim()) {
+        newErrors.livraison = 'Le champ livraison est obligatoire pour les réservations SAV'
+        console.log('[AdminBookingModal] validateForm - livraison validation failed')
+      }
+      console.log('[AdminBookingModal] validateForm - checking raison:', formData.raison, 'trimmed:', formData.raison?.trim())
+      if (!formData.raison || !formData.raison.trim()) {
+        newErrors.raison = 'Le champ raison est obligatoire pour les réservations SAV'
+        console.log('[AdminBookingModal] validateForm - raison validation failed')
+      }
+    }
+
+    console.log('[AdminBookingModal] validateForm - errors:', newErrors)
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -186,7 +220,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
       const currentCalendarId = booking 
         ? ((booking as any).calendarId || (booking as any).calendar_id || formData.calendar_id)
         : formData.calendar_id
-      const isPoseCalendar = currentCalendarId === CALENDAR_CONFIGS['calendar1']
+      // Check if it's Pose calendar (handle both 'calendar1' and '1' formats)
+      const isPoseCalendar = currentCalendarId === CALENDAR_CONFIGS['calendar1'] || currentCalendarId === '1' || currentCalendarId === 'calendar1'
       
       // For Pose calendar, use default time if not provided
       // For other calendars, keep the time as is (it's required and validated)
@@ -212,10 +247,31 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
         }
       }
       
-      // Handle billing status - only when editing
-      if (booking) {
-        // Include statut_facturation only when editing, default to 'en_attente' if not set
+      // Handle livraison and raison for SAV calendar
+      if (currentCalendarId === CALENDAR_CONFIGS['calendar2'] || currentCalendarId === 'calendar2' || currentCalendarId === '2') {
+        // Only include livraison for SAV calendar - always include it, backend will validate
+        // Trim whitespace to prevent length issues
+        bookingData.livraison = (formData.livraison || '').trim()
+        console.log('[AdminBookingModal] handleSubmit - SAV calendar, livraison:', bookingData.livraison, 'length:', bookingData.livraison.length)
+        // Only include raison for SAV calendar - always include it, backend will validate
+        // Trim whitespace to prevent length issues
+        bookingData.raison = (formData.raison || '').trim()
+        console.log('[AdminBookingModal] handleSubmit - SAV calendar, raison:', bookingData.raison, 'length:', bookingData.raison.length)
+      } else {
+        // Remove livraison and raison for non-SAV calendars
+        delete bookingData.livraison
+        delete bookingData.raison
+      }
+      
+      // Handle billing status - only for Pose calendar when editing
+      if (booking && isPoseCalendar) {
+        // Include statut_facturation only when editing Pose calendar, default to 'en_attente' if not set
         bookingData.statut_facturation = formData.statut_facturation || 'en_attente'
+      } else {
+        // Remove statut_facturation for:
+        // - Non-Pose calendars (SAV and Metré) - both create and edit
+        // - New Pose bookings (backend will set default)
+        delete bookingData.statut_facturation
       }
       
       onSubmit(bookingData)
@@ -541,45 +597,118 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
           </div>
 
           {(formData.calendar_id === CALENDAR_CONFIGS['calendar2'] || (booking && ((booking as any).calendarId || (booking as any).calendar_id || formData.calendar_id) === CALENDAR_CONFIGS['calendar2'])) && (
-            <div className="form-group">
-              <label htmlFor="pose_effectue_par_wood_agency" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  id="pose_effectue_par_wood_agency"
-                  name="pose_effectue_par_wood_agency"
-                  checked={formData.pose_effectue_par_wood_agency ?? false}
-                  onChange={handleInputChange}
-                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                />
-                <span>Pose effectué par Wood agency</span>
-              </label>
-            </div>
+            <>
+              <div className="form-group">
+                <label htmlFor="pose_effectue_par_wood_agency" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    id="pose_effectue_par_wood_agency"
+                    name="pose_effectue_par_wood_agency"
+                    checked={formData.pose_effectue_par_wood_agency ?? false}
+                    onChange={handleInputChange}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <span>Pose non effectuée par Wood agency</span>
+                </label>
+              </div>
+              <div className="form-group">
+                <label htmlFor="livraison">
+                  Livraison *
+                </label>
+                <select
+                  id="livraison"
+                  name="livraison"
+                  value={formData.livraison || ''}
+                  onChange={(e) => {
+                    console.log('[AdminBookingModal] livraison select changed:', e.target.value)
+                    handleInputChange(e)
+                  }}
+                  className={errors.livraison ? 'error' : ''}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: errors.livraison ? '2px solid #ef4444' : '1px solid #333',
+                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                    color: isDarkMode ? '#ffffff' : '#111827',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    width: '100%'
+                  }}
+                >
+                  <option value="">Sélectionner une option</option>
+                  <option value="livre_chez_client">Livre chez le client</option>
+                  <option value="venir_chercher_magasin">Venir chercher au magasin</option>
+                </select>
+                {errors.livraison && <span className="error-message">{errors.livraison}</span>}
+              </div>
+              <div className="form-group">
+                <label htmlFor="raison">
+                  Raison *
+                </label>
+                <select
+                  id="raison"
+                  name="raison"
+                  value={formData.raison || ''}
+                  onChange={(e) => {
+                    console.log('[AdminBookingModal] raison select changed:', e.target.value)
+                    handleInputChange(e)
+                  }}
+                  className={errors.raison ? 'error' : ''}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: errors.raison ? '2px solid #ef4444' : '1px solid #333',
+                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                    color: isDarkMode ? '#ffffff' : '#111827',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    width: '100%'
+                  }}
+                >
+                  <option value="">Sélectionner une option</option>
+                  <option value="erreur_poseur">Erreur Poseur</option>
+                  <option value="erreur_concepteur">Erreur concepteur</option>
+                  <option value="erreur_livraison">Erreur livraison</option>
+                  <option value="manquant">Manquant</option>
+                </select>
+                {errors.raison && <span className="error-message">{errors.raison}</span>}
+              </div>
+            </>
           )}
 
-          {/* Billing status - only shown when editing (admin only) */}
-          {booking && (
-            <div className="form-group">
-              <label htmlFor="statut_facturation">Statut de facturation</label>
-              <select
-                id="statut_facturation"
-                name="statut_facturation"
-                value={formData.statut_facturation || 'en_attente'}
-                onChange={handleInputChange}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #333',
-                  backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                  color: isDarkMode ? '#ffffff' : '#111827',
-                  fontSize: '14px',
-                  cursor: 'pointer'
-                }}
-              >
-                <option value="en_attente">En attente de facturation</option>
-                <option value="facture">Facturé</option>
-              </select>
-            </div>
-          )}
+          {/* Billing status - only shown when editing (admin only) and for Pose calendar only */}
+          {booking && (() => {
+            // Determine the current calendar ID
+            const currentCalendarId = (booking as any).calendarId || (booking as any).calendar_id || formData.calendar_id
+            // Only show for Pose calendar (handle both 'calendar1' and '1' formats)
+            const isPoseCalendar = currentCalendarId === CALENDAR_CONFIGS['calendar1'] || currentCalendarId === '1' || currentCalendarId === 'calendar1'
+            
+            if (!isPoseCalendar) return null
+            
+            return (
+              <div className="form-group">
+                <label htmlFor="statut_facturation">Statut de facturation</label>
+                <select
+                  id="statut_facturation"
+                  name="statut_facturation"
+                  value={formData.statut_facturation || 'en_attente'}
+                  onChange={handleInputChange}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #333',
+                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                    color: isDarkMode ? '#ffffff' : '#111827',
+                    fontSize: '14px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="en_attente">En attente de facturation</option>
+                  <option value="facture">Facturé</option>
+                </select>
+              </div>
+            )
+          })()}
 
           <div className="form-actions">
             <button type="button" className="cancel-button" onClick={onClose}>

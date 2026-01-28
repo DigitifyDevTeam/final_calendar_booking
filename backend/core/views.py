@@ -1018,6 +1018,36 @@ class MagasinRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         return queryset.prefetch_related('concepteurs').all()
 
 
+class ConcepteurMagasinView(APIView):
+    """View for concepteurs to get their own magasin"""
+    permission_classes = [IsAuthenticatedCustom]
+    
+    def get(self, request):
+        """Return the magasin that the current concepteur belongs to"""
+        user = request.user
+        
+        # Only allow concepteurs
+        if user.role != 'concepteur':
+            return Response(
+                {'error': 'Cette ressource est uniquement disponible pour les concepteurs.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get the magasin(s) that this concepteur belongs to
+        magasins = user.magasins.all()
+        
+        if not magasins.exists():
+            return Response(
+                {'error': 'Aucun magasin associé à ce concepteur.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Return the first magasin (a concepteur should typically belong to one magasin)
+        magasin = magasins.first()
+        serializer = MagasinSerializer(magasin)
+        return Response(serializer.data)
+
+
 def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_files: list):
     """Send email notification to the designer when a technician finishes a booking"""
     try:
@@ -1282,6 +1312,13 @@ class BookingFinishView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
             
+            # Check if booking is already finished - prevent finishing twice
+            if booking.status == 'termine':
+                return Response(
+                    {'detail': 'Cette réservation a déjà été terminée.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
             # Get the technician name from the authenticated user
             technicien_name = request.user.name if hasattr(request.user, 'name') else 'Technicien'
             
@@ -1301,6 +1338,8 @@ class BookingFinishView(APIView):
             if 'electromenager_fonctionnel' in request.data:
                 booking.electromenager_fonctionnel = str_to_bool(request.data.get('electromenager_fonctionnel'))
             
+            # Set status to 'termine' when technician finishes the booking
+            booking.status = 'termine'
             booking.completed_at = timezone.now()
             booking.save()
             
@@ -1357,7 +1396,8 @@ class BookingFinishView(APIView):
                     'menage_fait': booking.menage_fait,
                     'cft_signe': booking.cft_signe,
                     'electromenager_fonctionnel': booking.electromenager_fonctionnel,
-                    'completed_at': booking.completed_at.isoformat() if booking.completed_at else None
+                    'completed_at': booking.completed_at.isoformat() if booking.completed_at else None,
+                    'status': booking.status
                 }
             }, status=status.HTTP_200_OK)
             

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import NoelDecorations from '../components/NoelDecorations'
+import { getMyMagasin } from '../services/magasinService'
 import {
   Bell,
   Moon,
@@ -26,6 +27,7 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
   })
   const [userName, setUserName] = useState<string>('')
   const [userRole, setUserRole] = useState<string>('')
+  const [userMagasin, setUserMagasin] = useState<string>('')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
@@ -60,23 +62,40 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
     }
   }, [mobileMenuOpen])
 
-  // Get user information
+  // Get user information and load magasin for concepteur
   useEffect(() => {
-    const user = sessionStorage.getItem('user')
-    if (user) {
+    const loadUserData = async () => {
+      const user = sessionStorage.getItem('user')
+      if (!user) return
+      
       try {
         const userData = JSON.parse(user)
         setUserName(userData.name || '')
         setUserRole(userData.role || '')
+        
+        // If user is a concepteur, load their magasin
+        if (userData.role === 'concepteur') {
+          try {
+            console.log('Loading magasin for concepteur')
+            const magasin = await getMyMagasin()
+            
+            if (magasin) {
+              console.log('✅ Found magasin for concepteur:', magasin.name)
+              setUserMagasin(magasin.name)
+            } else {
+              console.log('❌ No magasin found for concepteur')
+            }
+          } catch (error) {
+            console.error('❌ Error loading concepteur magasin:', error)
+          }
+        }
       } catch (e) {
         console.error('Error parsing user data:', e)
       }
     }
+    
+    loadUserData()
   }, [])
-
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode)
-  }
 
   const handleLogout = () => {
     sessionStorage.removeItem('user')
@@ -188,23 +207,6 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
                 <Bell style={{ width: '18px', height: '18px' }} />
               </button>
             )}
-            <button
-              onClick={toggleDarkMode}
-              style={{
-                width: '36px',
-                height: '36px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: 'transparent',
-                color: textSecondary,
-                cursor: 'pointer'
-              }}
-            >
-              {isDarkMode ? <Sun style={{ width: '18px', height: '18px' }} /> : <Moon style={{ width: '18px', height: '18px' }} />}
-            </button>
             <button 
               onClick={handleLogout}
               style={{
@@ -495,12 +497,39 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
           <div style={{ display: isMobile && !isAdminView ? 'none' : 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
             {userRole === 'concepteur' && userName && !isAdminView && (
               <div style={{
-                fontSize: '16px',
-                fontWeight: 500,
-                color: isDarkMode ? '#ffffff' : '#111827',
-                marginBottom: '4px'
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-end',
+                gap: '2px'
               }}>
-                Bienvenue {userName}
+                <div style={{
+                  fontSize: '16px',
+                  fontWeight: 500,
+                  color: isDarkMode ? '#ffffff' : '#111827',
+                  marginBottom: '0'
+                }}>
+                  Bienvenue <span style={{ color: orangeColor }}>{userName}</span>
+                </div>
+                {userMagasin ? (
+                  <div style={{
+                    fontSize: '16px',
+                    fontWeight: 500,
+                    color: isDarkMode ? '#ffffff' : '#111827',
+                    marginTop: '0'
+                  }}>
+                    chez <span style={{ color: orangeColor }}>{userMagasin}</span>
+                  </div>
+                ) : (
+                  <div style={{
+                    fontSize: '12px',
+                    fontWeight: 400,
+                    color: isDarkMode ? '#9ca3af' : '#6b7280',
+                    opacity: 0.6,
+                    fontStyle: 'italic'
+                  }}>
+                    (chargement...)
+                  </div>
+                )}
               </div>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -549,36 +578,7 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
                 }}></span>
               </button>
               )}
-          <button 
-              onClick={toggleDarkMode}
-              style={{
-                width: '40px',
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '8px',
-                border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
-                backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                color: isDarkMode ? '#9ca3af' : '#6b7280',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
-                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
-                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
-              }}
-            >
-              {isDarkMode ? (
-                <Sun style={{ width: '16px', height: '16px' }} />
-              ) : (
-                <Moon style={{ width: '16px', height: '16px' }} />
-              )}
-          </button>
+        {/* Dark mode toggle removed - always light mode */}
           <button 
               onClick={handleLogout}
               style={{

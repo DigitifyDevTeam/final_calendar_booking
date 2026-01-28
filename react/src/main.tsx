@@ -17,6 +17,10 @@ import HolidaysPage from './pages/HolidaysPage'
 import MagasinsPage from './pages/MagasinsPage'
 import './utils/resetBookings' // Makes resetAllBookings() available in browser console
 
+// Force light mode as the only theme
+localStorage.setItem('darkMode', JSON.stringify(false))
+document.documentElement.setAttribute('data-theme', 'light')
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>

@@ -12,7 +12,7 @@ interface TechnicienViewModalProps {
     bookingId: string
     menageFait: boolean
     cftSigne: boolean
-    electromenagerFonctionnel?: boolean
+    electromenager_fonctionnel?: boolean
     attachments: File[]
   }) => void
 }
@@ -31,7 +31,8 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
   const isPoseCalendar = ['calendar1', '1'].includes(booking.calendar_id || '')
   const isSavCalendar = ['calendar2', '2'].includes(booking.calendar_id || '')
   const isMetreCalendar = ['calendar3', '3'].includes(booking.calendar_id || '')
-  const canFinish = isPoseCalendar || isSavCalendar || isMetreCalendar
+  const isAlreadyFinished = (booking as any).status === 'termine'
+  const canFinish = (isPoseCalendar || isSavCalendar || isMetreCalendar) && !isAlreadyFinished
 
   const formatDate = (dateStr: string): string => {
     try {
@@ -97,11 +98,27 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
 
           {booking.calendar_id === 'calendar2' && (
             <div className="info-group">
-              <div className="info-label">Pose effectué par Wood agency</div>
+              <div className="info-label">Pose non effectuée par Wood agency</div>
               <div className="info-value">
                 {booking.pose_effectue_par_wood_agency === null || booking.pose_effectue_par_wood_agency === undefined 
                   ? '-' 
                   : booking.pose_effectue_par_wood_agency ? 'Oui' : 'Non'}
+              </div>
+            </div>
+          )}
+
+          {isAlreadyFinished && (
+            <div className="info-group">
+              <div className="info-label">Statut</div>
+              <div className="info-value" style={{ 
+                color: '#10b981', 
+                fontWeight: 600,
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                display: 'inline-block'
+              }}>
+                ✓ Terminé
               </div>
             </div>
           )}
@@ -127,6 +144,7 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
         onClose={() => setIsCompleteModalOpen(false)}
         bookingId={booking.id}
         bookingCalendarId={booking.calendar_id}
+        bookingStatus={(booking as any).status || 'en_attente'}
         isDarkMode={isDarkMode}
         onFinish={async (payload) => {
           if (onFinish) {

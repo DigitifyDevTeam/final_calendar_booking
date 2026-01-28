@@ -12,6 +12,8 @@ interface BookingData {
   selectedDate: Date
   timeSlot?: string
   pose_effectue_par_wood_agency?: boolean
+  livraison?: string
+  raison?: string
 }
 
 interface UserOption {
@@ -60,6 +62,8 @@ interface FormData {
   duree: string
   message: string
   pose_effectue_par_wood_agency: boolean
+  livraison?: string // Livraison field for SAV calendar
+  raison?: string // Raison field for SAV calendar
   booking_date?: string // Editable date in YYYY-MM-DD format
   booking_time?: string // Editable time slot
 }
@@ -68,6 +72,8 @@ interface FormErrors {
   name?: string
   phone?: string
   designer?: string
+  livraison?: string
+  raison?: string
 }
 
 const BookingModal: React.FC<BookingModalProps> = ({ 
@@ -155,6 +161,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
     duree: '1',
     message: initialData?.message || '',
     pose_effectue_par_wood_agency: initialData?.pose_effectue_par_wood_agency ?? false,
+    livraison: (initialData as any)?.livraison || '',
+    raison: (initialData as any)?.raison || '',
     booking_date: initialDate,
     booking_time: initialTimeSlot
   })
@@ -482,6 +490,16 @@ const BookingModal: React.FC<BookingModalProps> = ({
       }
     }
 
+    // Validate livraison and raison for SAV calendar (required)
+    if (calendarId === CALENDAR_CONFIGS['calendar2'] || calendarId === 'calendar2' || calendarId === '2') {
+      if (!formData.livraison || !formData.livraison.trim()) {
+        newErrors.livraison = 'Le champ livraison est obligatoire'
+      }
+      if (!formData.raison || !formData.raison.trim()) {
+        newErrors.raison = 'Le champ raison est obligatoire'
+      }
+    }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -527,15 +545,20 @@ const BookingModal: React.FC<BookingModalProps> = ({
         }
       }
       
+      console.log('[BookingModal] formData.livraison:', formData.livraison, 'calendarId:', calendarId)
+      
       const bookingData: BookingData = {
         ...formData,
         date: dateString,
         selectedDate: finalDate,
         timeSlot: finalTimeSlot,
-        pose_effectue_par_wood_agency: poseValue
+        pose_effectue_par_wood_agency: poseValue,
+        livraison: (calendarId === CALENDAR_CONFIGS['calendar2'] || calendarId === 'calendar2' || calendarId === '2') ? formData.livraison : undefined,
+        raison: (calendarId === CALENDAR_CONFIGS['calendar2'] || calendarId === 'calendar2' || calendarId === '2') ? formData.raison : undefined
       }
       
       console.log('[BookingModal] Submitting booking:', bookingData)
+      console.log('[BookingModal] bookingData.livraison:', bookingData.livraison)
       onSubmit(bookingData)
     }
   }
@@ -734,19 +757,83 @@ const BookingModal: React.FC<BookingModalProps> = ({
           )}
 
           {calendarId === 'calendar2' && (
-            <div className="form-group">
-              <label htmlFor="pose_effectue_par_wood_agency" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  id="pose_effectue_par_wood_agency"
-                  name="pose_effectue_par_wood_agency"
-                  checked={formData.pose_effectue_par_wood_agency}
-                  onChange={handleInputChange}
-                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                />
-                <span>Pose effectué par Wood agency</span>
-              </label>
-            </div>
+            <>
+              <div className="form-group">
+                <label htmlFor="pose_effectue_par_wood_agency" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    id="pose_effectue_par_wood_agency"
+                    name="pose_effectue_par_wood_agency"
+                    checked={formData.pose_effectue_par_wood_agency}
+                    onChange={handleInputChange}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <span>Pose non effectuée par Wood agency</span>
+                </label>
+              </div>
+              <div className="form-group">
+                <label htmlFor="livraison">
+                  Livraison *
+                </label>
+                <select
+                  id="livraison"
+                  name="livraison"
+                  value={formData.livraison || ''}
+                  onChange={(e) => {
+                    console.log('[BookingModal] livraison select changed:', e.target.value)
+                    handleInputChange(e)
+                  }}
+                  className={errors.livraison ? 'error' : ''}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: errors.livraison ? '2px solid #ef4444' : '1px solid #333',
+                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                    color: isDarkMode ? '#ffffff' : '#111827',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    width: '100%'
+                  }}
+                >
+                  <option value="">Sélectionner une option</option>
+                  <option value="livre_chez_client">Livre chez le client</option>
+                  <option value="venir_chercher_magasin">Venir chercher au magasin</option>
+                </select>
+                {errors.livraison && <span className="error-message">{errors.livraison}</span>}
+              </div>
+              <div className="form-group">
+                <label htmlFor="raison">
+                  Raison *
+                </label>
+                <select
+                  id="raison"
+                  name="raison"
+                  value={formData.raison || ''}
+                  onChange={(e) => {
+                    console.log('[BookingModal] raison select changed:', e.target.value)
+                    handleInputChange(e)
+                  }}
+                  className={errors.raison ? 'error' : ''}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: errors.raison ? '2px solid #ef4444' : '1px solid #333',
+                    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                    color: isDarkMode ? '#ffffff' : '#111827',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    width: '100%'
+                  }}
+                >
+                  <option value="">Sélectionner une option</option>
+                  <option value="erreur_poseur">Erreur Poseur</option>
+                  <option value="erreur_concepteur">Erreur concepteur</option>
+                  <option value="erreur_livraison">Erreur livraison</option>
+                  <option value="manquant">Manquant</option>
+                </select>
+                {errors.raison && <span className="error-message">{errors.raison}</span>}
+              </div>
+            </>
           )}
 
           <div className="form-group">

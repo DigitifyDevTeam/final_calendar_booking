@@ -252,8 +252,11 @@
 }
 
 .finish-button:disabled {
-  opacity: 0.7;
+  opacity: 0.5;
   cursor: not-allowed;
+  background: linear-gradient(135deg, #6b7280 0%, #9ca3af 100%);
+  color: #ffffff;
+  box-shadow: none;
 }
 
 .finish-button:hover:not(:disabled) {

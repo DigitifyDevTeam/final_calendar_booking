@@ -29,23 +29,37 @@ interface BookingApiResponse {
   designer_name: string
   message: string
   pose_effectue_par_wood_agency?: boolean | null
+  livraison?: string | null
+  raison?: string | null
   statut_facturation?: 'en_attente' | 'facture' | null
+  status?: 'en_attente' | 'termine' | null
   created_at: string
 }
 
-const toBookingRecord = (apiBooking: BookingApiResponse): BookingRecord => ({
-  id: String(apiBooking.id),
-  date: apiBooking.booking_date,
-  name: apiBooking.client_name,
-  phone: apiBooking.client_phone,
-  designer: apiBooking.designer_name,
-  message: apiBooking.message,
-  time: apiBooking.booking_time || '21h00',
-  timestamp: new Date(apiBooking.created_at).getTime(),
-  calendar_id: apiBooking.calendar_id, // Include calendar_id from backend
-  pose_effectue_par_wood_agency: apiBooking.pose_effectue_par_wood_agency ?? null,
-  statut_facturation: apiBooking.statut_facturation ?? null,
-})
+const toBookingRecord = (apiBooking: BookingApiResponse): BookingRecord => {
+  const record: BookingRecord = {
+    id: String(apiBooking.id),
+    date: apiBooking.booking_date,
+    name: apiBooking.client_name,
+    phone: apiBooking.client_phone,
+    designer: apiBooking.designer_name,
+    message: apiBooking.message,
+    time: apiBooking.booking_time || '21h00',
+    timestamp: new Date(apiBooking.created_at).getTime(),
+    calendar_id: apiBooking.calendar_id, // Include calendar_id from backend
+    pose_effectue_par_wood_agency: apiBooking.pose_effectue_par_wood_agency ?? null,
+    livraison: apiBooking.livraison ?? null,
+    raison: apiBooking.raison ?? null,
+    statut_facturation: apiBooking.statut_facturation ?? null,
+    status: apiBooking.status ?? 'en_attente',
+  }
+  // Debug log for SAV bookings
+  if (apiBooking.calendar_id === 'calendar2' || apiBooking.calendar_id === '2') {
+    console.log('[toBookingRecord] SAV booking - API livraison:', apiBooking.livraison, 'API raison:', apiBooking.raison)
+    console.log('[toBookingRecord] SAV booking - Record livraison:', record.livraison, 'Record raison:', record.raison)
+  }
+  return record
+}
 
 // Helper function to refresh the access token
 const refreshAccessToken = async (): Promise<string | null> => {
@@ -195,7 +209,10 @@ export interface BookingRecord {
   timestamp: number;
   calendar_id?: string; // Calendar ID from backend
   pose_effectue_par_wood_agency?: boolean | null;
+  livraison?: string | null; // Delivery method for SAV calendar
+  raison?: string | null; // Reason for SAV calendar
   statut_facturation?: 'en_attente' | 'facture' | null; // Billing status: 'en_attente' (awaiting) or 'facture' (invoiced)
+  status?: 'en_attente' | 'termine' | null; // Booking status: 'en_attente' (pending) or 'termine' (finished)
 }
 
 export interface BookingData {
@@ -208,6 +225,8 @@ export interface BookingData {
   selectedDate: Date;
   timeSlot?: string;
   pose_effectue_par_wood_agency?: boolean;
+  livraison?: string;
+  raison?: string;
 }
 
 // Request cache to prevent duplicate API calls (especially from React StrictMode)
@@ -301,9 +320,9 @@ export const getAllBookings = async (
   return requestPromise
 }
 
-// Get max bookings per day for a calendar (default: 3, calendar1: 2)
+// Get max bookings per day for a calendar (default: 3, calendar1: 3)
 const MAX_BOOKINGS_PER_DAY_BY_BIN: { [key: string]: number } = {
-  [CALENDAR_CONFIGS['calendar1']]: 2, // Pose calendar (per-day bookings)
+  [CALENDAR_CONFIGS['calendar1']]: 3, // Pose calendar (per-day bookings)
   [CALENDAR_CONFIGS['calendar2']]: 3, // SAV calendar (per-day capacity for rates)
   [CALENDAR_CONFIGS['calendar3']]: 8, // Metré calendar (per-day capacity for rates)
 };
@@ -426,13 +445,23 @@ export const addBooking = async (bookingData: BookingData, binId?: string, maxBo
       message: bookingData.message,
     }
     
-    // Only include pose_effectue_par_wood_agency for SAV calendar (calendar2)
+    // Only include pose_effectue_par_wood_agency, livraison, and raison for SAV calendar (calendar2)
     // For new bookings, always include the field (defaults to false if not checked)
     if (targetBinId === CALENDAR_CONFIGS['calendar2']) {
       bookingPayload.pose_effectue_par_wood_agency = bookingData.pose_effectue_par_wood_agency ?? false
+      // Include livraison field for SAV calendar (required) - always include it, backend will validate
+      // Trim whitespace to prevent length issues
+      console.log('[addBooking] bookingData.livraison value:', bookingData.livraison, 'type:', typeof bookingData.livraison)
+      bookingPayload.livraison = (bookingData.livraison || '').trim()
+      console.log('[addBooking] bookingPayload.livraison value:', bookingPayload.livraison, 'length:', bookingPayload.livraison.length)
+      // Include raison field for SAV calendar (required) - always include it, backend will validate
+      // Trim whitespace to prevent length issues
+      bookingPayload.raison = (bookingData.raison || '').trim()
+      console.log('[addBooking] bookingPayload.raison value:', bookingPayload.raison, 'length:', bookingPayload.raison.length)
     }
     
     console.log('[addBooking] Sending booking to API:', bookingPayload)
+    console.log('[addBooking] JSON payload:', JSON.stringify(bookingPayload))
     console.log('[addBooking] Time slot from bookingData:', bookingData.timeSlot)
     console.log('[addBooking] Calendar uses time slots:', usesTimeSlots(targetBinId))
     
@@ -518,6 +547,8 @@ export const updateBooking = async (bookingId: string, bookingData: {
   designer_name?: string;
   message?: string;
   pose_effectue_par_wood_agency?: boolean;
+  livraison?: string;
+  raison?: string;
   statut_facturation?: 'en_attente' | 'facture' | null;
 }): Promise<BookingRecord> => {
   try {

@@ -8,7 +8,7 @@ import Calendar2Page from './Calendar2Page'
 import { getAllBookings, BookingRecord, CALENDAR_NAMES, getCalendarName } from '../services/bookingService'
 import { getAllNotifications, NotificationItem, getTimeAgo as getNotificationTimeAgo } from '../services/notificationService'
 import { getAllUsers, UserRecord } from '../services/userService'
-import { getAllMagasins, MagasinRecord } from '../services/magasinService'
+import { getAllMagasins, getMyMagasin, MagasinRecord } from '../services/magasinService'
 import {
   Calendar,
   CalendarCheck,
@@ -62,6 +62,9 @@ function DashbordPage() {
   const [magasinComparison, setMagasinComparison] = useState<
     Array<{ magasinId: number; magasinName: string; concepteurs: Array<{ name: string; pose: number; sav: number; metre: number; total: number }>; total: number }>
   >([])
+  const [topMagasinsSav, setTopMagasinsSav] = useState<
+    Array<{ magasinId: number; magasinName: string; savCount: number }>
+  >([])
   const [allBookingsForChart, setAllBookingsForChart] = useState<BookingRecord[]>([])
   const [bookingRate, setBookingRate] = useState<number>(0)
   const [poseRate, setPoseRate] = useState<number>(0)
@@ -81,6 +84,79 @@ function DashbordPage() {
   const [magasins, setMagasins] = useState<MagasinRecord[]>([])
   const [selectedMagasinId, setSelectedMagasinId] = useState<number | null>(null)
   const [allUsers, setAllUsers] = useState<UserRecord[]>([])
+  const [currentUserName, setCurrentUserName] = useState<string>('')
+  const [currentUserMagasin, setCurrentUserMagasin] = useState<string>('')
+  const [isConcepteur, setIsConcepteur] = useState<boolean>(false)
+
+  // Compute top 10 magasins by SAV bookings
+  const computeTopMagasinsSav = (
+    bookings: (BookingRecord & { calendarId?: string })[]
+  ) => {
+    if (!bookings || bookings.length === 0 || magasins.length === 0) return []
+
+    // Filter only SAV bookings (calendar2)
+    const savBookings = bookings.filter((booking: any) => {
+      const calendarId = booking.calendar_id || booking.calendarId
+      const calendarIdStr = String(calendarId || '').toLowerCase()
+      return calendarIdStr === 'calendar2' || calendarIdStr === '2'
+    })
+
+    // Create a map of concepteur ID to magasin ID
+    const concepteurToMagasinMap = new Map<number, number>()
+    magasins.forEach(magasin => {
+      magasin.concepteurs.forEach(concepteurId => {
+        concepteurToMagasinMap.set(concepteurId, magasin.id)
+      })
+    })
+
+    // Create a map of concepteur name/email to concepteur ID
+    const concepteurNameToIdMap = new Map<string, number>()
+    allUsers.forEach(user => {
+      if (user.role === 'concepteur') {
+        concepteurNameToIdMap.set(user.name.toLowerCase().trim(), user.id)
+        if (user.email) {
+          concepteurNameToIdMap.set(user.email.toLowerCase().trim(), user.id)
+        }
+      }
+    })
+
+    // Count SAV bookings per magasin
+    const magasinSavCounts = new Map<number, { magasinName: string; savCount: number }>()
+
+    savBookings.forEach((booking: any) => {
+      if (!booking.designer) return
+
+      const designer = (booking.designer || '').trim().toLowerCase()
+      const concepteurId = concepteurNameToIdMap.get(designer)
+      
+      if (!concepteurId) return // Skip if concepteur not found
+      
+      const magasinId = concepteurToMagasinMap.get(concepteurId)
+      if (!magasinId) return // Skip if concepteur not in any magasin
+
+      // Get or create magasin entry
+      if (!magasinSavCounts.has(magasinId)) {
+        const magasin = magasins.find(m => m.id === magasinId)
+        magasinSavCounts.set(magasinId, {
+          magasinName: magasin?.name || 'Unknown',
+          savCount: 0
+        })
+      }
+
+      const magasinEntry = magasinSavCounts.get(magasinId)!
+      magasinEntry.savCount += 1
+    })
+
+    // Convert to array, sort by SAV count (descending), and take top 10
+    return Array.from(magasinSavCounts.entries())
+      .map(([magasinId, data]) => ({
+        magasinId,
+        magasinName: data.magasinName,
+        savCount: data.savCount
+      }))
+      .sort((a, b) => b.savCount - a.savCount)
+      .slice(0, 10)
+  }
 
   // Compute top concepteurs grouped by magasin for comparison
   const computeTopClientsByMagasin = (
@@ -358,6 +434,10 @@ function DashbordPage() {
       const userData = JSON.parse(user)
       setIsAdmin(userData.role === 'admin')
       setIsTechnicien(userData.role === 'technicien')
+      setIsConcepteur(userData.role === 'concepteur')
+      if (userData.role === 'concepteur' && userData.name) {
+        setCurrentUserName(userData.name)
+      }
     }
   }, [isDarkMode])
 
@@ -466,8 +546,8 @@ function DashbordPage() {
         }) || []
         
         // Calculate rates based on capacity
-        // Pose: 2 per day, Metré: 8 per day, SAV: 3 per day
-        const poseCapacity = daysInMonth * 2
+        // Pose: 3 per day, Metré: 8 per day, SAV: 3 per day
+        const poseCapacity = daysInMonth * 3
         const metreCapacity = daysInMonth * 8
         const savCapacity = daysInMonth * 3
         const totalCapacity = poseCapacity + metreCapacity + savCapacity
@@ -528,9 +608,11 @@ function DashbordPage() {
         setTopClients(topClientsList)
 
         if (topClientsView === 'magasin') {
-          setMagasinComparison(computeTopClientsByMagasin(allBookings as any))
+          setTopMagasinsSav(computeTopMagasinsSav(allBookings as any))
+          setMagasinComparison([])
           setTopClientsAll([])
         } else {
+          setTopMagasinsSav([])
           setTopClientsAll(computeTopClientsByView(allBookings as any, topClientsView))
           setMagasinComparison([])
         }
@@ -688,6 +770,36 @@ function DashbordPage() {
     }
   }, [isAdmin])
 
+  // Load magasins for concepteur to find their magasin
+  useEffect(() => {
+    const loadConcepteurMagasin = async () => {
+      try {
+        const user = sessionStorage.getItem('user')
+        if (!user) return
+        
+        const userData = JSON.parse(user)
+        if (userData.role !== 'concepteur') return
+
+        // Use the new endpoint to get the concepteur's magasin
+        const magasin = await getMyMagasin()
+        
+        if (magasin) {
+          console.log('Found magasin for concepteur:', magasin.name)
+          setCurrentUserMagasin(magasin.name)
+        } else {
+          console.log('No magasin found for concepteur')
+        }
+      } catch (error) {
+        console.error('Error loading concepteur magasin:', error)
+      }
+    }
+    
+    // Run when component mounts or when isConcepteur changes
+    if (isConcepteur) {
+      loadConcepteurMagasin()
+    }
+  }, [isConcepteur]) // Run when isConcepteur changes
+
   // Recompute top concepteurs when view or top offsets change (independent from chart offsets)
   useEffect(() => {
     if (topClientsView === 'magasin') {
@@ -775,13 +887,6 @@ function DashbordPage() {
     if (hours < 24) return `Il y a ${hours} h`
     if (days < 7) return `Il y a ${days} j`
     return new Date(timestamp).toLocaleDateString('fr-FR')
-  }
-
-  const toggleDarkMode = () => {
-    const newDarkMode = !isDarkMode
-    setIsDarkMode(newDarkMode)
-    // Dispatch custom event to notify calendar pages about dark mode change
-    window.dispatchEvent(new CustomEvent('darkModeChanged', { detail: { isDarkMode: newDarkMode } }))
   }
 
   const handleLogout = () => {
@@ -1117,23 +1222,6 @@ function DashbordPage() {
               )}
             </button>
             )}
-            <button
-              onClick={toggleDarkMode}
-              style={{
-                width: '36px',
-                height: '36px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: 'transparent',
-                color: textSecondary,
-                cursor: 'pointer'
-              }}
-            >
-              {isDarkMode ? <Sun style={{ width: '18px', height: '18px' }} /> : <Moon style={{ width: '18px', height: '18px' }} />}
-            </button>
             <button 
               onClick={handleLogout}
               style={{
@@ -1435,17 +1523,6 @@ function DashbordPage() {
               Paramètres
             </div>
             <SidebarItem
-              Icon={isDarkMode ? Sun : Moon}
-              title={isDarkMode ? 'Mode clair' : 'Mode sombre'}
-              isActive={false}
-              open={sidebarOpen}
-              onClick={toggleDarkMode}
-              isDarkMode={isDarkMode}
-              orangeColor={orangeColor}
-              textColor={textColor}
-              textSecondary={textSecondary}
-            />
-            <SidebarItem
               Icon={Settings}
               title="Paramètres"
               isActive={location.pathname === '/parametres'}
@@ -1572,15 +1649,17 @@ function DashbordPage() {
             }}>
               Tableau de Bord
             </h1>
-            <p style={{
-              fontSize: isMobile ? '15px' : '16px',
-              color: textSecondary,
-              marginTop: '4px',
-              lineHeight: 1.5,
-              opacity: 0.8
-            }}>
-              Bienvenue sur votre tableau de bord
-            </p>
+            {!isConcepteur && (
+              <p style={{
+                fontSize: isMobile ? '15px' : '16px',
+                color: textSecondary,
+                marginTop: '4px',
+                lineHeight: 1.5,
+                opacity: 0.8
+              }}>
+                Bienvenue sur votre tableau de bord
+              </p>
+            )}
           </div>
           <div 
             className="header-actions"
@@ -1638,6 +1717,36 @@ function DashbordPage() {
             
             {/* Notifications Dropdown */}
             {notificationsDropdown}
+            {/* Welcome message for concepteurs */}
+            {isConcepteur && currentUserName && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-end',
+                gap: '2px'
+              }}>
+                <p style={{
+                  fontSize: '15px',
+                  color: textSecondary,
+                  lineHeight: 1.5,
+                  opacity: 0.8,
+                  margin: 0
+                }}>
+                  Bienvenue {currentUserName}
+                </p>
+                {currentUserMagasin && (
+                  <p style={{
+                    fontSize: '14px',
+                    color: textSecondary,
+                    lineHeight: 1.5,
+                    opacity: 0.7,
+                    margin: 0
+                  }}>
+                    chez {currentUserMagasin}
+                  </p>
+                )}
+              </div>
+            )}
             {false && notificationsOpen && (
               <div 
                 data-notifications-dropdown
@@ -1846,36 +1955,6 @@ function DashbordPage() {
                 )}
               </div>
             )}
-            <button
-              onClick={toggleDarkMode}
-              style={{
-                width: '40px',
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '8px',
-                border: `1px solid ${borderColor}`,
-                backgroundColor: cardBg,
-                color: textSecondary,
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = textColor
-                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = textSecondary
-                e.currentTarget.style.backgroundColor = cardBg
-              }}
-            >
-              {isDarkMode ? (
-                <Sun style={{ width: '16px', height: '16px' }} />
-              ) : (
-                <Moon style={{ width: '16px', height: '16px' }} />
-              )}
-            </button>
             <button 
               onClick={handleLogout}
               style={{
@@ -3145,16 +3224,6 @@ function DashbordPage() {
                   </p>
                 </div>
               </div>
-              <div style={{
-                padding: '6px 10px',
-                borderRadius: '999px',
-                backgroundColor: isDarkMode ? '#0f172a' : '#eef2ff',
-                color: textSecondary,
-                fontSize: '12px',
-                border: `1px solid ${borderColor}`
-              }}>
-                Mise à jour auto
-              </div>
             </div>
 
             <div style={{
@@ -3167,6 +3236,88 @@ function DashbordPage() {
                 <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
                   Chargement...
                 </div>
+              ) : topClientsView === 'magasin' ? (
+                topMagasinsSav.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
+                    Aucun magasin avec des réservations SAV
+                  </div>
+                ) : (
+                  topMagasinsSav.map((magasin, i) => (
+                    <div 
+                      key={`${magasin.magasinId}-${i}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 14px',
+                        borderRadius: '12px',
+                        backgroundColor: isDarkMode ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.7)',
+                        border: `1px solid ${isDarkMode ? '#1f2937' : '#e5e7eb'}`,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (window.matchMedia('(hover: hover)').matches) {
+                          e.currentTarget.style.transform = 'translateX(4px)'
+                          e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.1)'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (window.matchMedia('(hover: hover)').matches) {
+                          e.currentTarget.style.transform = 'translateX(0)'
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)'
+                        }
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                        <div style={{
+                          width: '34px',
+                          height: '34px',
+                          borderRadius: '10px',
+                          backgroundColor: i < 3 ? orangeColor : (isDarkMode ? '#111827' : '#e5e7eb'),
+                          color: i < 3 ? '#ffffff' : textSecondary,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 700,
+                          fontSize: '13px',
+                          flexShrink: 0
+                        }}>
+                          {i + 1}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                          <span style={{ 
+                            fontSize: '14px', 
+                            color: textColor, 
+                            fontWeight: 700, 
+                            whiteSpace: 'nowrap', 
+                            overflow: 'hidden', 
+                            textOverflow: 'ellipsis',
+                            lineHeight: 1.3
+                          }}>
+                            🏪 {magasin.magasinName}
+                          </span>
+                          <span style={{ fontSize: '12px', color: textSecondary, lineHeight: 1.2 }}>
+                            Magasin SAV
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{
+                        padding: '8px 12px',
+                        borderRadius: '12px',
+                        backgroundColor: isDarkMode ? 'rgba(16,185,129,0.18)' : 'rgba(16,185,129,0.14)',
+                        color: isDarkMode ? '#10b981' : '#0f9f72',
+                        fontWeight: 700,
+                        fontSize: '12px',
+                        border: `1px solid ${isDarkMode ? 'rgba(16,185,129,0.35)' : 'rgba(16,185,129,0.25)'}`,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0
+                      }}>
+                        {magasin.savCount} {magasin.savCount === 1 ? 'réservation SAV' : 'réservations SAV'}
+                      </div>
+                    </div>
+                  ))
+                )
               ) : topClients.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
                   Aucun client

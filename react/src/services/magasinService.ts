@@ -218,3 +218,14 @@ export const deleteMagasin = async (id: number): Promise<void> => {
     throw error
   }
 }
+
+// Get the current concepteur's magasin (for concepteur users only)
+export const getMyMagasin = async (): Promise<MagasinRecord | null> => {
+  try {
+    const data = await apiRequest<MagasinApiResponse>('/magasins/my-magasin/')
+    return toMagasinRecord(data)
+  } catch (error) {
+    console.error('Error fetching my magasin:', error)
+    throw error
+  }
+}

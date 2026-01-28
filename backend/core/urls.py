@@ -1,7 +1,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 
-from .views import BookingListCreateView, BookingRetrieveUpdateDestroyView, BookingResetView, BookingDebugView, ContactEmailView, HolidayListCreateView, HolidayRetrieveUpdateDestroyView, UserListCreateView, UserRetrieveUpdateDestroyView, UserLoginView, PasswordResetRequestView, PasswordResetConfirmView, MagasinListCreateView, MagasinRetrieveUpdateDestroyView, BookingFinishView
+from .views import BookingListCreateView, BookingRetrieveUpdateDestroyView, BookingResetView, BookingDebugView, ContactEmailView, HolidayListCreateView, HolidayRetrieveUpdateDestroyView, UserListCreateView, UserRetrieveUpdateDestroyView, UserLoginView, PasswordResetRequestView, PasswordResetConfirmView, MagasinListCreateView, MagasinRetrieveUpdateDestroyView, BookingFinishView, ConcepteurMagasinView
 
 urlpatterns = [
     path('contact-email/', ContactEmailView.as_view(), name='contact-email'),
@@ -19,6 +19,7 @@ urlpatterns = [
     path('users/password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
     path('magasins/', MagasinListCreateView.as_view(), name='magasin-list-create'),
     path('magasins/<int:pk>/', MagasinRetrieveUpdateDestroyView.as_view(), name='magasin-detail'),
+    path('magasins/my-magasin/', ConcepteurMagasinView.as_view(), name='concepteur-magasin'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('token/verify/', TokenVerifyView.as_view(), name='token_verify'),
 ]

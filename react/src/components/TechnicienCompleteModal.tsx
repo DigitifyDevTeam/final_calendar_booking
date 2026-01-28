@@ -7,12 +7,13 @@ interface TechnicienCompleteModalProps {
   onClose: () => void
   bookingId: string
   bookingCalendarId?: string
+  bookingStatus?: 'en_attente' | 'termine' | null
   isDarkMode?: boolean
   onFinish?: (payload: {
     bookingId: string
     menageFait: boolean
     cftSigne: boolean
-    electromenagerFonctionnel?: boolean
+    electromenager_fonctionnel?: boolean
     attachments: File[]
   }) => void
 }
@@ -22,6 +23,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
   onClose,
   bookingId,
   bookingCalendarId,
+  bookingStatus = 'en_attente',
   isDarkMode = true,
   onFinish
 }) => {
@@ -33,6 +35,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
 
   const isSavCalendar = ['calendar2', '2'].includes(bookingCalendarId || '')
   const isMetreCalendar = ['calendar3', '3'].includes(bookingCalendarId || '')
+  const isAlreadyFinished = bookingStatus === 'termine'
 
   useEffect(() => {
     if (isOpen) {
@@ -46,7 +49,17 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
 
   if (!isOpen) return null
 
+  // Check if button should be enabled: both checkboxes must be checked AND files must be uploaded AND booking is not already finished
+  const isFinishButtonEnabled = menageFait && cftSigne && files.length > 0 && !isAlreadyFinished
+
   const handleFinish = async () => {
+    if (!isFinishButtonEnabled || isAlreadyFinished) {
+      if (isAlreadyFinished) {
+        alert('Cette réservation a déjà été terminée.')
+      }
+      return
+    }
+    
     setSubmitting(true)
     try {
       // Call the API to finish the booking
@@ -63,7 +76,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
           bookingId,
           menageFait,
           cftSigne,
-          electromenagerFonctionnel: (isSavCalendar || isMetreCalendar) ? electromenagerFonctionnel : undefined,
+          electromenager_fonctionnel: (isSavCalendar || isMetreCalendar) ? electromenagerFonctionnel : undefined,
           attachments: files
         })
       }
@@ -87,6 +100,20 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
         </div>
 
         <div className="technicien-complete-modal-content">
+          {isAlreadyFinished && (
+            <div style={{
+              padding: '12px 16px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              color: '#10b981',
+              marginBottom: '16px',
+              fontWeight: 600,
+              textAlign: 'center'
+            }}>
+              ✓ Cette réservation a déjà été terminée
+            </div>
+          )}
           <div className="checkbox-row">
             <label>
               <input
@@ -146,10 +173,10 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
           </button>
           <button
             className="finish-button"
-            disabled={submitting}
+            disabled={submitting || !isFinishButtonEnabled || isAlreadyFinished}
             onClick={handleFinish}
           >
-            {submitting ? 'En cours...' : 'Terminer'}
+            {submitting ? 'En cours...' : isAlreadyFinished ? 'Déjà terminé' : 'Terminer'}
           </button>
         </div>
       </div>

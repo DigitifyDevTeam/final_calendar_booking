@@ -429,23 +429,49 @@ function AdminPage() {
           message: formData.message || ''
         }
         
-        // Only include pose_effectue_par_wood_agency for SAV calendar (calendar2)
+        console.log('[AdminPage] handleModalSubmit - formData.livraison:', formData.livraison)
+        console.log('[AdminPage] handleModalSubmit - existingCalendarId:', existingCalendarId)
+        
+        // Only include pose_effectue_par_wood_agency, livraison, and raison for SAV calendar (calendar2)
         // AdminBookingModal handles the logic of preserving null values, so we only include if it's in formData
-        if (existingCalendarId === CALENDAR_CONFIGS['calendar2'] && formData.pose_effectue_par_wood_agency !== undefined) {
-          // Only send if it's explicitly set (AdminBookingModal will exclude it if original was null and user didn't change it)
-          updateData.pose_effectue_par_wood_agency = formData.pose_effectue_par_wood_agency
+        if (existingCalendarId === CALENDAR_CONFIGS['calendar2'] || existingCalendarId === 'calendar2' || existingCalendarId === '2') {
+          if (formData.pose_effectue_par_wood_agency !== undefined) {
+            // Only send if it's explicitly set (AdminBookingModal will exclude it if original was null and user didn't change it)
+            updateData.pose_effectue_par_wood_agency = formData.pose_effectue_par_wood_agency
+          }
+          // Include livraison for SAV calendar (required) - always include it, backend will validate
+          // Trim whitespace to prevent length issues, but ensure it's not empty
+          const trimmedLivraison = (formData.livraison || '').trim()
+          if (trimmedLivraison) {
+            updateData.livraison = trimmedLivraison
+          } else {
+            // If empty, still include it so backend validation can catch it
+            updateData.livraison = ''
+          }
+          console.log('[AdminPage] handleModalSubmit - formData.livraison:', formData.livraison, 'updateData.livraison:', updateData.livraison, 'length:', updateData.livraison.length)
+          // Include raison for SAV calendar (required) - always include it, backend will validate
+          // Trim whitespace to prevent length issues, but ensure it's not empty
+          const trimmedRaison = (formData.raison || '').trim()
+          if (trimmedRaison) {
+            updateData.raison = trimmedRaison
+          } else {
+            // If empty, still include it so backend validation can catch it
+            updateData.raison = ''
+          }
+          console.log('[AdminPage] handleModalSubmit - formData.raison:', formData.raison, 'updateData.raison:', updateData.raison, 'length:', updateData.raison.length)
         }
         
-        // Include statut_facturation if it's in formData (admin can change billing status)
-        if (formData.statut_facturation !== undefined) {
+        // Include statut_facturation only for Pose calendar (calendar1)
+        if (isPoseCalendar && formData.statut_facturation !== undefined) {
           updateData.statut_facturation = formData.statut_facturation
         }
         
+        console.log('[AdminPage] handleModalSubmit - updateData:', updateData)
         await updateBooking(editingBooking.id, updateData)
         alert('Réservation modifiée avec succès')
       } else {
         // Create new booking
-        const bookingData = {
+        const bookingData: any = {
           name: formData.client_name,
           phone: formData.client_phone,
           designer: formData.designer_name,
@@ -454,6 +480,14 @@ function AdminPage() {
           selectedDate: new Date(formData.booking_date),
           timeSlot: formData.booking_time || undefined
         }
+        
+        // Include SAV-specific fields
+        if (formData.calendar_id === CALENDAR_CONFIGS['calendar2']) {
+          bookingData.pose_effectue_par_wood_agency = formData.pose_effectue_par_wood_agency ?? false
+          bookingData.livraison = (formData.livraison || '').trim()
+          bookingData.raison = (formData.raison || '').trim()
+        }
+        
         await addBooking(bookingData, formData.calendar_id)
         alert('Réservation créée avec succès')
       }
@@ -1492,7 +1526,8 @@ function AdminPage() {
                     <th>Client</th>
                     <th>Téléphone</th>
                     <th>Concepteur</th>
-                    <th>Pose Wood agency</th>
+                    <th>Pose non Wood agency</th>
+                    <th>Facturation</th>
                     <th>Statut</th>
                     <th>Message</th>
                     <th>Créé le</th>
@@ -1528,18 +1563,52 @@ function AdminPage() {
                         )}
                       </td>
                       <td>
-                        <span
-                          style={{
-                            width: '12px',
-                            height: '12px',
-                            borderRadius: '50%',
-                            backgroundColor: ((booking as any).statut_facturation || 'en_attente') === 'facture' 
-                              ? '#10b981' 
-                              : '#ef4444',
-                            display: 'inline-block'
-                          }}
-                          title={((booking as any).statut_facturation || 'en_attente') === 'facture' ? 'Facturé' : 'En attente de facturation'}
-                        />
+                        {(() => {
+                          // Only show facturation indicator for Pose calendar (calendar1)
+                          const calendarId = booking.calendarId || (booking as any).calendar_id
+                          const isPoseCalendar = calendarId === CALENDAR_CONFIGS['calendar1'] || calendarId === '1' || calendarId === 'calendar1'
+                          
+                          if (!isPoseCalendar) {
+                            return <span style={{ color: isDarkMode ? '#6b7280' : '#9ca3af' }}>-</span>
+                          }
+                          
+                          return (
+                            <span
+                              style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '50%',
+                                backgroundColor: ((booking as any).statut_facturation || 'en_attente') === 'facture' 
+                                  ? '#10b981' 
+                                  : '#ef4444',
+                                display: 'inline-block'
+                              }}
+                              title={((booking as any).statut_facturation || 'en_attente') === 'facture' ? 'Facturé' : 'En attente de facturation'}
+                            />
+                          )
+                        })()}
+                      </td>
+                      <td>
+                        {(() => {
+                          const bookingStatus = (booking as any).status || 'en_attente'
+                          const statusText = bookingStatus === 'termine' ? 'Terminé' : 'En attente'
+                          const statusColor = bookingStatus === 'termine' ? '#10b981' : '#ef4444'
+                          return (
+                            <span
+                              style={{
+                                padding: '4px 12px',
+                                borderRadius: '12px',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                backgroundColor: `${statusColor}20`,
+                                color: statusColor,
+                                border: `1px solid ${statusColor}40`
+                              }}
+                            >
+                              {statusText}
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="message-cell">
                         {booking.message || <span className="no-message">-</span>}

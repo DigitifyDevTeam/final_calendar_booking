@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Calendar from '../components/Calendar'
@@ -5,7 +6,7 @@ import BookingModal from '../components/BookingModal'
 import NoelDecorations from '../components/NoelDecorations'
 import { addBooking, getBinId as getBinIdFromConfig, type BookingData } from '../services/bookingService'
 import { getAllUsers, UserRecord } from '../services/userService'
-import { Sun, Moon, LogOut } from 'lucide-react'
+import { Sun, Moon, LogOut, Search, X } from 'lucide-react'
 import '../App.css'
 
 interface Calendar2PageProps {
@@ -28,6 +29,7 @@ function Calendar2Page({ disableAnimations = false, isAdminView = false }: Calen
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [userRole, setUserRole] = useState<string>('')
   const [usersList, setUsersList] = useState<UserRecord[]>([])
+  const [clientSearch, setClientSearch] = useState<string>('')
 
   // Get the bin ID for calendar2 - ensures it uses its own data
   const binId = getBinIdFromConfig('calendar2')
@@ -53,6 +55,7 @@ function Calendar2Page({ disableAnimations = false, isAdminView = false }: Calen
       console.error('Error loading users:', error)
     }
   }
+
 
   useEffect(() => {
     setRefreshTrigger(prev => prev + 1)
@@ -91,10 +94,6 @@ function Calendar2Page({ disableAnimations = false, isAdminView = false }: Calen
       return () => clearTimeout(timer)
     }
   }, [loadingNotification])
-
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode)
-  }
 
   const handleLogout = () => {
     sessionStorage.removeItem('user')
@@ -178,7 +177,7 @@ function Calendar2Page({ disableAnimations = false, isAdminView = false }: Calen
             )}
           </div>
           
-          <div style={{ textAlign: 'center', gridColumn: 2 }}>
+          <div style={{ textAlign: 'center', gridColumn: 2, display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
             {isAdminView ? (
               <div>
                 <h1>Administration - SAV</h1>
@@ -189,6 +188,80 @@ function Calendar2Page({ disableAnimations = false, isAdminView = false }: Calen
               <h1>Réservez Votre Rendez-vous de SAV</h1>
               <p>Sélectionnez une date pour réserver votre rendez-vous</p>
             </div>
+            )}
+            {userRole === 'concepteur' && (
+              <div style={{
+                position: 'relative',
+                width: '100%',
+                maxWidth: '400px',
+                marginTop: '8px'
+              }}>
+                <Search style={{
+                  position: 'absolute',
+                  left: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: '18px',
+                  height: '18px',
+                  color: isDarkMode ? '#9ca3af' : '#6b7280',
+                  pointerEvents: 'none',
+                  zIndex: 1
+                }} />
+                <input
+                  type="text"
+                  placeholder="Rechercher par nom de client..."
+                  value={clientSearch}
+                  onChange={(e) => {
+                    setClientSearch(e.target.value)
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 40px 10px 40px',
+                    borderRadius: '10px',
+                    border: `1px solid ${isDarkMode ? '#374151' : '#e5e7eb'}`,
+                    backgroundColor: isDarkMode ? '#1f2937' : '#ffffff',
+                    color: isDarkMode ? '#f9fafb' : '#111827',
+                    fontSize: '14px',
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    boxShadow: isDarkMode ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.1)'
+                  }}
+                />
+                {clientSearch && (
+                  <button
+                    onClick={() => {
+                      setClientSearch('')
+                    }}
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '4px',
+                      color: isDarkMode ? '#9ca3af' : '#6b7280',
+                      transition: 'all 0.2s',
+                      zIndex: 2
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = isDarkMode ? '#374151' : '#f3f4f6'
+                      e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                      e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
+                    }}
+                  >
+                    <X style={{ width: '16px', height: '16px' }} />
+                  </button>
+                )}
+              </div>
             )}
           </div>
           
@@ -202,36 +275,6 @@ function Calendar2Page({ disableAnimations = false, isAdminView = false }: Calen
             }}
             className="desktop-header-icons"
           >
-            <button 
-              onClick={toggleDarkMode}
-              style={{
-                width: '40px',
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '8px',
-                border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
-                backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                color: isDarkMode ? '#9ca3af' : '#6b7280',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
-                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
-                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
-              }}
-            >
-              {isDarkMode ? (
-                <Sun style={{ width: '16px', height: '16px' }} />
-              ) : (
-                <Moon style={{ width: '16px', height: '16px' }} />
-              )}
-            </button>
             <button 
               onClick={handleLogout}
               style={{
@@ -269,6 +312,7 @@ function Calendar2Page({ disableAnimations = false, isAdminView = false }: Calen
           binId={binId}
           view="weekly"
           timeSlotType="numerical"
+          clientSearch={clientSearch}
         />
       </main>
 

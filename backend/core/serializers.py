@@ -4,7 +4,7 @@ from rest_framework import serializers
 from .models import Booking, ContactMessage, Holiday, User, PasswordResetToken, Magasin
 
 CALENDAR_DAILY_LIMITS = {
-    'calendar1': 2,  # Pose calendar: 2 bookings per day
+    'calendar1': 3,  # Pose calendar: 3 bookings per day
 }
 
 TIME_SLOT_CALENDARS = {'calendar2', 'calendar3'}  # SAV and Metré use time slots
@@ -247,7 +247,10 @@ class BookingSerializer(serializers.ModelSerializer):
             'designer_name',
             'message',
             'pose_effectue_par_wood_agency',
+            'livraison',
+            'raison',
             'statut_facturation',
+            'status',
             'menage_fait',
             'cft_signe',
             'electromenager_fonctionnel',
@@ -275,6 +278,44 @@ class BookingSerializer(serializers.ModelSerializer):
         if calendar_id and calendar_id in ['calendar1', '1'] and not booking_time:
             booking_time = '21h00'
             attrs['booking_time'] = booking_time
+
+        # Validate livraison field for SAV calendar (calendar2)
+        livraison = attrs.get('livraison')
+        if calendar_id and calendar_id in ['calendar2', '2']:
+            if not livraison or livraison.strip() == '':
+                raise serializers.ValidationError({
+                    'livraison': 'Le champ livraison est obligatoire pour les réservations SAV.'
+                })
+            # Strip whitespace and validate that the value is one of the allowed choices
+            livraison = livraison.strip()
+            # Log the value for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f'[BookingSerializer] livraison value: "{livraison}", length: {len(livraison)}, type: {type(livraison)}')
+            
+            allowed_choices = ['livre_chez_client', 'venir_chercher_magasin']
+            if livraison not in allowed_choices:
+                raise serializers.ValidationError({
+                    'livraison': f'La valeur de livraison doit être l\'une des suivantes: {", ".join(allowed_choices)}'
+                })
+            # Store the cleaned value
+            attrs['livraison'] = livraison
+            
+            # Validate raison field for SAV calendar (calendar2) - required
+            raison = attrs.get('raison')
+            if not raison or raison.strip() == '':
+                raise serializers.ValidationError({
+                    'raison': 'Le champ raison est obligatoire pour les réservations SAV.'
+                })
+            # Strip whitespace and validate that the value is one of the allowed choices
+            raison = raison.strip()
+            allowed_raison_choices = ['erreur_poseur', 'erreur_concepteur', 'erreur_livraison', 'manquant']
+            if raison not in allowed_raison_choices:
+                raise serializers.ValidationError({
+                    'raison': f'La valeur de raison doit être l\'une des suivantes: {", ".join(allowed_raison_choices)}'
+                })
+            # Store the cleaned value
+            attrs['raison'] = raison
 
         if not calendar_id or not booking_date:
             return attrs

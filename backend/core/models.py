@@ -61,6 +61,23 @@ class Booking(models.Model):
         ('facture', 'Facturé'),
     ]
     
+    STATUS_CHOICES = [
+        ('en_attente', 'En attente'),
+        ('termine', 'Terminé'),
+    ]
+    
+    LIVRAISON_CHOICES = [
+        ('livre_chez_client', 'Livré chez le client'),
+        ('venir_chercher_magasin', 'Venir chercher au magasin'),
+    ]
+    
+    RAISON_CHOICES = [
+        ('erreur_poseur', 'Erreur Poseur'),
+        ('erreur_concepteur', 'Erreur concepteur'),
+        ('erreur_livraison', 'Erreur livraison'),
+        ('manquant', 'Manquant'),
+    ]
+    
     calendar_id = models.CharField(max_length=100)
     booking_date = models.DateField()
     booking_time = models.CharField(max_length=20, blank=True)
@@ -69,7 +86,10 @@ class Booking(models.Model):
     designer_name = models.CharField(max_length=255)
     message = models.TextField(blank=True)
     pose_effectue_par_wood_agency = models.BooleanField(null=True, blank=True)
+    livraison = models.CharField(max_length=50, choices=LIVRAISON_CHOICES, blank=True, null=True, help_text='Mode de livraison (SAV calendar only)')
+    raison = models.CharField(max_length=50, choices=RAISON_CHOICES, blank=True, null=True, help_text='Raison du SAV (SAV calendar only)')
     statut_facturation = models.CharField(max_length=20, choices=STATUT_FACTURATION_CHOICES, default='en_attente')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='en_attente', help_text='Statut de la réservation (en attente ou terminé)')
     # Completion fields for technician
     menage_fait = models.BooleanField(default=False)
     cft_signe = models.BooleanField(default=False)
