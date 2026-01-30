@@ -260,6 +260,15 @@ class BookingSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
     def validate(self, attrs):
+        # Only admin can change statut_facturation (billing status)
+        request = self.context.get('request')
+        is_admin = bool(
+            request and getattr(request, 'user', None)
+            and getattr(request.user, 'role', None) == 'admin'
+        )
+        if not is_admin and 'statut_facturation' in attrs:
+            attrs.pop('statut_facturation', None)
+
         # For updates, use instance's calendar_id if not provided in attrs
         calendar_id = attrs.get('calendar_id')
         if not calendar_id and self.instance:

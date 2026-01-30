@@ -1066,7 +1066,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     try {
       // Use the existing booking's calendar_id to prevent changing calendar
       const existingCalendarId = editingBooking.calendar_id || binId
-      const isPoseCalendar = existingCalendarId === CALENDAR_CONFIGS['calendar1']
+      const isPoseCalendar = existingCalendarId === CALENDAR_CONFIGS['calendar1'] || existingCalendarId === 'calendar1' || existingCalendarId === '1'
       
       const updateData: any = {
         calendar_id: existingCalendarId,
@@ -1093,6 +1093,11 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         // Trim whitespace to prevent length issues
         updateData.raison = (formData.raison || '').trim()
         console.log('[Calendar] handleEditModalSubmit - updateData.raison:', updateData.raison, 'length:', updateData.raison.length)
+      }
+
+      // Include statut_facturation only for Pose calendar and only admin can change it
+      if (isPoseCalendar && isAdmin && formData.statut_facturation !== undefined) {
+        updateData.statut_facturation = formData.statut_facturation
       }
       
       console.log('[Calendar] handleEditModalSubmit - final updateData:', updateData)
@@ -3333,7 +3338,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
 
       {/* Edit Modal - Use AdminBookingModal for consistent interface */}
       {isEditModalOpen && editingBooking && (
-        <AdminBookingModal
+        <        AdminBookingModal
           isOpen={isEditModalOpen}
           onClose={() => {
             setIsEditModalOpen(false)
@@ -3353,9 +3358,11 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
             pose_effectue_par_wood_agency: editingBooking.pose_effectue_par_wood_agency ?? null,
             livraison: editingBooking.livraison ?? null,
             raison: editingBooking.raison ?? null,
+            statut_facturation: (editingBooking as any).statut_facturation ?? null,
           }}
           isDarkMode={isDarkMode}
           users={isAdmin ? usersList : []}
+          isAdmin={isAdmin}
         />
       )}
 

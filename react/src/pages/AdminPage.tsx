@@ -526,8 +526,8 @@ function AdminPage() {
           console.log('[AdminPage] handleModalSubmit - formData.raison:', formData.raison, 'updateData.raison:', updateData.raison, 'length:', updateData.raison.length)
         }
         
-        // Include statut_facturation only for Pose calendar (calendar1)
-        if (isPoseCalendar && formData.statut_facturation !== undefined) {
+        // Include statut_facturation only for Pose calendar (calendar1) and only admin can change it
+        if (isPoseCalendar && isAdmin && formData.statut_facturation !== undefined) {
           updateData.statut_facturation = formData.statut_facturation
         }
         
@@ -1655,6 +1655,7 @@ function AdminPage() {
         booking={editingBooking}
         isDarkMode={isDarkMode}
         users={isAdmin ? usersList : []}
+        isAdmin={isAdmin}
       />
 
       {/* Info Modal */}

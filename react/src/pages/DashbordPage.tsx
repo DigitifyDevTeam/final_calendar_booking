@@ -338,7 +338,10 @@ function DashbordPage() {
       const normalizedDesigner = rawDesigner.trim().toLowerCase()
       const displayName = rawDesigner.trim() || 'Sans concepteur'
       const concepteurKey = normalizedDesigner || 'sans concepteur'
-      
+
+      // Exclude ancien_rdv (imported/legacy bookings placeholder)
+      if (normalizedDesigner === 'ancien_rdv') return
+
       // Get or create entry
       if (!concepteurCountsMap.has(concepteurKey)) {
         concepteurCountsMap.set(concepteurKey, {

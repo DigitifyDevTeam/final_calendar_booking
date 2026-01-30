@@ -550,6 +550,50 @@ class BookingApiTests(TestCase):
         past_date = (date.today() - timedelta(days=1)).isoformat()
         response = self.client.patch(detail_url, {"booking_date": past_date}, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_concepteur_cannot_change_statut_facturation(self):
+        """Test that concepteur cannot change statut_facturation - only admin can"""
+        booking = Booking.objects.create(
+            calendar_id="calendar1",
+            booking_date=date.fromisoformat(self.future_date),
+            client_name="Client",
+            client_phone="111",
+            designer_name="Designer",
+            statut_facturation="en_attente"
+        )
+        detail_url = reverse("booking-detail", args=[booking.id])
+        # Concepteur tries to change statut_facturation - should be ignored
+        response = self.client.patch(
+            detail_url,
+            {"statut_facturation": "facture", "client_name": "Updated Client"},
+            format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        booking.refresh_from_db()
+        self.assertEqual(booking.client_name, "Updated Client")
+        self.assertEqual(booking.statut_facturation, "en_attente")  # Unchanged - concepteur cannot change it
+
+    def test_admin_can_change_statut_facturation(self):
+        """Test that admin can change statut_facturation"""
+        import uuid
+        admin_user, _ = create_authenticated_user(self.client, role="admin")
+        booking = Booking.objects.create(
+            calendar_id="calendar1",
+            booking_date=date.fromisoformat(self.future_date),
+            client_name="Client",
+            client_phone="111",
+            designer_name="Designer",
+            statut_facturation="en_attente"
+        )
+        detail_url = reverse("booking-detail", args=[booking.id])
+        response = self.client.patch(
+            detail_url,
+            {"statut_facturation": "facture"},
+            format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        booking.refresh_from_db()
+        self.assertEqual(booking.statut_facturation, "facture")
     
     # DELETE TESTS
     def test_delete_booking_requires_authentication(self):

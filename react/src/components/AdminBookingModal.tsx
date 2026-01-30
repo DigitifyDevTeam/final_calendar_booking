@@ -16,6 +16,7 @@ interface AdminBookingModalProps {
   booking?: any // Existing booking for edit mode
   isDarkMode?: boolean
   users?: UserOption[] // List of users for designer selection (admin only)
+  isAdmin?: boolean // Only admin can edit statut de facturation
 }
 
 export interface AdminBookingFormData {
@@ -38,7 +39,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
   onSubmit,
   booking,
   isDarkMode = true,
-  users = []
+  users = [],
+  isAdmin = false
 }) => {
   // Track original value to detect changes when editing
   const [originalPoseValue, setOriginalPoseValue] = useState<boolean | null | undefined>(null)
@@ -263,9 +265,9 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
         delete bookingData.raison
       }
       
-      // Handle billing status - only for Pose calendar when editing
-      if (booking && isPoseCalendar) {
-        // Include statut_facturation only when editing Pose calendar, default to 'en_attente' if not set
+      // Handle billing status - only for Pose calendar when editing, and only admin can change it
+      if (booking && isPoseCalendar && isAdmin) {
+        // Include statut_facturation only when editing Pose calendar as admin, default to 'en_attente' if not set
         bookingData.statut_facturation = formData.statut_facturation || 'en_attente'
       } else {
         // Remove statut_facturation for:
@@ -676,8 +678,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
             </>
           )}
 
-          {/* Billing status - only shown when editing (admin only) and for Pose calendar only */}
-          {booking && (() => {
+          {/* Billing status - only shown when editing, for Pose calendar, and admin only */}
+          {booking && isAdmin && (() => {
             // Determine the current calendar ID
             const currentCalendarId = (booking as any).calendarId || (booking as any).calendar_id || formData.calendar_id
             // Only show for Pose calendar (handle both 'calendar1' and '1' formats)
