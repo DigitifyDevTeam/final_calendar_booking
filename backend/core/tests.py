@@ -11,7 +11,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Booking, Holiday, User, ContactMessage
+from .models import Booking, Holiday, User, ContactMessage, Magasin
 
 
 # Use SQLite in tests to avoid external DB dependency
@@ -36,13 +36,22 @@ def create_authenticated_user(client, role='concepteur', email=None, password='t
         role=role,
         password=password
     )
-    # Generate JWT token
     refresh = RefreshToken()
     refresh['user_id'] = user.id
     refresh['email'] = user.email
     refresh['role'] = user.role
     access_token = str(refresh.access_token)
-    # Set authentication header
+    client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
+    return user, access_token
+
+
+def authenticate_as_user(client, user):
+    """Authenticate as an existing user (use when user already exists)"""
+    refresh = RefreshToken()
+    refresh['user_id'] = user.id
+    refresh['email'] = user.email
+    refresh['role'] = user.role
+    access_token = str(refresh.access_token)
     client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
     return user, access_token
 
@@ -157,6 +166,23 @@ class BookingApiTests(TestCase):
         }
         payload.update(overrides)
         return payload
+
+    def _sav_booking_payload(self, **overrides):
+        """Helper for SAV (calendar2) - requires livraison, raison, and booking_time"""
+        base = {
+            "calendar_id": "calendar2",
+            "booking_time": "10h00",
+            "livraison": "livre_chez_client",
+            "raison": "erreur_poseur",
+        }
+        base.update(overrides)
+        return self._booking_payload(**base)
+
+    def _metre_booking_payload(self, **overrides):
+        """Helper for Metré (calendar3) - requires booking_time only"""
+        base = {"calendar_id": "calendar3", "booking_time": "8:00-11:00"}
+        base.update(overrides)
+        return self._booking_payload(**base)
     
     # CREATE TESTS
     def test_create_booking_requires_authentication(self):
@@ -214,68 +240,56 @@ class BookingApiTests(TestCase):
         self.assertEqual(Booking.objects.count(), 0)
     
     def test_create_booking_pose_calendar_limit(self):
-        """Test Pose calendar limit of 2 bookings per day"""
-        # Create 2 bookings for the same date
-        Booking.objects.create(
-            calendar_id="calendar1",
-            booking_date=date.fromisoformat(self.future_date),
-            client_name="Client 1",
-            client_phone="111",
-            designer_name="Designer 1",
-            booking_time="21h00"
-        )
-        Booking.objects.create(
-            calendar_id="calendar1",
-            booking_date=date.fromisoformat(self.future_date),
-            client_name="Client 2",
-            client_phone="222",
-            designer_name="Designer 2",
-            booking_time="21h00"
-        )
-        
-        # Third booking should be rejected
+        """Test Pose calendar limit of 3 bookings per day"""
+        # Create 3 bookings for the same date (limit is 3)
+        for i in range(3):
+            Booking.objects.create(
+                calendar_id="calendar1",
+                booking_date=date.fromisoformat(self.future_date),
+                client_name=f"Client {i + 1}",
+                client_phone=f"11{i}",
+                designer_name=f"Designer {i + 1}",
+                booking_time="21h00"
+            )
+
+        # Fourth booking should be rejected
         response = self.client.post(self.list_url, self._booking_payload(), format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("booking_date", response.data)
+        self.assertEqual(Booking.objects.count(), 3)
     
     def test_time_slot_calendar_requires_time(self):
-        """Test that time slot calendars require booking_time"""
-        payload = self._booking_payload(calendar_id="calendar2", booking_time="")
+        """Test that time slot calendars (SAV, Metré) require booking_time"""
+        payload = self._sav_booking_payload(booking_time="")
         response = self.client.post(self.list_url, payload, format="json")
-        
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("booking_time", response.data)
     
     def test_time_slot_calendar_rejects_duplicate_slot(self):
-        """Test that duplicate time slots are rejected"""
-        payload = self._booking_payload(calendar_id="calendar2", booking_time="10h00")
+        """Test that duplicate time slots are rejected for SAV calendar"""
+        payload = self._sav_booking_payload(booking_time="10h00")
         first = self.client.post(self.list_url, payload, format="json")
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
-        
+
         duplicate = self.client.post(self.list_url, payload, format="json")
         self.assertEqual(duplicate.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("booking_time", duplicate.data)
         self.assertEqual(Booking.objects.count(), 1)
     
-    def test_time_slot_calendar_validates_allowed_slots(self):
-        """Test that Metré calendar only accepts allowed time slots"""
+    def test_time_slot_calendar_metre_requires_time(self):
+        """Test that Metré calendar requires non-empty booking_time"""
         payload = self._booking_payload(
             calendar_id="calendar3",
-            booking_time="invalid-slot"
+            booking_time=""
         )
         response = self.client.post(self.list_url, payload, format="json")
-        
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("booking_time", response.data)
     
     def test_time_slot_calendar_accepts_valid_slots(self):
         """Test that valid time slots are accepted for Metré"""
-        payload = self._booking_payload(
-            calendar_id="calendar3",
-            booking_time="8:00-11:00"
-        )
+        payload = self._metre_booking_payload(booking_time="8:00-11:00")
         response = self.client.post(self.list_url, payload, format="json")
-        
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["booking_time"], "8:00-11:00")
     
@@ -1462,3 +1476,218 @@ class TokenApiTests(TestCase):
         except Exception:
             # If it fails, it's likely due to custom user model, not authentication
             pass
+
+
+@override_settings(DATABASES=TEST_DATABASES)
+class MagasinApiTests(TestCase):
+    """Comprehensive tests for Magasin CRUD APIs"""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.list_url = reverse("magasin-list-create")
+        self.my_magasin_url = reverse("concepteur-magasin")
+        import uuid
+        unique_email = f"admin_magasin_{uuid.uuid4().hex[:8]}@test.com"
+        self.admin_user, _ = create_authenticated_user(self.client, role="admin", email=unique_email)
+
+    def _magasin_payload(self, **overrides):
+        """Helper to create magasin payload"""
+        payload = {"name": "Magasin Test Paris"}
+        payload.update(overrides)
+        return payload
+
+    # CREATE TESTS
+    def test_create_magasin_requires_authentication(self):
+        """Test that creating magasin requires authentication"""
+        self.client.credentials()
+        response = self.client.post(self.list_url, self._magasin_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_create_magasin_requires_admin(self):
+        """Test that creating magasin requires admin role"""
+        create_authenticated_user(self.client, role="concepteur")
+        response = self.client.post(self.list_url, self._magasin_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_create_magasin_success(self):
+        """Test creating a magasin successfully"""
+        response = self.client.post(self.list_url, self._magasin_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Magasin.objects.count(), 1)
+        self.assertEqual(response.data["name"], "Magasin Test Paris")
+
+    def test_create_magasin_with_concepteurs(self):
+        """Test creating magasin with concepteurs"""
+        import uuid
+        concepteur = User.objects.create(
+            name="Concepteur Test",
+            email=f"concepteur_{uuid.uuid4().hex[:8]}@test.com",
+            phone="0123456789",
+            role="concepteur",
+            password="testpass123"
+        )
+        payload = self._magasin_payload(name="Magasin Avec Concepteur", concepteurs=[concepteur.id])
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(response.data["concepteurs_details"]), 1)
+        self.assertEqual(response.data["concepteurs_details"][0]["email"], concepteur.email)
+
+    def test_create_magasin_duplicate_name_rejected(self):
+        """Test that duplicate magasin name is rejected"""
+        Magasin.objects.create(name="Magasin Unique")
+        response = self.client.post(self.list_url, {"name": "Magasin Unique"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Magasin.objects.count(), 1)
+
+    # LIST TESTS
+    def test_list_magasins_requires_authentication(self):
+        """Test that listing magasins requires authentication"""
+        self.client.credentials()
+        response = self.client.get(self.list_url, format="json")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_list_magasins_requires_admin(self):
+        """Test that listing magasins requires admin role"""
+        create_authenticated_user(self.client, role="concepteur")
+        response = self.client.get(self.list_url, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_list_magasins_success(self):
+        """Test listing all magasins"""
+        Magasin.objects.create(name="Magasin A")
+        Magasin.objects.create(name="Magasin B")
+        response = self.client.get(self.list_url, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+    # RETRIEVE TESTS
+    def test_retrieve_magasin_requires_admin(self):
+        """Test that retrieving magasin requires admin role"""
+        magasin = Magasin.objects.create(name="Magasin Test")
+        create_authenticated_user(self.client, role="concepteur")
+        detail_url = reverse("magasin-detail", args=[magasin.id])
+        response = self.client.get(detail_url, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_retrieve_magasin_success(self):
+        """Test retrieving a magasin"""
+        magasin = Magasin.objects.create(name="Magasin Retrieve Test")
+        detail_url = reverse("magasin-detail", args=[magasin.id])
+        response = self.client.get(detail_url, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], magasin.id)
+        self.assertEqual(response.data["name"], "Magasin Retrieve Test")
+
+    def test_retrieve_magasin_not_found(self):
+        """Test retrieving non-existent magasin"""
+        detail_url = reverse("magasin-detail", args=[99999])
+        response = self.client.get(detail_url, format="json")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    # UPDATE TESTS
+    def test_update_magasin_requires_admin(self):
+        """Test that updating magasin requires admin role"""
+        magasin = Magasin.objects.create(name="Magasin Old")
+        create_authenticated_user(self.client, role="concepteur")
+        detail_url = reverse("magasin-detail", args=[magasin.id])
+        response = self.client.patch(detail_url, {"name": "Magasin New"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_update_magasin_partial(self):
+        """Test partial update (PATCH) of magasin"""
+        magasin = Magasin.objects.create(name="Magasin Original")
+        detail_url = reverse("magasin-detail", args=[magasin.id])
+        response = self.client.patch(detail_url, {"name": "Magasin Updated"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        magasin.refresh_from_db()
+        self.assertEqual(magasin.name, "Magasin Updated")
+
+    def test_update_magasin_concepteurs(self):
+        """Test updating magasin concepteurs"""
+        import uuid
+        magasin = Magasin.objects.create(name="Magasin Test")
+        concepteur = User.objects.create(
+            name="New Concepteur",
+            email=f"new_concepteur_{uuid.uuid4().hex[:8]}@test.com",
+            phone="0123456789",
+            role="concepteur",
+            password="testpass123"
+        )
+        detail_url = reverse("magasin-detail", args=[magasin.id])
+        response = self.client.patch(
+            detail_url,
+            {"concepteurs": [concepteur.id]},
+            format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        magasin.refresh_from_db()
+        self.assertEqual(magasin.concepteurs.count(), 1)
+        self.assertEqual(magasin.concepteurs.first().id, concepteur.id)
+
+    # DELETE TESTS
+    def test_delete_magasin_requires_admin(self):
+        """Test that deleting magasin requires admin role"""
+        magasin = Magasin.objects.create(name="Magasin To Delete")
+        create_authenticated_user(self.client, role="concepteur")
+        detail_url = reverse("magasin-detail", args=[magasin.id])
+        response = self.client.delete(detail_url, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_delete_magasin_success(self):
+        """Test deleting a magasin"""
+        magasin = Magasin.objects.create(name="Magasin To Delete")
+        detail_url = reverse("magasin-detail", args=[magasin.id])
+        response = self.client.delete(detail_url, format="json")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(Magasin.objects.count(), 0)
+
+    def test_delete_magasin_not_found(self):
+        """Test deleting non-existent magasin"""
+        detail_url = reverse("magasin-detail", args=[99999])
+        response = self.client.delete(detail_url, format="json")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    # CONCEPTEUR MY-MAGASIN TESTS
+    def test_concepteur_my_magasin_requires_authentication(self):
+        """Test that concepteur magasin endpoint requires authentication"""
+        self.client.credentials()
+        response = self.client.get(self.my_magasin_url, format="json")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_concepteur_my_magasin_requires_concepteur_role(self):
+        """Test that only concepteurs can access my-magasin"""
+        response = self.client.get(self.my_magasin_url, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_concepteur_my_magasin_success(self):
+        """Test concepteur can get their magasin"""
+        import uuid
+        concepteur_email = f"concepteur_my_{uuid.uuid4().hex[:8]}@test.com"
+        concepteur = User.objects.create(
+            name="Concepteur Magasin",
+            email=concepteur_email,
+            phone="0123456789",
+            role="concepteur",
+            password="testpass123"
+        )
+        magasin = Magasin.objects.create(name="Magasin Du Concepteur")
+        magasin.concepteurs.add(concepteur)
+        authenticate_as_user(self.client, concepteur)
+        response = self.client.get(self.my_magasin_url, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["name"], "Magasin Du Concepteur")
+
+    def test_concepteur_my_magasin_not_found(self):
+        """Test concepteur without magasin gets 404"""
+        import uuid
+        concepteur_email = f"concepteur_nomag_{uuid.uuid4().hex[:8]}@test.com"
+        concepteur = User.objects.create(
+            name="Concepteur Sans Magasin",
+            email=concepteur_email,
+            phone="0123456789",
+            role="concepteur",
+            password="testpass123"
+        )
+        authenticate_as_user(self.client, concepteur)
+        response = self.client.get(self.my_magasin_url, format="json")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
