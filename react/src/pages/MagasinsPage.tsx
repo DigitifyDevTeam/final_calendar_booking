@@ -4,8 +4,6 @@ import {
   Calendar,
   CalendarCheck,
   ChevronsRight,
-  Moon,
-  Sun,
   Home,
   Settings,
   LogOut,
@@ -35,7 +33,7 @@ function MagasinsPage() {
   const [concepteurs, setConcepteurs] = useState<UserRecord[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [searchTerm, setSearchTerm] = useState<string>('')
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+  const [isDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('darkMode')
     return saved ? JSON.parse(saved) : true
   })
@@ -189,10 +187,6 @@ function MagasinsPage() {
     })
   }
 
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode)
-  }
-
   const handleLogout = () => {
     sessionStorage.removeItem('user')
     navigate('/')
@@ -243,16 +237,11 @@ function MagasinsPage() {
     }
   }
 
-  const [orangeColor, setOrangeColor] = useState<string>(() => {
-    const saved = localStorage.getItem('accentColor')
-    return saved || '#fa541c'
-  })
-
+  // Accent color applied via CSS variable (no local state needed)
   useEffect(() => {
     const handleSettingsUpdate = () => {
       const saved = localStorage.getItem('accentColor')
       if (saved) {
-        setOrangeColor(saved)
         document.documentElement.style.setProperty('--accent-color', saved)
       }
     }
@@ -262,7 +251,6 @@ function MagasinsPage() {
     
     const saved = localStorage.getItem('accentColor')
     if (saved) {
-      setOrangeColor(saved)
       document.documentElement.style.setProperty('--accent-color', saved)
     }
     
@@ -275,7 +263,7 @@ function MagasinsPage() {
   const bgColor = isDarkMode ? '#000000' : '#f5f5f5'
   const textColor = isDarkMode ? '#ffffff' : '#111827'
   const textSecondary = isDarkMode ? '#9ca3af' : '#6b7280'
-  const borderColor = isDarkMode ? '#333333' : '#e5e7eb'
+  const borderColor = isDarkMode ? '#BA4E8E' : '#e5e7eb'
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', width: '100%', backgroundColor: bgColor }}>
@@ -329,7 +317,263 @@ function MagasinsPage() {
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
           <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: textColor }}>Magasins</h1>
-          <div style={{ width: '40px' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              data-notifications-dropdown
+              onClick={() => setNotificationsOpen(!notificationsOpen)}
+              style={{
+                position: 'relative',
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                color: textSecondary,
+                cursor: 'pointer'
+              }}
+            >
+              <Bell style={{ width: '18px', height: '18px' }} />
+              {unreadCount > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '-2px',
+                    right: '-2px',
+                    minWidth: '16px',
+                    height: '16px',
+                    backgroundColor: '#284B73',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    color: '#ffffff',
+                    padding: '0 3px'
+                  }}
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={handleLogout}
+              style={{
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                color: textSecondary,
+                cursor: 'pointer'
+              }}
+            >
+              <LogOut style={{ width: '18px', height: '18px' }} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Notifications Dropdown */}
+      {isMobile && notificationsOpen && (
+        <div
+          data-notifications-dropdown
+          style={{
+            position: 'fixed',
+            top: '60px',
+            right: '16px',
+            left: '16px',
+            maxHeight: 'calc(100vh - 80px)',
+            backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+            border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
+            borderRadius: '12px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
+            zIndex: 1001,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
+          <div style={{
+            padding: '16px',
+            borderBottom: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <h3 style={{
+              margin: 0,
+              fontSize: '16px',
+              fontWeight: 600,
+              color: isDarkMode ? '#ffffff' : '#111827'
+            }}>
+              Notifications
+            </h3>
+            {unreadCount > 0 && (
+              <span style={{
+                fontSize: '12px',
+                color: '#284B73',
+                fontWeight: 600
+              }}>
+                {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          <div style={{
+            overflowY: 'auto',
+            maxHeight: 'calc(100vh - 200px)',
+            flex: 1
+          }}>
+            {allNotifications.length === 0 ? (
+              <div style={{
+                padding: '40px 20px',
+                textAlign: 'center',
+                color: isDarkMode ? '#9ca3af' : '#6b7280'
+              }}>
+                Aucune notification
+              </div>
+            ) : (
+              allNotifications.map((notification) => {
+                const timeAgo = getNotificationTimeAgo(notification.timestamp)
+                const getNotificationDetails = () => {
+                  if (notification.type === 'booking') {
+                    const booking = notification.data as { client_name?: string; calendar_id?: string; booking_date?: string; booking_time?: string; id?: number }
+                    return {
+                      subtitle: `${booking.client_name ?? ''} - ${getCalendarName(booking.calendar_id ?? '')}`,
+                      details: `${booking.booking_date ?? ''} ${booking.booking_time ?? ''}`,
+                      onClick: () => {
+                        setNotificationsOpen(false)
+                        navigate('/réservation', { state: { highlightBookingId: booking.id, calendarId: booking.calendar_id } })
+                      }
+                    }
+                  } else if (notification.type === 'holiday') {
+                    const holiday = notification.data as { calendar_id?: string; holiday_date?: string }
+                    const formatDate = (dateStr: string) => {
+                      const date = new Date(dateStr)
+                      return date.toLocaleDateString('fr-FR', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })
+                    }
+                    return {
+                      subtitle: `${getCalendarName(holiday.calendar_id ?? '')} - ${holiday.holiday_date ? formatDate(holiday.holiday_date) : ''}`,
+                      details: 'Jour férié ajouté',
+                      onClick: () => {
+                        setNotificationsOpen(false)
+                        navigate('/jours-feries')
+                      }
+                    }
+                  } else if (notification.type === 'user') {
+                    const user = notification.data as { name?: string; role?: string; email?: string }
+                    return {
+                      subtitle: `${user.name ?? ''} (${user.role ?? ''})`,
+                      details: user.email ?? '',
+                      onClick: () => {
+                        setNotificationsOpen(false)
+                        navigate('/utilisateurs')
+                      }
+                    }
+                  }
+                  return { subtitle: '', details: '', onClick: () => {} }
+                }
+                const details = getNotificationDetails()
+                return (
+                  <div
+                    key={notification.id}
+                    onClick={details.onClick}
+                    style={{
+                      padding: '12px 16px',
+                      borderBottom: `1px solid ${isDarkMode ? '#2a2a2a' : '#f0f0f0'}`,
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = isDarkMode ? '#2a2a2a' : '#f9fafb'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: '12px'
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          color: isDarkMode ? '#ffffff' : '#111827',
+                          marginBottom: '4px'
+                        }}>
+                          {notification.title}
+                        </div>
+                        <div style={{
+                          fontSize: '13px',
+                          color: isDarkMode ? '#9ca3af' : '#6b7280',
+                          marginBottom: '4px'
+                        }}>
+                          {details.subtitle}
+                        </div>
+                        <div style={{
+                          fontSize: '12px',
+                          color: isDarkMode ? '#6b7280' : '#9ca3af'
+                        }}>
+                          {details.details}
+                        </div>
+                      </div>
+                      <div style={{
+                        fontSize: '11px',
+                        color: isDarkMode ? '#6b7280' : '#9ca3af',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {timeAgo}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+          {allNotifications.length > 0 && (
+            <div style={{
+              padding: '12px 16px',
+              borderTop: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
+              textAlign: 'center'
+            }}>
+              <button
+                onClick={() => {
+                  setNotificationsOpen(false)
+                  if (allNotifications[0]?.type === 'booking') {
+                    navigate('/réservation')
+                  } else if (allNotifications[0]?.type === 'holiday') {
+                    navigate('/jours-feries')
+                  } else {
+                    navigate('/utilisateurs')
+                  }
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#284B73',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500
+                }}
+              >
+                Voir toutes les notifications
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -368,13 +612,17 @@ function MagasinsPage() {
             width: '40px',
             height: '40px',
             borderRadius: '8px',
-            background: `linear-gradient(135deg, ${orangeColor} 0%, #ff6b35 100%)`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(250, 84, 28, 0.3)'
+            boxShadow: '0 2px 8px rgba(40, 75, 115, 0.3)',
+            overflow: 'hidden'
           }}>
-            <Calendar style={{ width: '20px', height: '20px', color: '#ffffff' }} />
+            <img
+              src="/favicon.svg"
+              alt="Logo"
+              style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+            />
           </div>
           {sidebarOpen && (
             <div>
@@ -393,7 +641,6 @@ function MagasinsPage() {
             open={sidebarOpen}
             onClick={() => navigate('/dashboard')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -405,7 +652,6 @@ function MagasinsPage() {
             open={sidebarOpen}
             onClick={() => navigate('/réservation')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -417,7 +663,6 @@ function MagasinsPage() {
             open={sidebarOpen}
             onClick={() => navigate('/jours-feries')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -429,7 +674,6 @@ function MagasinsPage() {
             open={sidebarOpen}
             onClick={() => navigate('/magasins')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -441,7 +685,6 @@ function MagasinsPage() {
             open={sidebarOpen}
             onClick={() => navigate('/utilisateurs')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -496,7 +739,6 @@ function MagasinsPage() {
                 open={sidebarOpen}
                 onClick={() => navigate('/metre')}
                 isDarkMode={isDarkMode}
-                orangeColor={orangeColor}
                 textColor={textColor}
                 textSecondary={textSecondary}
               />
@@ -507,7 +749,6 @@ function MagasinsPage() {
                 open={sidebarOpen}
                 onClick={() => navigate('/pose')}
                 isDarkMode={isDarkMode}
-                orangeColor={orangeColor}
                 textColor={textColor}
                 textSecondary={textSecondary}
               />
@@ -518,7 +759,6 @@ function MagasinsPage() {
                 open={sidebarOpen}
                 onClick={() => navigate('/sav')}
                 isDarkMode={isDarkMode}
-                orangeColor={orangeColor}
                 textColor={textColor}
                 textSecondary={textSecondary}
               />
@@ -553,7 +793,6 @@ function MagasinsPage() {
               open={sidebarOpen}
               onClick={() => navigate('/parametres')}
               isDarkMode={isDarkMode}
-              orangeColor={orangeColor}
               textColor={textColor}
               textSecondary={textSecondary}
             />
@@ -574,7 +813,6 @@ function MagasinsPage() {
             open={sidebarOpen}
             onClick={handleLogout}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -654,7 +892,7 @@ function MagasinsPage() {
                         right: '-2px',
                         minWidth: '16px',
                         height: '16px',
-                        backgroundColor: '#ef4444',
+                        backgroundColor: '#284B73',
                         borderRadius: '50%',
                         display: 'flex',
                         alignItems: 'center',
@@ -807,10 +1045,11 @@ interface AdminSidebarItemProps {
   open: boolean
   onClick: () => void
   isDarkMode: boolean
-  orangeColor: string
   textColor: string
   textSecondary: string
 }
+
+const SIDEBAR_ACTIVE_COLOR = '#284B73'
 
 const AdminSidebarItem: React.FC<AdminSidebarItemProps> = ({
   Icon,
@@ -819,7 +1058,6 @@ const AdminSidebarItem: React.FC<AdminSidebarItemProps> = ({
   open,
   onClick,
   isDarkMode,
-  orangeColor,
   textColor,
   textSecondary
 }) => {
@@ -837,10 +1075,10 @@ const AdminSidebarItem: React.FC<AdminSidebarItemProps> = ({
         border: 'none',
         cursor: 'pointer',
         backgroundColor: isActive
-          ? (isDarkMode ? `${orangeColor}30` : `${orangeColor}15`)
+          ? (isDarkMode ? `${SIDEBAR_ACTIVE_COLOR}30` : `${SIDEBAR_ACTIVE_COLOR}15`)
           : 'transparent',
-        color: isActive ? orangeColor : textSecondary,
-        borderLeft: isActive ? `3px solid ${orangeColor}` : '3px solid transparent',
+        color: isActive ? SIDEBAR_ACTIVE_COLOR : textSecondary,
+        borderLeft: isActive ? `3px solid ${SIDEBAR_ACTIVE_COLOR}` : '3px solid transparent',
         transition: 'all 0.2s',
         fontSize: '14px',
         fontWeight: isActive ? 600 : 500

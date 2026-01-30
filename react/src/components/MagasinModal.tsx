@@ -127,7 +127,7 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
   const borderColor = '#1a1a1a'
   const inputBg = '#0a0a0a'
   const hoverBg = '#1a1a1a'
-  const orangeColor = '#fa541c'
+  const orangeColor = '#284B73'
 
   return (
     <div className="magasin-modal-overlay" onClick={onClose}>
@@ -213,7 +213,7 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
               marginBottom: '8px',
               display: 'block'
             }}>
-              Nom du magasin <span style={{ color: '#ef4444' }}>*</span>
+              Nom du magasin <span style={{ color: '#284B73' }}>*</span>
             </label>
             <div style={{ position: 'relative' }}>
               <input
@@ -226,24 +226,24 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
                 style={{
                   backgroundColor: inputBg,
                   color: textColor,
-                  borderColor: errors.name ? '#ef4444' : borderColor,
+                  borderColor: errors.name ? '#284B73' : borderColor,
                   width: '100%',
                   padding: '12px 16px',
                   borderRadius: '10px',
-                  border: `2px solid ${errors.name ? '#ef4444' : borderColor}`,
+                  border: `2px solid ${errors.name ? '#284B73' : borderColor}`,
                   fontSize: '15px',
                   fontWeight: 400,
                   transition: 'all 0.2s',
                   outline: 'none'
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = errors.name ? '#ef4444' : orangeColor
+                  e.currentTarget.style.borderColor = errors.name ? '#284B73' : orangeColor
                   e.currentTarget.style.boxShadow = errors.name 
                     ? `0 0 0 3px ${orangeColor}15` 
                     : `0 0 0 3px ${orangeColor}15`
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = errors.name ? '#ef4444' : borderColor
+                  e.currentTarget.style.borderColor = errors.name ? '#284B73' : borderColor
                   e.currentTarget.style.boxShadow = 'none'
                 }}
                 placeholder="Entrez le nom du magasin"
@@ -251,7 +251,7 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
             </div>
             {errors.name && (
               <span style={{ 
-                color: '#ef4444', 
+                color: '#284B73', 
                 fontSize: '13px', 
                 marginTop: '6px',
                 display: 'block',

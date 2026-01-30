@@ -4,8 +4,6 @@ import {
   Calendar,
   CalendarCheck,
   ChevronsRight,
-  Moon,
-  Sun,
   Home,
   Settings,
   LogOut,
@@ -36,7 +34,7 @@ function UtilisateursPage() {
   const [loading, setLoading] = useState<boolean>(true)
   const [selectedRole, setSelectedRole] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState<string>('')
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+  const [isDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('darkMode')
     return saved ? JSON.parse(saved) : true
   })
@@ -211,15 +209,11 @@ function UtilisateursPage() {
 
   const getRoleBadgeColor = (role: string): string => {
     const roleColors: { [key: string]: string } = {
-      'admin': '#fa541c',
+      'admin': '#284B73',
       'concepteur': '#17a2b8',
       'technicien': '#28a745'
     }
     return roleColors[role] || '#6c757d'
-  }
-
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode)
   }
 
   const handleLogout = () => {
@@ -289,7 +283,7 @@ function UtilisateursPage() {
 
   const [orangeColor, setOrangeColor] = useState<string>(() => {
     const saved = localStorage.getItem('accentColor')
-    return saved || '#fa541c'
+    return saved || '#284B73'
   })
 
   // Listen for settings updates
@@ -320,7 +314,7 @@ function UtilisateursPage() {
   const bgColor = isDarkMode ? '#000000' : '#f5f5f5'
   const textColor = isDarkMode ? '#ffffff' : '#111827'
   const textSecondary = isDarkMode ? '#9ca3af' : '#6b7280'
-  const borderColor = isDarkMode ? '#333333' : '#e5e7eb'
+  const borderColor = isDarkMode ? '#BA4E8E' : '#e5e7eb'
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', width: '100%', backgroundColor: bgColor }}>
@@ -387,7 +381,7 @@ function UtilisateursPage() {
               width: '32px',
               height: '32px',
               borderRadius: '8px',
-              background: `linear-gradient(135deg, ${orangeColor} 0%, #ff6b35 100%)`,
+              background: `linear-gradient(135deg, ${orangeColor} 0%, #284B73 100%)`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -422,7 +416,7 @@ function UtilisateursPage() {
                   right: '-2px',
                   minWidth: '16px',
                   height: '16px',
-                  backgroundColor: '#ef4444',
+                  backgroundColor: '#284B73',
                   borderRadius: '50%',
                   display: 'flex',
                   alignItems: 'center',
@@ -468,7 +462,7 @@ function UtilisateursPage() {
             left: '16px',
             maxHeight: 'calc(100vh - 80px)',
             backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-            border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+            border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
             borderRadius: '12px',
             boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
             zIndex: 1001,
@@ -479,7 +473,7 @@ function UtilisateursPage() {
         >
           <div style={{
             padding: '16px',
-            borderBottom: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+            borderBottom: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center'
@@ -495,7 +489,7 @@ function UtilisateursPage() {
             {unreadCount > 0 && (
               <span style={{
                 fontSize: '12px',
-                color: '#ef4444',
+                color: '#284B73',
                 fontWeight: 600
               }}>
                 {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
@@ -625,7 +619,7 @@ function UtilisateursPage() {
           {allNotifications.length > 0 && (
             <div style={{
               padding: '12px 16px',
-              borderTop: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+              borderTop: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
               textAlign: 'center'
             }}>
               <button
@@ -642,7 +636,7 @@ function UtilisateursPage() {
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: '#fa541c',
+                  color: '#284B73',
                   cursor: 'pointer',
                   fontSize: '14px',
                   fontWeight: 500
@@ -690,13 +684,17 @@ function UtilisateursPage() {
             width: '40px',
             height: '40px',
             borderRadius: '8px',
-            background: `linear-gradient(135deg, ${orangeColor} 0%, #ff6b35 100%)`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(250, 84, 28, 0.3)'
+            boxShadow: '0 2px 8px rgba(40, 75, 115, 0.3)',
+            overflow: 'hidden'
           }}>
-            <Calendar style={{ width: '20px', height: '20px', color: '#ffffff' }} />
+            <img
+              src="/favicon.svg"
+              alt="Logo"
+              style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+            />
           </div>
           {sidebarOpen && (
             <div>
@@ -715,7 +713,6 @@ function UtilisateursPage() {
             open={sidebarOpen}
             onClick={() => navigate('/dashboard')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -727,7 +724,6 @@ function UtilisateursPage() {
             open={sidebarOpen}
             onClick={() => navigate('/réservation')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -739,7 +735,6 @@ function UtilisateursPage() {
             open={sidebarOpen}
             onClick={() => navigate('/jours-feries')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -751,7 +746,6 @@ function UtilisateursPage() {
             open={sidebarOpen}
             onClick={() => navigate('/magasins')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -763,7 +757,6 @@ function UtilisateursPage() {
             open={sidebarOpen}
             onClick={() => navigate('/utilisateurs')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -818,7 +811,6 @@ function UtilisateursPage() {
                 open={sidebarOpen}
                 onClick={() => navigate('/metre')}
                 isDarkMode={isDarkMode}
-                orangeColor={orangeColor}
                 textColor={textColor}
                 textSecondary={textSecondary}
               />
@@ -829,7 +821,6 @@ function UtilisateursPage() {
                 open={sidebarOpen}
                 onClick={() => navigate('/pose')}
                 isDarkMode={isDarkMode}
-                orangeColor={orangeColor}
                 textColor={textColor}
                 textSecondary={textSecondary}
               />
@@ -840,7 +831,6 @@ function UtilisateursPage() {
                 open={sidebarOpen}
                 onClick={() => navigate('/sav')}
                 isDarkMode={isDarkMode}
-                orangeColor={orangeColor}
                 textColor={textColor}
                 textSecondary={textSecondary}
               />
@@ -875,7 +865,6 @@ function UtilisateursPage() {
             open={sidebarOpen}
             onClick={() => navigate('/parametres')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -896,7 +885,6 @@ function UtilisateursPage() {
             open={sidebarOpen}
             onClick={handleLogout}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -958,7 +946,7 @@ function UtilisateursPage() {
                     padding: '8px',
                     borderRadius: '8px',
                     backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                     color: isDarkMode ? '#9ca3af' : '#6b7280',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
@@ -983,7 +971,7 @@ function UtilisateursPage() {
                       right: '-4px',
                       minWidth: '18px',
                       height: '18px',
-                      backgroundColor: '#ef4444',
+                      backgroundColor: '#284B73',
                       borderRadius: '50%',
                       display: 'flex',
                       alignItems: 'center',
@@ -1009,7 +997,7 @@ function UtilisateursPage() {
                       width: '380px',
                       maxHeight: '500px',
                       backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                      border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                      border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                       borderRadius: '12px',
                       boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
                       zIndex: 1000,
@@ -1020,7 +1008,7 @@ function UtilisateursPage() {
                   >
                     <div style={{
                       padding: '16px',
-                      borderBottom: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                      borderBottom: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center'
@@ -1036,7 +1024,7 @@ function UtilisateursPage() {
                       {unreadCount > 0 && (
                         <span style={{
                           fontSize: '12px',
-                          color: '#ef4444',
+                          color: '#284B73',
                           fontWeight: 600
                         }}>
                           {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
@@ -1175,7 +1163,7 @@ function UtilisateursPage() {
                     {allNotifications.length > 0 && (
                       <div style={{
                         padding: '12px 16px',
-                        borderTop: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                        borderTop: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                         textAlign: 'center'
                       }}>
                         <button
@@ -1192,7 +1180,7 @@ function UtilisateursPage() {
                           style={{
                             background: 'transparent',
                             border: 'none',
-                            color: '#fa541c',
+                            color: '#284B73',
                             cursor: 'pointer',
                             fontSize: '14px',
                             fontWeight: 500
@@ -1210,7 +1198,7 @@ function UtilisateursPage() {
                     padding: '8px',
                     borderRadius: '8px',
                     backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                     color: isDarkMode ? '#9ca3af' : '#6b7280',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
@@ -1357,10 +1345,11 @@ interface AdminSidebarItemProps {
   open: boolean
   onClick: () => void
   isDarkMode: boolean
-  orangeColor: string
   textColor: string
   textSecondary: string
 }
+
+const SIDEBAR_ACTIVE_COLOR = '#284B73'
 
 const AdminSidebarItem: React.FC<AdminSidebarItemProps> = ({
   Icon,
@@ -1369,7 +1358,6 @@ const AdminSidebarItem: React.FC<AdminSidebarItemProps> = ({
   open,
   onClick,
   isDarkMode,
-  orangeColor,
   textColor,
   textSecondary
 }) => {
@@ -1387,10 +1375,10 @@ const AdminSidebarItem: React.FC<AdminSidebarItemProps> = ({
         border: 'none',
         cursor: 'pointer',
         backgroundColor: isActive
-          ? (isDarkMode ? `${orangeColor}30` : `${orangeColor}15`)
+          ? (isDarkMode ? `${SIDEBAR_ACTIVE_COLOR}30` : `${SIDEBAR_ACTIVE_COLOR}15`)
           : 'transparent',
-        color: isActive ? orangeColor : textSecondary,
-        borderLeft: isActive ? `3px solid ${orangeColor}` : '3px solid transparent',
+        color: isActive ? SIDEBAR_ACTIVE_COLOR : textSecondary,
+        borderLeft: isActive ? `3px solid ${SIDEBAR_ACTIVE_COLOR}` : '3px solid transparent',
         transition: 'all 0.2s',
         fontSize: '14px',
         fontWeight: isActive ? 600 : 500

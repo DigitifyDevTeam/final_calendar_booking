@@ -45,7 +45,7 @@
 .orb-1 {
   width: 500px;
   height: 500px;
-  background: linear-gradient(135deg, #fa541c 0%, #ff6b35 100%);
+  background: linear-gradient(135deg, #284B73 0%, #284B73 100%);
   top: -200px;
   left: -200px;
   animation-delay: 0s;
@@ -119,13 +119,21 @@
 .logo-wrapper {
   display: flex;
   justify-content: center;
+  align-items: center;
   margin-bottom: 24px;
+}
+
+.logo-wrapper .logo-image {
+  width: 200px;
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 .logo-icon {
   width: 64px;
   height: 64px;
-  background: linear-gradient(135deg, #fa541c 0%, #ff6b35 100%);
+  background: linear-gradient(135deg, #284B73 0%, #284B73 100%);
   border-radius: 16px;
   display: flex;
   align-items: center;
@@ -234,7 +242,7 @@
 }
 
 .form-input:focus {
-  border-color: #fa541c;
+  border-color: #284B73;
   box-shadow: 0 0 0 4px rgba(250, 84, 28, 0.1);
   transform: translateY(-1px);
 }
@@ -244,7 +252,7 @@
 }
 
 .form-input.input-error {
-  border-color: #ef4444;
+  border-color: #284B73;
   animation: shake 0.4s ease;
 }
 
@@ -278,7 +286,7 @@
 }
 
 .password-toggle:hover {
-  color: #fa541c;
+  color: #284B73;
 }
 
 .password-toggle svg {
@@ -288,7 +296,7 @@
 
 .error-message {
   font-size: 13px;
-  color: #ef4444;
+  color: #284B73;
   margin-top: 4px;
   display: flex;
   align-items: center;
@@ -350,7 +358,7 @@
   width: 18px;
   height: 18px;
   cursor: pointer;
-  accent-color: #fa541c;
+  accent-color: #284B73;
 }
 
 .checkbox-label {
@@ -359,14 +367,14 @@
 }
 
 .forgot-password {
-  color: #fa541c;
+  color: #284B73;
   text-decoration: none;
   font-weight: 600;
   transition: all 0.3s ease;
 }
 
 .forgot-password:hover {
-  color: #ff6b35;
+  color: #284B73;
   text-decoration: underline;
 }
 
@@ -376,7 +384,7 @@
   font-size: 16px;
   font-weight: 600;
   color: white;
-  background: linear-gradient(135deg, #fa541c 0%, #ff6b35 100%);
+  background: linear-gradient(135deg, #284B73 0%, #284B73 100%);
   border: none;
   border-radius: 12px;
   cursor: pointer;
@@ -408,7 +416,7 @@
 
 .login-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 24px rgba(250, 84, 28, 0.5);
+  box-shadow: 0 6px 24px rgba(40, 75, 115, 0.5);
 }
 
 .login-button:active {
@@ -461,14 +469,14 @@
 }
 
 .signup-link {
-  color: #fa541c;
+  color: #284B73;
   text-decoration: none;
   font-weight: 600;
   transition: all 0.3s ease;
 }
 
 .signup-link:hover {
-  color: #ff6b35;
+  color: #284B73;
   text-decoration: underline;
 }
 
@@ -516,6 +524,11 @@
     font-size: 24px;
   }
 
+  .logo-wrapper .logo-image {
+    width: 160px;
+    max-width: 100%;
+  }
+
   .logo-icon {
     width: 56px;
     height: 56px;
@@ -536,7 +549,7 @@
 .forgot-password-button {
   background: none;
   border: none;
-  color: #FF6B35;
+  color: #284B73;
   font-size: 14px;
   cursor: pointer;
   padding: 4px 0;
@@ -545,7 +558,7 @@
 }
 
 .forgot-password-button:hover {
-  color: #F7931E;
+  color: #284B73;
 }
 
 .forgot-password-button:active {
@@ -667,7 +680,7 @@
 
 .password-reset-error {
   background-color: #fee2e2;
-  border: 1px solid #ef4444;
+  border: 1px solid #284B73;
   color: #991b1b;
   padding: 12px 16px;
   border-radius: 8px;
@@ -716,7 +729,7 @@
   flex: 1;
   padding: 12px 24px;
   border: none;
-  background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+  background: linear-gradient(135deg, #284B73 0%, #F7931E 100%);
   color: white;
   border-radius: 8px;
   font-size: 14px;
@@ -730,9 +743,9 @@
 }
 
 .password-reset-submit:hover:not(:disabled) {
-  background: linear-gradient(135deg, #F7931E 0%, #FF6B35 100%);
+  background: linear-gradient(135deg, #284B73 0%, #284B73 100%);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+  box-shadow: 0 4px 12px rgba(40, 75, 115, 0.3);
 }
 
 .password-reset-submit:active:not(:disabled) {

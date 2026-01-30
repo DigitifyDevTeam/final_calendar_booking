@@ -13,7 +13,7 @@
 .snowflake {
   position: absolute;
   top: -20px;
-  color: #fa541c;
+  color: #284B73;
   opacity: 0.6;
   font-size: inherit;
   animation: fall linear infinite;
@@ -37,7 +37,7 @@
 /* Twinkling stars */
 .star {
   position: absolute;
-  color: #fa541c;
+  color: #284B73;
   animation: twinkle 2s ease-in-out infinite;
   user-select: none;
 }
@@ -120,7 +120,7 @@
 .corner-decoration {
   position: fixed;
   font-size: 1.5rem;
-  color: #fa541c;
+  color: #284B73;
   animation: sparkle 3s ease-in-out infinite;
   user-select: none;
   filter: drop-shadow(0 0 8px rgba(250, 84, 28, 0.6));

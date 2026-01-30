@@ -6,8 +6,6 @@ import {
   Calendar,
   CalendarCheck,
   ChevronsRight,
-  Moon,
-  Sun,
   Home,
   Settings,
   LogOut,
@@ -26,7 +24,7 @@ import './AdminPage.css'
 function HolidaysPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+  const [isDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('darkMode')
     return saved ? JSON.parse(saved) : true
   })
@@ -237,10 +235,6 @@ function HolidaysPage() {
     })
   }
 
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode)
-  }
-
   const handleLogout = () => {
     sessionStorage.removeItem('user')
     navigate('/')
@@ -258,7 +252,7 @@ function HolidaysPage() {
 
   const [orangeColor, setOrangeColor] = useState<string>(() => {
     const saved = localStorage.getItem('accentColor')
-    return saved || '#fa541c'
+    return saved || '#284B73'
   })
 
   // Listen for settings updates
@@ -289,7 +283,7 @@ function HolidaysPage() {
   const bgColor = isDarkMode ? '#000000' : '#f5f5f5'
   const textColor = isDarkMode ? '#ffffff' : '#111827'
   const textSecondary = isDarkMode ? '#9ca3af' : '#6b7280'
-  const borderColor = isDarkMode ? '#333333' : '#e5e7eb'
+  const borderColor = isDarkMode ? '#BA4E8E' : '#e5e7eb'
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', width: '100%', backgroundColor: bgColor }}>
@@ -356,7 +350,7 @@ function HolidaysPage() {
               width: '32px',
               height: '32px',
               borderRadius: '8px',
-              background: `linear-gradient(135deg, ${orangeColor} 0%, #ff6b35 100%)`,
+              background: `linear-gradient(135deg, ${orangeColor} 0%, #284B73 100%)`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -391,7 +385,7 @@ function HolidaysPage() {
                   right: '-2px',
                   minWidth: '16px',
                   height: '16px',
-                  backgroundColor: '#ef4444',
+                  backgroundColor: '#284B73',
                   borderRadius: '50%',
                   display: 'flex',
                   alignItems: 'center',
@@ -437,7 +431,7 @@ function HolidaysPage() {
             left: '16px',
             maxHeight: 'calc(100vh - 80px)',
             backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-            border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+            border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
             borderRadius: '12px',
             boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
             zIndex: 1001,
@@ -448,7 +442,7 @@ function HolidaysPage() {
         >
           <div style={{
             padding: '16px',
-            borderBottom: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+            borderBottom: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center'
@@ -464,7 +458,7 @@ function HolidaysPage() {
             {unreadCount > 0 && (
               <span style={{
                 fontSize: '12px',
-                color: '#ef4444',
+                color: '#284B73',
                 fontWeight: 600
               }}>
                 {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
@@ -577,7 +571,7 @@ function HolidaysPage() {
           {allNotifications.length > 0 && (
             <div style={{
               padding: '12px 16px',
-              borderTop: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+              borderTop: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
               textAlign: 'center'
             }}>
               <button
@@ -594,7 +588,7 @@ function HolidaysPage() {
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: '#fa541c',
+                  color: '#284B73',
                   cursor: 'pointer',
                   fontSize: '14px',
                   fontWeight: 500
@@ -642,13 +636,17 @@ function HolidaysPage() {
             width: '40px',
             height: '40px',
             borderRadius: '8px',
-            background: `linear-gradient(135deg, ${orangeColor} 0%, #ff6b35 100%)`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(250, 84, 28, 0.3)'
+            boxShadow: '0 2px 8px rgba(40, 75, 115, 0.3)',
+            overflow: 'hidden'
           }}>
-            <Calendar style={{ width: '20px', height: '20px', color: '#ffffff' }} />
+            <img
+              src="/favicon.svg"
+              alt="Logo"
+              style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+            />
           </div>
           {sidebarOpen && (
             <div>
@@ -667,7 +665,6 @@ function HolidaysPage() {
             open={sidebarOpen}
             onClick={() => navigate('/dashboard')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -679,7 +676,6 @@ function HolidaysPage() {
             open={sidebarOpen}
             onClick={() => navigate('/réservation')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -691,7 +687,6 @@ function HolidaysPage() {
             open={sidebarOpen}
             onClick={() => navigate('/jours-feries')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -703,7 +698,6 @@ function HolidaysPage() {
             open={sidebarOpen}
             onClick={() => navigate('/magasins')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -715,7 +709,6 @@ function HolidaysPage() {
             open={sidebarOpen}
             onClick={() => navigate('/utilisateurs')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -770,7 +763,6 @@ function HolidaysPage() {
                 open={sidebarOpen}
                 onClick={() => navigate('/metre')}
                 isDarkMode={isDarkMode}
-                orangeColor={orangeColor}
                 textColor={textColor}
                 textSecondary={textSecondary}
               />
@@ -781,7 +773,6 @@ function HolidaysPage() {
                 open={sidebarOpen}
                 onClick={() => navigate('/pose')}
                 isDarkMode={isDarkMode}
-                orangeColor={orangeColor}
                 textColor={textColor}
                 textSecondary={textSecondary}
               />
@@ -792,7 +783,6 @@ function HolidaysPage() {
                 open={sidebarOpen}
                 onClick={() => navigate('/sav')}
                 isDarkMode={isDarkMode}
-                orangeColor={orangeColor}
                 textColor={textColor}
                 textSecondary={textSecondary}
               />
@@ -827,7 +817,6 @@ function HolidaysPage() {
             open={sidebarOpen}
             onClick={() => navigate('/parametres')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -848,7 +837,6 @@ function HolidaysPage() {
             open={sidebarOpen}
             onClick={handleLogout}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -910,7 +898,7 @@ function HolidaysPage() {
                     padding: '8px',
                     borderRadius: '8px',
                     backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                     color: isDarkMode ? '#9ca3af' : '#6b7280',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
@@ -935,7 +923,7 @@ function HolidaysPage() {
                       right: '-4px',
                       minWidth: '18px',
                       height: '18px',
-                      backgroundColor: '#ef4444',
+                      backgroundColor: '#284B73',
                       borderRadius: '50%',
                       display: 'flex',
                       alignItems: 'center',
@@ -961,7 +949,7 @@ function HolidaysPage() {
                     width: isMobile ? 'min(420px, calc(100vw - 24px))' : '380px',
                     maxHeight: '70vh',
                     backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                     borderRadius: '12px',
                     boxShadow: '0 12px 30px rgba(0, 0, 0, 0.25)',
                     zIndex: 3000,
@@ -971,7 +959,7 @@ function HolidaysPage() {
                   }}>
                     <div style={{
                       padding: '16px',
-                      borderBottom: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                      borderBottom: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center'
@@ -987,7 +975,7 @@ function HolidaysPage() {
                       {unreadCount > 0 && (
                         <span style={{
                           fontSize: '12px',
-                          color: '#ef4444',
+                          color: '#284B73',
                           fontWeight: 600
                         }}>
                           {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
@@ -1066,7 +1054,7 @@ function HolidaysPage() {
                               }}
                               style={{
                                 padding: '12px 16px',
-                                borderBottom: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                                borderBottom: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                                 cursor: 'pointer',
                                 backgroundColor: isDarkMode ? '#111111' : '#ffffff',
                                 transition: 'background-color 0.2s'
@@ -1094,7 +1082,7 @@ function HolidaysPage() {
                     {allNotifications.length > 0 && (
                       <div style={{
                         padding: '12px 16px',
-                        borderTop: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                        borderTop: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                         textAlign: 'center'
                       }}>
                         <button
@@ -1111,7 +1099,7 @@ function HolidaysPage() {
                           style={{
                             background: 'transparent',
                             border: 'none',
-                            color: '#fa541c',
+                            color: '#284B73',
                             cursor: 'pointer',
                             fontSize: '14px',
                             fontWeight: 500
@@ -1129,7 +1117,7 @@ function HolidaysPage() {
                     padding: '8px',
                     borderRadius: '8px',
                     backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                     color: isDarkMode ? '#9ca3af' : '#6b7280',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
@@ -1300,10 +1288,11 @@ interface HolidaysSidebarItemProps {
   open: boolean
   onClick: () => void
   isDarkMode: boolean
-  orangeColor: string
   textColor: string
   textSecondary: string
 }
+
+const SIDEBAR_ACTIVE_COLOR = '#284B73'
 
 const HolidaysSidebarItem: React.FC<HolidaysSidebarItemProps> = ({
   Icon,
@@ -1312,7 +1301,6 @@ const HolidaysSidebarItem: React.FC<HolidaysSidebarItemProps> = ({
   open,
   onClick,
   isDarkMode,
-  orangeColor,
   textColor,
   textSecondary
 }) => {
@@ -1330,10 +1318,10 @@ const HolidaysSidebarItem: React.FC<HolidaysSidebarItemProps> = ({
         border: 'none',
         cursor: 'pointer',
         backgroundColor: isActive
-          ? (isDarkMode ? `${orangeColor}30` : `${orangeColor}15`)
+          ? (isDarkMode ? `${SIDEBAR_ACTIVE_COLOR}30` : `${SIDEBAR_ACTIVE_COLOR}15`)
           : 'transparent',
-        color: isActive ? orangeColor : textSecondary,
-        borderLeft: isActive ? `3px solid ${orangeColor}` : '3px solid transparent',
+        color: isActive ? SIDEBAR_ACTIVE_COLOR : textSecondary,
+        borderLeft: isActive ? `3px solid ${SIDEBAR_ACTIVE_COLOR}` : '3px solid transparent',
         transition: 'all 0.2s',
         fontSize: '14px',
         fontWeight: isActive ? 600 : 500

@@ -32,7 +32,35 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
   const isSavCalendar = ['calendar2', '2'].includes(booking.calendar_id || '')
   const isMetreCalendar = ['calendar3', '3'].includes(booking.calendar_id || '')
   const isAlreadyFinished = (booking as any).status === 'termine'
-  const canFinish = (isPoseCalendar || isSavCalendar || isMetreCalendar) && !isAlreadyFinished
+
+  // SAV and Metré: technicien can click "Terminer" only on the same day as the reservation date
+  // Pose: technicien can click "Terminer" on the day of the reservation OR the next day (J or J+1) only
+  const isSavOrMetre = isSavCalendar || isMetreCalendar
+  const isSameDayAsReservation = (() => {
+    if (!booking.date) return false
+    const today = new Date()
+    const resDate = new Date(booking.date + 'T00:00:00')
+    return today.getFullYear() === resDate.getFullYear() &&
+           today.getMonth() === resDate.getMonth() &&
+           today.getDate() === resDate.getDate()
+  })()
+  const isSameDayOrNextDay = (() => {
+    if (!booking.date) return false
+    const today = new Date()
+    const resDate = new Date(booking.date + 'T00:00:00')
+    const nextDay = new Date(resDate)
+    nextDay.setDate(nextDay.getDate() + 1)
+    const sameDay = today.getFullYear() === resDate.getFullYear() &&
+      today.getMonth() === resDate.getMonth() && today.getDate() === resDate.getDate()
+    const nextDayMatch = today.getFullYear() === nextDay.getFullYear() &&
+      today.getMonth() === nextDay.getMonth() && today.getDate() === nextDay.getDate()
+    return sameDay || nextDayMatch
+  })()
+  const canFinish = (isPoseCalendar || isSavCalendar || isMetreCalendar) && !isAlreadyFinished &&
+    (isPoseCalendar ? isSameDayOrNextDay : isSameDayAsReservation)
+  const showFinishDisabled = !isAlreadyFinished && (
+    (isSavOrMetre && !isSameDayAsReservation) || (isPoseCalendar && !isSameDayOrNextDay)
+  )
 
   const formatDate = (dateStr: string): string => {
     try {
@@ -98,7 +126,7 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
 
           {booking.calendar_id === 'calendar2' && (
             <div className="info-group">
-              <div className="info-label">Pose non effectuée par Wood agency</div>
+              <div className="info-label">Pose effectuée par Wood agency</div>
               <div className="info-value">
                 {booking.pose_effectue_par_wood_agency === null || booking.pose_effectue_par_wood_agency === undefined 
                   ? '-' 
@@ -133,6 +161,17 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
               Terminer
             </button>
           )}
+          {showFinishDisabled && (
+            <button
+              className="finish-action-button"
+              disabled
+              title={isPoseCalendar
+                ? 'Vous ne pouvez terminer que le jour de la réservation ou le lendemain (J ou J+1)'
+                : 'Vous ne pouvez terminer que le jour même de la réservation'}
+            >
+              Terminer
+            </button>
+          )}
           <button className="close-action-button" onClick={onClose}>
             Fermer
           </button>
@@ -144,6 +183,7 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
         onClose={() => setIsCompleteModalOpen(false)}
         bookingId={booking.id}
         bookingCalendarId={booking.calendar_id}
+        bookingDate={booking.date}
         bookingStatus={(booking as any).status || 'en_attente'}
         isDarkMode={isDarkMode}
         onFinish={async (payload) => {

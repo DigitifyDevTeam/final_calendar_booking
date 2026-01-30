@@ -15,6 +15,7 @@ import UtilisateursPage from './pages/UtilisateursPage'
 import SettingsPage from './pages/SettingsPage'
 import HolidaysPage from './pages/HolidaysPage'
 import MagasinsPage from './pages/MagasinsPage'
+import RecherchePage from './pages/RecherchePage'
 import './utils/resetBookings' // Makes resetAllBookings() available in browser console
 
 // Force light mode as the only theme
@@ -28,6 +29,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/" element={<RoleBasedRoute />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/calendrier" element={<ProtectedRoute><CalendarRoute /></ProtectedRoute>} />
+        <Route path="/rechercher" element={<ProtectedRoute><RecherchePage /></ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute requireAdmin={true}><DashbordPage /></ProtectedRoute>} />
         <Route path="/réservation" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
         <Route path="/jours-feries" element={<ProtectedRoute requireAdmin={true}><HolidaysPage /></ProtectedRoute>} />

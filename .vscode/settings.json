@@ -46,7 +46,7 @@
   "terminal.integrated.rightClickBehavior": "default",
   
   // Editor Cursor Settings
-  "editor.cursorColor": "#fa541c",
+  "editor.cursorColor": "#284B73",
   "editor.cursorStyle": "line",
   "editor.cursorWidth": 2,
   "editor.cursorBlinking": "smooth",
@@ -54,29 +54,29 @@
   // Diff Editor Colors (for showing changes)
   "diffEditor.insertedTextBackground": "#10b98120",
   "diffEditor.insertedTextBorder": "#10b98140",
-  "diffEditor.removedTextBackground": "#ef444430",
-  "diffEditor.removedTextBorder": "#ef4444",
-  "diffEditor.removedTextForeground": "#ef4444",
-  "diffEditor.modifiedTextBackground": "#fa541c20",
-  "diffEditor.modifiedTextBorder": "#fa541c40",
+  "diffEditor.removedTextBackground": "#284B7330",
+  "diffEditor.removedTextBorder": "#284B73",
+  "diffEditor.removedTextForeground": "#284B73",
+  "diffEditor.modifiedTextBackground": "#284B7320",
+  "diffEditor.modifiedTextBorder": "#284B7340",
   
   // Git Colors (for change indicators)
   "git.decorations.addedResourceForeground": "#10b981",
-  "git.decorations.modifiedResourceForeground": "#fa541c",
-  "git.decorations.deletedResourceForeground": "#ef4444",
+  "git.decorations.modifiedResourceForeground": "#284B73",
+  "git.decorations.deletedResourceForeground": "#284B73",
   
   // Editor Selection Colors
-  "editor.selectionBackground": "#fa541c40",
-  "editor.selectionHighlightBackground": "#fa541c20",
-  "editor.wordHighlightBackground": "#fa541c15",
-  "editor.wordHighlightStrongBackground": "#fa541c25",
+  "editor.selectionBackground": "#284B7340",
+  "editor.selectionHighlightBackground": "#284B7320",
+  "editor.wordHighlightBackground": "#284B7315",
+  "editor.wordHighlightStrongBackground": "#284B7325",
   
   // Workbench Colors for Diff (more reliable)
   "workbench.colorCustomizations": {
-    "diffEditor.removedTextBackground": "#ef444430",
-    "diffEditor.removedTextBorder": "#ef4444",
-    "diffEditor.removed": "#ef4444",
-    "diffEditor.removedLineBackground": "#ef444420"
+    "diffEditor.removedTextBackground": "#284B7330",
+    "diffEditor.removedTextBorder": "#284B73",
+    "diffEditor.removed": "#284B73",
+    "diffEditor.removedLineBackground": "#284B7320"
   }
 }
 

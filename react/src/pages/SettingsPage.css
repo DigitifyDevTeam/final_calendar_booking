@@ -82,7 +82,7 @@
   font-weight: 700;
   margin: 0 0 4px 0;
   color: var(--text-color, #111827);
-  background: linear-gradient(135deg, #fa541c 0%, #ff6b35 100%);
+  background: linear-gradient(135deg, #284B73 0%, #284B73 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -149,7 +149,7 @@
 }
 
 .section-header svg {
-  color: var(--accent-color, #fa541c);
+  color: var(--accent-color, #284B73);
   flex-shrink: 0;
 }
 
@@ -205,7 +205,7 @@
 }
 
 .setting-info svg {
-  color: var(--accent-color, #fa541c);
+  color: var(--accent-color, #284B73);
   flex-shrink: 0;
 }
 
@@ -235,8 +235,8 @@
 }
 
 .setting-input:focus {
-  border-color: var(--accent-color, #fa541c);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color, #fa541c) 10%, transparent);
+  border-color: var(--accent-color, #284B73);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color, #284B73) 10%, transparent);
 }
 
 .toggle-switch {
@@ -252,7 +252,7 @@
 }
 
 .toggle-switch.active {
-  background: #fa541c;
+  background: #284B73;
 }
 
 .toggle-slider {
@@ -277,18 +277,18 @@
   padding: 10px 20px;
   border-radius: 8px;
   border: none;
-  background: #fa541c;
+  background: #284B73;
   color: #ffffff;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(250, 84, 28, 0.3);
+  box-shadow: 0 2px 8px rgba(40, 75, 115, 0.3);
 }
 
 .save-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(250, 84, 28, 0.4);
+  box-shadow: 0 4px 12px rgba(40, 75, 115, 0.4);
 }
 
 .save-button:disabled {
@@ -310,17 +310,17 @@
   --card-bg: #111111;
   --text-color: #ffffff;
   --text-secondary: #9ca3af;
-  --border-color: #333333;
+  --border-color: #BA4E8E;
 }
 
 .settings-page.dark-mode .settings-header {
   background: #000000;
-  border-bottom-color: #333333;
+  border-bottom-color: #BA4E8E;
 }
 
 .settings-page.dark-mode .settings-card {
   background: #111111;
-  border-color: #333333;
+  border-color: #BA4E8E;
 }
 
 .settings-page.dark-mode .settings-card:hover {
@@ -329,17 +329,17 @@
 
 .settings-page.dark-mode .setting-input {
   background: #1a1a1a;
-  border-color: #333333;
+  border-color: #BA4E8E;
   color: #ffffff;
 }
 
 .settings-page.dark-mode .setting-input:focus {
-  border-color: var(--accent-color, #fa541c);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color, #fa541c) 20%, transparent);
+  border-color: var(--accent-color, #284B73);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color, #284B73) 20%, transparent);
 }
 
 .settings-page.dark-mode .toggle-switch {
-  background: #333333;
+  background: #BA4E8E;
 }
 
 /* Color Palette Styles */

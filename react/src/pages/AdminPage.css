@@ -11,7 +11,7 @@
 
 .admin-page.light-mode {
   background: #f5f5f5;
-  color: #333333;
+  color: #BA4E8E;
 }
 
 .admin-header {
@@ -22,7 +22,7 @@
 }
 
 .admin-page.dark-mode .admin-header {
-  border-color: #333333;
+  border-color: #BA4E8E;
 }
 
 .admin-page.light-mode .admin-header {
@@ -135,7 +135,7 @@
 
 .admin-page.light-mode .home-button {
   background: #ffffff;
-  color: #333333;
+  color: #BA4E8E;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -161,7 +161,7 @@
 
 .admin-page.light-mode .theme-toggle {
   background: #ffffff;
-  color: #333333;
+  color: #BA4E8E;
   border: 1px solid #e0e0e0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
@@ -377,7 +377,7 @@
 .admin-page.light-mode .filter-group input {
   background: #ffffff;
   border-color: #d0d0d0;
-  color: #333333;
+  color: #BA4E8E;
 }
 
 .filter-group select:focus,
@@ -573,11 +573,15 @@
 
 .admin-page.light-mode .bookings-table th {
   border-color: #e0e0e0;
-  color: #333333;
+  color: #BA4E8E;
+}
+
+.bookings-table th .sortable-th {
+  color: inherit;
 }
 
 .bookings-table td {
-  padding: 15px;
+  padding: 10px;
   border-bottom: 1px solid;
   transition: border-color 0.3s ease;
 }
@@ -636,12 +640,12 @@
 }
 
 .admin-page.dark-mode .calendar-badge {
-  background: #fa541c;
+  background: #284B73;
   color: white;
 }
 
 .admin-page.light-mode .calendar-badge {
-  background: #fa541c;
+  background: #284B73;
   color: white;
 }
 
@@ -1378,7 +1382,7 @@
 .admin-page.light-mode .form-group select {
   background: #ffffff;
   border-color: #d0d0d0;
-  color: #333333;
+  color: #BA4E8E;
 }
 
 .form-group input:focus,
@@ -1520,7 +1524,7 @@
 
 .admin-page.light-mode .holidays-table th {
   border-color: #e0e0e0;
-  color: #333333;
+  color: #BA4E8E;
 }
 
 .holidays-table td {

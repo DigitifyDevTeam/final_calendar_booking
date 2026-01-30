@@ -5,7 +5,7 @@ import BookingModal from '../components/BookingModal'
 import NoelDecorations from '../components/NoelDecorations'
 import { addBooking, getBinId as getBinIdFromConfig, type BookingData } from '../services/bookingService'
 import { getAllUsers, UserRecord } from '../services/userService'
-import { Sun, Moon, LogOut, Search, X } from 'lucide-react'
+import { LogOut, Search, X } from 'lucide-react'
 import '../App.css'
 
 interface Calendar3PageProps {
@@ -155,7 +155,7 @@ function Calendar3Page({ disableAnimations = false, isAdminView = false }: Calen
       {!isAdminView && (
       <div className="app-logo">
         <img 
-          src="https://cdn.prod.website-files.com/5bf555ae8892f8064dda7415/5fbfc91e9d2e7ae94b22dbb4_logo.svg" 
+          src="/logo.svg" 
           alt="Logo" 
           className="logo-image"
         />
@@ -188,7 +188,7 @@ function Calendar3Page({ disableAnimations = false, isAdminView = false }: Calen
               <p>Sélectionnez une date pour réserver votre rendez-vous</p>
             </div>
             )}
-            {userRole === 'concepteur' && (
+            {(userRole === 'concepteur' || userRole === 'technicien') && (
               <div style={{
                 position: 'relative',
                 width: '100%',
@@ -280,7 +280,7 @@ function Calendar3Page({ disableAnimations = false, isAdminView = false }: Calen
                 padding: '8px',
                 borderRadius: '8px',
                 backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                 color: isDarkMode ? '#9ca3af' : '#6b7280',
                 cursor: 'pointer',
                 transition: 'all 0.2s',

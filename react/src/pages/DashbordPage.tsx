@@ -13,8 +13,6 @@ import {
   Calendar,
   CalendarCheck,
   ChevronsRight,
-  Moon,
-  Sun,
   Home,
   Settings,
   LogOut,
@@ -34,7 +32,7 @@ import './DashbordPage.css'
 function DashbordPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+  const [isDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('darkMode')
     return saved ? JSON.parse(saved) : true
   })
@@ -62,7 +60,7 @@ function DashbordPage() {
   const [magasinComparison, setMagasinComparison] = useState<
     Array<{ magasinId: number; magasinName: string; concepteurs: Array<{ name: string; pose: number; sav: number; metre: number; total: number }>; total: number }>
   >([])
-  const [topMagasinsSav, setTopMagasinsSav] = useState<
+  const [, setTopMagasinsSav] = useState<
     Array<{ magasinId: number; magasinName: string; savCount: number }>
   >([])
   const [allBookingsForChart, setAllBookingsForChart] = useState<BookingRecord[]>([])
@@ -928,7 +926,7 @@ function DashbordPage() {
   const cardBg = isDarkMode ? '#1a1a1a' : '#ffffff'
   const textColor = isDarkMode ? '#ffffff' : '#111827'
   const textSecondary = isDarkMode ? '#9ca3af' : '#6b7280'
-  const borderColor = isDarkMode ? '#333333' : '#e5e7eb'
+  const borderColor = isDarkMode ? '#BA4E8E' : '#e5e7eb'
 
   // Render notifications dropdown via portal to avoid clipping/stacking issues
   const notificationsDropdown = notificationsOpen ? createPortal(
@@ -971,7 +969,7 @@ function DashbordPage() {
         {unreadCount > 0 && (
           <span style={{
             fontSize: '12px',
-            color: '#ef4444',
+            color: '#284B73',
             fontWeight: 600
           }}>
             {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
@@ -1172,17 +1170,16 @@ function DashbordPage() {
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              background: `linear-gradient(135deg, ${orangeColor} 0%, #ff6b35 100%)`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Calendar style={{ width: '16px', height: '16px', color: '#ffffff' }} />
-            </div>
+            <img
+              src="/favicon.svg"
+              alt="Logo"
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                objectFit: 'contain'
+              }}
+            />
             <span style={{ fontSize: '16px', fontWeight: 600, color: textColor }}>Tableau de Bord</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1208,7 +1205,7 @@ function DashbordPage() {
                   right: '2px',
                   minWidth: '16px',
                   height: '16px',
-                  backgroundColor: '#ef4444',
+                  backgroundColor: '#284B73',
                   borderRadius: '50%',
                   display: 'flex',
                   alignItems: 'center',
@@ -1336,13 +1333,17 @@ function DashbordPage() {
             width: '40px',
             height: '40px',
             borderRadius: '8px',
-            background: `linear-gradient(135deg, ${orangeColor} 0%, #ff6b35 100%)`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(250, 84, 28, 0.3)'
+            boxShadow: '0 2px 8px rgba(40, 75, 115, 0.3)',
+            overflow: 'hidden'
           }}>
-            <Calendar style={{ width: '20px', height: '20px', color: '#ffffff' }} />
+            <img
+              src="/favicon.svg"
+              alt="Logo"
+              style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+            />
           </div>
           {sidebarOpen && (
             <div>
@@ -1361,7 +1362,6 @@ function DashbordPage() {
             open={sidebarOpen}
             onClick={() => navigate('/dashboard')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -1374,7 +1374,6 @@ function DashbordPage() {
               open={sidebarOpen}
               onClick={() => navigate('/réservation')}
               isDarkMode={isDarkMode}
-              orangeColor={orangeColor}
               textColor={textColor}
               textSecondary={textSecondary}
             />
@@ -1388,7 +1387,6 @@ function DashbordPage() {
               open={sidebarOpen}
               onClick={() => navigate('/jours-feries')}
               isDarkMode={isDarkMode}
-              orangeColor={orangeColor}
               textColor={textColor}
               textSecondary={textSecondary}
             />
@@ -1402,7 +1400,6 @@ function DashbordPage() {
               open={sidebarOpen}
               onClick={() => navigate('/magasins')}
               isDarkMode={isDarkMode}
-              orangeColor={orangeColor}
               textColor={textColor}
               textSecondary={textSecondary}
             />
@@ -1416,7 +1413,6 @@ function DashbordPage() {
               open={sidebarOpen}
               onClick={() => navigate('/utilisateurs')}
               isDarkMode={isDarkMode}
-              orangeColor={orangeColor}
               textColor={textColor}
               textSecondary={textSecondary}
             />
@@ -1472,7 +1468,6 @@ function DashbordPage() {
                 open={sidebarOpen}
                 onClick={() => navigate('/metre')}
                 isDarkMode={isDarkMode}
-                orangeColor={orangeColor}
                 textColor={textColor}
                 textSecondary={textSecondary}
               />
@@ -1483,7 +1478,6 @@ function DashbordPage() {
               open={sidebarOpen}
                 onClick={() => navigate('/pose')}
               isDarkMode={isDarkMode}
-              orangeColor={orangeColor}
               textColor={textColor}
               textSecondary={textSecondary}
             />
@@ -1494,7 +1488,6 @@ function DashbordPage() {
             open={sidebarOpen}
                 onClick={() => navigate('/sav')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -1529,7 +1522,6 @@ function DashbordPage() {
               open={sidebarOpen}
               onClick={() => navigate('/parametres')}
               isDarkMode={isDarkMode}
-              orangeColor={orangeColor}
               textColor={textColor}
               textSecondary={textSecondary}
             />
@@ -1550,7 +1542,6 @@ function DashbordPage() {
               open={sidebarOpen}
               onClick={handleLogout}
               isDarkMode={isDarkMode}
-              orangeColor={orangeColor}
               textColor={textColor}
               textSecondary={textSecondary}
             />
@@ -1699,7 +1690,7 @@ function DashbordPage() {
                   right: '-4px',
                   minWidth: '18px',
                   height: '18px',
-                  backgroundColor: '#ef4444',
+                  backgroundColor: '#284B73',
                   borderRadius: '50%',
                   display: 'flex',
                   alignItems: 'center',
@@ -1732,7 +1723,7 @@ function DashbordPage() {
                   opacity: 0.8,
                   margin: 0
                 }}>
-                  Bienvenue {currentUserName}
+                  Bienvenue <span style={{ color: '#284B73' }}>{currentUserName}</span>
                 </p>
                 {currentUserMagasin && (
                   <p style={{
@@ -1742,7 +1733,7 @@ function DashbordPage() {
                     opacity: 0.7,
                     margin: 0
                   }}>
-                    chez {currentUserMagasin}
+                    chez <span style={{ color: '#284B73' }}>{currentUserMagasin}</span>
                   </p>
                 )}
               </div>
@@ -1786,7 +1777,7 @@ function DashbordPage() {
                   {unreadCount > 0 && (
                     <span style={{
                       fontSize: '12px',
-                      color: '#ef4444',
+                      color: '#284B73',
                       fontWeight: 600
                     }}>
                       {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
@@ -1999,8 +1990,8 @@ function DashbordPage() {
             value={`${bookingRate} %`}
             change={`Pose: ${poseRate}% | SAV: ${savRate}% | Metré: ${metreRate}%`}
             Icon={Percent}
-            iconBg={isDarkMode ? `${orangeColor}30` : `${orangeColor}20`}
-            iconColor={orangeColor}
+            iconBg={isDarkMode ? `rgba(40, 75, 115, 0.3)` : `rgba(40, 75, 115, 0.2)`}
+            iconColor="#284B73"
             cardBg={cardBg}
             textColor={textColor}
             textSecondary={textSecondary}
@@ -2038,8 +2029,8 @@ function DashbordPage() {
             value={savBookings.toLocaleString('fr-FR')}
             change="Interventions SAV"
             Icon={Calendar}
-            iconBg={isDarkMode ? `${orangeColor}30` : `${orangeColor}20`}
-            iconColor={orangeColor}
+            iconBg={isDarkMode ? `rgba(40, 75, 115, 0.3)` : `rgba(40, 75, 115, 0.2)`}
+            iconColor="#284B73"
             cardBg={cardBg}
             textColor={textColor}
             textSecondary={textSecondary}
@@ -2082,7 +2073,7 @@ function DashbordPage() {
               if (window.matchMedia('(hover: hover)').matches) {
                 e.currentTarget.style.transform = 'translateY(-2px)'
                 e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.12)'
-            e.currentTarget.style.borderColor = borderColor === '#333333' ? '#444444' : '#d1d5db'
+            e.currentTarget.style.borderColor = borderColor === '#BA4E8E' ? '#444444' : '#d1d5db'
               }
           }}
           onMouseLeave={(e) => {
@@ -2132,7 +2123,7 @@ function DashbordPage() {
                     borderRadius: '6px',
                     border: 'none',
                     backgroundColor: chartViewMode === 'month' 
-                      ? orangeColor 
+                      ? '#284B73' 
                       : 'transparent',
                     color: chartViewMode === 'month' 
                       ? '#ffffff' 
@@ -2167,7 +2158,7 @@ function DashbordPage() {
                     borderRadius: '6px',
                     border: 'none',
                     backgroundColor: chartViewMode === 'week' 
-                      ? orangeColor 
+                      ? '#284B73' 
                       : 'transparent',
                     color: chartViewMode === 'week' 
                       ? '#ffffff' 
@@ -2221,9 +2212,9 @@ function DashbordPage() {
                     fontWeight: 500
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = orangeColor
+                    e.currentTarget.style.backgroundColor = '#284B73'
                     e.currentTarget.style.color = '#ffffff'
-                    e.currentTarget.style.borderColor = orangeColor
+                    e.currentTarget.style.borderColor = '#284B73'
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = isDarkMode ? '#262626' : '#ffffff'
@@ -2269,9 +2260,9 @@ function DashbordPage() {
                     fontWeight: 500
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = orangeColor
+                    e.currentTarget.style.backgroundColor = '#284B73'
                     e.currentTarget.style.color = '#ffffff'
-                    e.currentTarget.style.borderColor = orangeColor
+                    e.currentTarget.style.borderColor = '#284B73'
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = isDarkMode ? '#262626' : '#ffffff'
@@ -2288,22 +2279,22 @@ function DashbordPage() {
                       padding: '8px 16px',
                       borderRadius: '20px',
                       border: 'none',
-                      backgroundColor: orangeColor,
+                      backgroundColor: '#284B73',
                       color: '#ffffff',
                       cursor: 'pointer',
                       fontSize: '12px',
                       fontWeight: 600,
                       transition: 'all 0.2s',
                       marginLeft: '4px',
-                      boxShadow: `0 2px 8px ${orangeColor}40`
+                      boxShadow: '0 2px 8px rgba(40, 75, 115, 0.25)'
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.transform = 'scale(1.05)'
-                      e.currentTarget.style.boxShadow = `0 4px 12px ${orangeColor}60`
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(40, 75, 115, 0.38)'
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.transform = 'scale(1)'
-                      e.currentTarget.style.boxShadow = `0 2px 8px ${orangeColor}40`
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(40, 75, 115, 0.25)'
                     }}
                   >
                     Ce mois
@@ -2339,9 +2330,9 @@ function DashbordPage() {
                     fontWeight: 500
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = orangeColor
+                    e.currentTarget.style.backgroundColor = '#284B73'
                     e.currentTarget.style.color = '#ffffff'
-                    e.currentTarget.style.borderColor = orangeColor
+                    e.currentTarget.style.borderColor = '#284B73'
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = isDarkMode ? '#262626' : '#ffffff'
@@ -2402,9 +2393,9 @@ function DashbordPage() {
                     fontWeight: 500
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = orangeColor
+                    e.currentTarget.style.backgroundColor = '#284B73'
                     e.currentTarget.style.color = '#ffffff'
-                    e.currentTarget.style.borderColor = orangeColor
+                    e.currentTarget.style.borderColor = '#284B73'
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = isDarkMode ? '#262626' : '#ffffff'
@@ -3236,88 +3227,6 @@ function DashbordPage() {
                 <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
                   Chargement...
                 </div>
-              ) : topClientsView === 'magasin' ? (
-                topMagasinsSav.length === 0 ? (
-                  <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
-                    Aucun magasin avec des réservations SAV
-                  </div>
-                ) : (
-                  topMagasinsSav.map((magasin, i) => (
-                    <div 
-                      key={`${magasin.magasinId}-${i}`}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '12px 14px',
-                        borderRadius: '12px',
-                        backgroundColor: isDarkMode ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.7)',
-                        border: `1px solid ${isDarkMode ? '#1f2937' : '#e5e7eb'}`,
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
-                        transition: 'all 0.2s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (window.matchMedia('(hover: hover)').matches) {
-                          e.currentTarget.style.transform = 'translateX(4px)'
-                          e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.1)'
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (window.matchMedia('(hover: hover)').matches) {
-                          e.currentTarget.style.transform = 'translateX(0)'
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)'
-                        }
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
-                        <div style={{
-                          width: '34px',
-                          height: '34px',
-                          borderRadius: '10px',
-                          backgroundColor: i < 3 ? orangeColor : (isDarkMode ? '#111827' : '#e5e7eb'),
-                          color: i < 3 ? '#ffffff' : textSecondary,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 700,
-                          fontSize: '13px',
-                          flexShrink: 0
-                        }}>
-                          {i + 1}
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                          <span style={{ 
-                            fontSize: '14px', 
-                            color: textColor, 
-                            fontWeight: 700, 
-                            whiteSpace: 'nowrap', 
-                            overflow: 'hidden', 
-                            textOverflow: 'ellipsis',
-                            lineHeight: 1.3
-                          }}>
-                            🏪 {magasin.magasinName}
-                          </span>
-                          <span style={{ fontSize: '12px', color: textSecondary, lineHeight: 1.2 }}>
-                            Magasin SAV
-                          </span>
-                        </div>
-                      </div>
-                      <div style={{
-                        padding: '8px 12px',
-                        borderRadius: '12px',
-                        backgroundColor: isDarkMode ? 'rgba(16,185,129,0.18)' : 'rgba(16,185,129,0.14)',
-                        color: isDarkMode ? '#10b981' : '#0f9f72',
-                        fontWeight: 700,
-                        fontSize: '12px',
-                        border: `1px solid ${isDarkMode ? 'rgba(16,185,129,0.35)' : 'rgba(16,185,129,0.25)'}`,
-                        whiteSpace: 'nowrap',
-                        flexShrink: 0
-                      }}>
-                        {magasin.savCount} {magasin.savCount === 1 ? 'réservation SAV' : 'réservations SAV'}
-                      </div>
-                    </div>
-                  ))
-                )
               ) : topClients.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: textSecondary }}>
                   Aucun client
@@ -3355,7 +3264,7 @@ function DashbordPage() {
                         width: '34px',
                         height: '34px',
                         borderRadius: '10px',
-                        backgroundColor: i < 3 ? orangeColor : (isDarkMode ? '#111827' : '#e5e7eb'),
+                        backgroundColor: i < 3 ? '#284B73' : (isDarkMode ? '#111827' : '#e5e7eb'),
                         color: i < 3 ? '#ffffff' : textSecondary,
                         display: 'flex',
                         alignItems: 'center',
@@ -3434,7 +3343,7 @@ function DashbordPage() {
                   color: textColor,
                   lineHeight: 1.3
                 }}>
-                  Top 10 Concepteurs
+                  Statistiques Concepteurs
                 </h3>
               </div>
 
@@ -3450,9 +3359,9 @@ function DashbordPage() {
                   style={{
                     padding: '8px 14px',
                     borderRadius: '10px',
-                    border: `1px solid ${topClientsView === 'total' ? orangeColor : borderColor}`,
+                    border: `1px solid ${topClientsView === 'total' ? '#284B73' : borderColor}`,
                     backgroundColor: topClientsView === 'total'
-                      ? orangeColor
+                      ? '#284B73'
                       : 'transparent',
                     color: topClientsView === 'total' ? '#ffffff' : textSecondary,
                     fontSize: '12px',
@@ -3473,9 +3382,9 @@ function DashbordPage() {
                   style={{
                     padding: '8px 14px',
                     borderRadius: '10px',
-                    border: `1px solid ${topClientsView === 'year' ? orangeColor : borderColor}`,
+                    border: `1px solid ${topClientsView === 'year' ? '#284B73' : borderColor}`,
                     backgroundColor: topClientsView === 'year'
-                      ? orangeColor
+                      ? '#284B73'
                       : 'transparent',
                     color: topClientsView === 'year' ? '#ffffff' : textSecondary,
                     fontSize: '12px',
@@ -3496,9 +3405,9 @@ function DashbordPage() {
                   style={{
                     padding: '8px 14px',
                     borderRadius: '10px',
-                    border: `1px solid ${topClientsView === 'month' ? orangeColor : borderColor}`,
+                    border: `1px solid ${topClientsView === 'month' ? '#284B73' : borderColor}`,
                     backgroundColor: topClientsView === 'month'
-                      ? orangeColor
+                      ? '#284B73'
                       : 'transparent',
                     color: topClientsView === 'month' ? '#ffffff' : textSecondary,
                     fontSize: '12px',
@@ -3519,9 +3428,9 @@ function DashbordPage() {
                   style={{
                     padding: '8px 14px',
                     borderRadius: '10px',
-                    border: `1px solid ${topClientsView === 'week' ? orangeColor : borderColor}`,
+                    border: `1px solid ${topClientsView === 'week' ? '#284B73' : borderColor}`,
                     backgroundColor: topClientsView === 'week'
-                      ? orangeColor
+                      ? '#284B73'
                       : 'transparent',
                     color: topClientsView === 'week' ? '#ffffff' : textSecondary,
                     fontSize: '12px',
@@ -3543,9 +3452,9 @@ function DashbordPage() {
                     style={{
                       padding: '8px 14px',
                       borderRadius: '10px',
-                      border: `1px solid ${topClientsView === 'magasin' ? orangeColor : borderColor}`,
+                      border: `1px solid ${topClientsView === 'magasin' ? '#284B73' : borderColor}`,
                       backgroundColor: topClientsView === 'magasin'
-                        ? orangeColor
+                        ? '#284B73'
                         : 'transparent',
                       color: topClientsView === 'magasin' ? '#ffffff' : textSecondary,
                       fontSize: '12px',
@@ -3592,9 +3501,9 @@ function DashbordPage() {
                     fontWeight: 600
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = orangeColor
+                    e.currentTarget.style.backgroundColor = '#284B73'
                     e.currentTarget.style.color = '#ffffff'
-                    e.currentTarget.style.borderColor = orangeColor
+                    e.currentTarget.style.borderColor = '#284B73'
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = isDarkMode ? '#1f1f1f' : '#ffffff'
@@ -3666,9 +3575,9 @@ function DashbordPage() {
                     fontWeight: 600
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = orangeColor
+                    e.currentTarget.style.backgroundColor = '#284B73'
                     e.currentTarget.style.color = '#ffffff'
-                    e.currentTarget.style.borderColor = orangeColor
+                    e.currentTarget.style.borderColor = '#284B73'
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = isDarkMode ? '#1f1f1f' : '#ffffff'
@@ -3685,21 +3594,21 @@ function DashbordPage() {
                       padding: '6px 12px',
                       borderRadius: '10px',
                       border: 'none',
-                      backgroundColor: orangeColor,
+                      backgroundColor: '#284B73',
                       color: '#ffffff',
                       cursor: 'pointer',
                       fontSize: '12px',
                       fontWeight: 700,
                       transition: 'all 0.2s',
-                      boxShadow: `0 2px 8px ${orangeColor}40`
+                      boxShadow: '0 2px 8px rgba(40, 75, 115, 0.25)'
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.transform = 'scale(1.05)'
-                      e.currentTarget.style.boxShadow = `0 4px 12px ${orangeColor}60`
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(40, 75, 115, 0.38)'
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.transform = 'scale(1)'
-                      e.currentTarget.style.boxShadow = `0 2px 8px ${orangeColor}40`
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(40, 75, 115, 0.25)'
                     }}
                   >
                     Cette semaine
@@ -3712,21 +3621,21 @@ function DashbordPage() {
                       padding: '6px 12px',
                       borderRadius: '10px',
                       border: 'none',
-                      backgroundColor: orangeColor,
+                      backgroundColor: '#284B73',
                       color: '#ffffff',
                       cursor: 'pointer',
                       fontSize: '12px',
                       fontWeight: 700,
                       transition: 'all 0.2s',
-                      boxShadow: `0 2px 8px ${orangeColor}40`
+                      boxShadow: '0 2px 8px rgba(40, 75, 115, 0.25)'
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.transform = 'scale(1.05)'
-                      e.currentTarget.style.boxShadow = `0 4px 12px ${orangeColor}60`
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(40, 75, 115, 0.38)'
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.transform = 'scale(1)'
-                      e.currentTarget.style.boxShadow = `0 2px 8px ${orangeColor}40`
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(40, 75, 115, 0.25)'
                     }}
                   >
                     Ce mois
@@ -3739,21 +3648,21 @@ function DashbordPage() {
                       padding: '6px 12px',
                       borderRadius: '10px',
                       border: 'none',
-                      backgroundColor: orangeColor,
+                      backgroundColor: '#284B73',
                       color: '#ffffff',
                       cursor: 'pointer',
                       fontSize: '12px',
                       fontWeight: 700,
                       transition: 'all 0.2s',
-                      boxShadow: `0 2px 8px ${orangeColor}40`
+                      boxShadow: '0 2px 8px rgba(40, 75, 115, 0.25)'
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.transform = 'scale(1.05)'
-                      e.currentTarget.style.boxShadow = `0 4px 12px ${orangeColor}60`
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(40, 75, 115, 0.38)'
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.transform = 'scale(1)'
-                      e.currentTarget.style.boxShadow = `0 2px 8px ${orangeColor}40`
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(40, 75, 115, 0.25)'
                     }}
                   >
                     Cette année
@@ -3778,7 +3687,7 @@ function DashbordPage() {
                         padding: '12px 16px',
                         borderRadius: '12px',
                         backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                        border: `2px solid ${orangeColor}`,
+                        border: '2px solid #284B73',
                         marginBottom: '12px'
                       }}>
                         <div style={{
@@ -3798,8 +3707,8 @@ function DashbordPage() {
                           <span style={{
                             padding: '6px 12px',
                             borderRadius: '10px',
-                            backgroundColor: `${orangeColor}20`,
-                            color: orangeColor,
+                            backgroundColor: 'rgba(40, 75, 115, 0.2)',
+                            color: '#284B73',
                             fontSize: '14px',
                             fontWeight: 700
                           }}>
@@ -3814,8 +3723,8 @@ function DashbordPage() {
                           <span style={{
                             padding: '4px 10px',
                             borderRadius: '8px',
-                            backgroundColor: isDarkMode ? `${orangeColor}25` : `${orangeColor}20`,
-                            color: orangeColor,
+                            backgroundColor: isDarkMode ? 'rgba(40, 75, 115, 0.25)' : 'rgba(40, 75, 115, 0.2)',
+                            color: '#284B73',
                             fontSize: '12px',
                             fontWeight: 600
                           }}>
@@ -4065,7 +3974,7 @@ function DashbordPage() {
               if (window.matchMedia('(hover: hover)').matches) {
                 e.currentTarget.style.transform = 'translateY(-2px)'
                 e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.12)'
-            e.currentTarget.style.borderColor = borderColor === '#333333' ? '#444444' : '#d1d5db'
+            e.currentTarget.style.borderColor = borderColor === '#BA4E8E' ? '#444444' : '#d1d5db'
               }
           }}
           onMouseLeave={(e) => {
@@ -4095,15 +4004,15 @@ function DashbordPage() {
                 onClick={() => navigate('/réservation')}
                 style={{
                   fontSize: '12px',
-                  color: orangeColor,
+                  color: '#284B73',
                   fontWeight: 500,
                   backgroundColor: 'transparent',
                   border: 'none',
                   cursor: 'pointer',
                   transition: 'color 0.2s'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#ff6b35'}
-                onMouseLeave={(e) => e.currentTarget.style.color = orangeColor}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#284B73'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#284B73'}
               >
                 Voir tout
               </button>
@@ -4228,7 +4137,6 @@ interface SidebarItemProps {
   open: boolean
   onClick: () => void
   isDarkMode: boolean
-  orangeColor: string
   textColor: string
   textSecondary: string
 }
@@ -4240,7 +4148,6 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   open,
   onClick,
   isDarkMode,
-  orangeColor,
   textColor,
   textSecondary
 }) => {
@@ -4258,10 +4165,10 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
         border: 'none',
         cursor: 'pointer',
         backgroundColor: isActive
-          ? (isDarkMode ? `${orangeColor}30` : `${orangeColor}15`)
+          ? (isDarkMode ? 'rgba(40, 75, 115, 0.3)' : 'rgba(40, 75, 115, 0.15)')
           : 'transparent',
-        color: isActive ? orangeColor : textSecondary,
-        borderLeft: isActive ? `3px solid ${orangeColor}` : '3px solid transparent',
+        color: isActive ? '#284B73' : textSecondary,
+        borderLeft: isActive ? `3px solid #284B73` : '3px solid transparent',
         transition: 'all 0.2s',
         fontSize: '14px',
         fontWeight: isActive ? 600 : 500
@@ -4336,7 +4243,7 @@ const StatCardContent: React.FC<StatCardContentProps> = ({
         if (window.matchMedia('(hover: hover)').matches) {
       e.currentTarget.style.transform = 'translateY(-4px) scale(1.02)'
           e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.12)'
-      e.currentTarget.style.borderColor = borderColor === '#333333' ? '#444444' : '#d1d5db'
+      e.currentTarget.style.borderColor = borderColor === '#BA4E8E' ? '#444444' : '#d1d5db'
         }
     }}
     onMouseLeave={(e) => {

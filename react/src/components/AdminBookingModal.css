@@ -135,14 +135,14 @@
   border: 1px solid rgba(250, 84, 28, 0.3);
   border-radius: 6px;
   font-size: 0.9rem;
-  color: #fa541c;
+  color: #284B73;
   font-weight: 500;
 }
 
 .admin-booking-modal-overlay.dark-mode .selected-date-display {
   background: rgba(250, 84, 28, 0.15);
   border-color: rgba(250, 84, 28, 0.4);
-  color: #ff6b35;
+  color: #284B73;
 }
 
 .form-group input,
@@ -191,19 +191,19 @@
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #fa541c;
+  border-color: #284B73;
   box-shadow: 0 0 0 3px rgba(250, 84, 28, 0.1);
 }
 
 .form-group input.error,
 .form-group select.error,
 .form-group textarea.error {
-  border-color: #ff4444;
+  border-color: #284B73;
 }
 
 .error-message {
   display: block;
-  color: #ff4444;
+  color: #284B73;
   font-size: 0.85rem;
   margin-top: 5px;
 }
@@ -258,14 +258,14 @@
 }
 
 .submit-button {
-  background: #fa541c !important;
+  background: #284B73 !important;
   color: white !important;
 }
 
 .submit-button:hover {
-  background: #e6450f !important;
+  background: #284B73 !important;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(250, 84, 28, 0.3);
+  box-shadow: 0 4px 12px rgba(40, 75, 115, 0.3);
 }
 
 .submit-button:active {

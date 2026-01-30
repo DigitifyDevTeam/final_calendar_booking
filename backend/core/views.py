@@ -127,7 +127,7 @@ def _notify_booking(booking: Booking, is_update=False):
             overflow: hidden;
         }}
         .header {{
-            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+            background: linear-gradient(135deg, #284B73 0%, #F7931E 100%);
             color: white;
             padding: 30px 20px;
             text-align: center;
@@ -142,7 +142,7 @@ def _notify_booking(booking: Booking, is_update=False):
         }}
         .info-box {{
             background-color: #f8f9fa;
-            border-left: 4px solid #FF6B35;
+            border-left: 4px solid #284B73;
             padding: 15px;
             margin: 15px 0;
             border-radius: 4px;
@@ -439,11 +439,19 @@ class BookingRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
             'client_name': instance.client_name
         }
         instance.delete()
-        self._notify_booking_deletion(booking_info)
+        self._notify_booking_deletion(booking_info, request=self.request)
     
-    def _notify_booking_deletion(self, booking_info):
+    def _notify_booking_deletion(self, booking_info, request=None):
         """Send email notification when a booking is deleted"""
         try:
+            # Who deleted: concepteur or admin + name
+            deleter_role = "concepteur"
+            deleter_name = ""
+            if request and getattr(request, 'user', None) and hasattr(request.user, 'role'):
+                deleter_role = "concepteur" if request.user.role == "concepteur" else "admin"
+                deleter_name = getattr(request.user, 'name', '') or ""
+            deleter_line = f"{deleter_role} {deleter_name}".strip() or "—"
+
             calendar_label = CALENDAR_LABELS.get(booking_info['calendar_id'], booking_info['calendar_id'])
             subject = f"Réservation supprimée pour {calendar_label} le {booking_info['booking_date']}"
             body_lines = [
@@ -453,7 +461,7 @@ class BookingRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
                 f"Date : {booking_info['booking_date']}",
                 f"Client : {booking_info['client_name']}",
                 "",
-                "Cette réservation a été supprimée par l'administrateur.",
+                f"Supprimée par : {deleter_line}",
             ]
 
             body = "\n".join(body_lines)
@@ -801,7 +809,7 @@ class PasswordResetRequestView(APIView):
             overflow: hidden;
         }}
         .header {{
-            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+            background: linear-gradient(135deg, #284B73 0%, #F7931E 100%);
             color: white;
             padding: 30px 20px;
             text-align: center;
@@ -815,7 +823,7 @@ class PasswordResetRequestView(APIView):
         }}
         .token-box {{
             background-color: #f8f9fa;
-            border: 2px dashed #FF6B35;
+            border: 2px dashed #284B73;
             border-radius: 8px;
             padding: 20px;
             text-align: center;
@@ -824,7 +832,7 @@ class PasswordResetRequestView(APIView):
         .token-code {{
             font-size: 24px;
             font-weight: bold;
-            color: #FF6B35;
+            color: #284B73;
             letter-spacing: 2px;
             font-family: 'Courier New', monospace;
             word-break: break-all;
@@ -853,7 +861,7 @@ class PasswordResetRequestView(APIView):
         .button {{
             display: inline-block;
             padding: 12px 24px;
-            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+            background: linear-gradient(135deg, #284B73 0%, #F7931E 100%);
             color: white;
             text-decoration: none;
             border-radius: 6px;
@@ -1080,7 +1088,7 @@ def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_
         elif booking.booking_time and booking.booking_time.strip() and booking.booking_time.strip() != '21h00':
             time_display = booking.booking_time.strip()
         
-        # Build checkmarks section
+        # Build checkmarks: selected = green check; except "Un SAV à prévoir ?" where selected = red X
         check_icon = "✅"
         cross_icon = "❌"
         
@@ -1096,6 +1104,7 @@ def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_
                 <span style="margin-left: 8px;">Le CFT est signé</span>
             </div>
             {"<div style='margin: 8px 0;'><span style='font-size: 18px;'>" + (check_icon if booking.electromenager_fonctionnel else cross_icon) + "</span><span style='margin-left: 8px;'>L'électroménager est fonctionnel</span></div>" if booking.electromenager_fonctionnel is not None else ""}
+            {"<div style='margin: 8px 0;'><span style='font-size: 18px;'>" + (cross_icon if booking.sav_a_prevoir else check_icon) + "</span><span style='margin-left: 8px;'>Un SAV à prévoir ?</span></div>" if booking.sav_a_prevoir is not None else ""}
         </div>
         """
         
@@ -1185,12 +1194,13 @@ def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_
 </html>
         """
         
-        # Plain text fallback
+        # Plain text fallback (same inverted meaning: Oui = technicien selected = shown as attention in HTML)
         checks_text = f"""
 État de l'intervention:
 - Le ménage est fait: {'Oui' if booking.menage_fait else 'Non'}
 - Le CFT est signé: {'Oui' if booking.cft_signe else 'Non'}
 {"- L'électroménager est fonctionnel: " + ('Oui' if booking.electromenager_fonctionnel else 'Non') if booking.electromenager_fonctionnel is not None else ""}
+{"- Un SAV à prévoir ?: " + ('Oui' if booking.sav_a_prevoir else 'Non') if booking.sav_a_prevoir is not None else ""}
         """.strip()
         
         files_text = ""
@@ -1319,6 +1329,31 @@ class BookingFinishView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
+            today = timezone.now().date()
+            
+            # For SAV and Metré: technicien can only finish on the day of the reservation
+            is_sav_or_metre = booking.calendar_id in ['calendar2', '2', 'calendar3', '3']
+            if is_sav_or_metre:
+                if booking.booking_date != today:
+                    return Response(
+                        {
+                            'detail': 'Pour les réservations SAV et Metré, la finalisation n\'est possible que le jour même de la réservation.'
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
+            # For Pose: technicien can finish on the reservation day or the next day at most
+            is_pose = booking.calendar_id in ['calendar1', '1']
+            if is_pose:
+                deadline = booking.booking_date + timedelta(days=1)
+                if today < booking.booking_date or today > deadline:
+                    return Response(
+                        {
+                            'detail': 'Pour les réservations Pose, la finalisation n\'est possible que le jour de la réservation ou le lendemain au plus tard.'
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
             # Get the technician name from the authenticated user
             technicien_name = request.user.name if hasattr(request.user, 'name') else 'Technicien'
             
@@ -1337,6 +1372,13 @@ class BookingFinishView(APIView):
             # Only set electromenager_fonctionnel if provided (for SAV/Metré calendars)
             if 'electromenager_fonctionnel' in request.data:
                 booking.electromenager_fonctionnel = str_to_bool(request.data.get('electromenager_fonctionnel'))
+            
+            # Un SAV à prévoir ? (SAV and Pose only)
+            is_sav = booking.calendar_id in ['calendar2', '2']
+            is_pose = booking.calendar_id in ['calendar1', '1']
+            if is_sav or is_pose:
+                if 'sav_a_prevoir' in request.data:
+                    booking.sav_a_prevoir = str_to_bool(request.data.get('sav_a_prevoir'))
             
             # Set status to 'termine' when technician finishes the booking
             booking.status = 'termine'

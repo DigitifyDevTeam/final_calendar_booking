@@ -44,7 +44,7 @@
 
 .dark-mode .technicien-complete-modal {
   background-color: #1a1a1a;
-  border: 1px solid #333333;
+  border: 1px solid #BA4E8E;
 }
 
 .light-mode .technicien-complete-modal {
@@ -61,7 +61,7 @@
 }
 
 .dark-mode .technicien-complete-modal-header {
-  border-color: #333333;
+  border-color: #BA4E8E;
 }
 
 .light-mode .technicien-complete-modal-header {
@@ -101,7 +101,7 @@
 }
 
 .dark-mode .technicien-complete-modal-header .close-button:hover {
-  background-color: #333333;
+  background-color: #BA4E8E;
   color: #ffffff;
 }
 
@@ -145,7 +145,7 @@
   width: 20px;
   height: 20px;
   cursor: pointer;
-  accent-color: #fa541c;
+  accent-color: #284B73;
 }
 
 .upload-row {
@@ -174,7 +174,7 @@
 
 .dark-mode .technicien-complete-modal input[type='file'] {
   background-color: #0a0a0a;
-  border-color: #333333;
+  border-color: #BA4E8E;
   color: #d1d5db;
 }
 
@@ -196,7 +196,7 @@
   border-radius: 999px;
   font-size: 12px;
   background-color: rgba(250, 84, 28, 0.15);
-  color: #fa541c;
+  color: #284B73;
   border: 1px solid rgba(250, 84, 28, 0.3);
 }
 
@@ -219,12 +219,12 @@
 }
 
 .dark-mode .cancel-button {
-  border-color: #333333;
+  border-color: #BA4E8E;
   color: #9ca3af;
 }
 
 .dark-mode .cancel-button:hover {
-  background-color: #333333;
+  background-color: #BA4E8E;
   color: #ffffff;
 }
 

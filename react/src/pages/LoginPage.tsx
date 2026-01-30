@@ -410,16 +410,14 @@ function LoginPage() {
       </div>
       
       <div className="login-container">
-        <div className="login-card">
+          <div className="login-card">
           <div className="login-header">
             <div className="logo-wrapper">
-              <div className="logo-icon">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
+              <img
+                src="/logo.svg"
+                alt="Logo"
+                className="logo-image"
+              />
             </div>
             <h1 className="login-title">Bienvenue</h1>
             <p className="login-subtitle">Connectez-vous à votre compte pour continuer</p>

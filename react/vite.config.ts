@@ -10,7 +10,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0', // Bind to all network interfaces - allows access from other devices on the same network
-    port: 5173, // Default Vite port
+    port: 5174, // Default Vite port
     strictPort: false, // Allow port to be changed if 5173 is taken
     proxy: {
       // Proxy API requests to backend on localhost
@@ -24,7 +24,7 @@ export default defineConfig({
   },
   preview: {
     host: '0.0.0.0', // Also expose preview server to network
-    port: 5173,
+    port: 5174,
     strictPort: false,
   },
   resolve: {

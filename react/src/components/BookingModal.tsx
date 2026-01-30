@@ -768,7 +768,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     onChange={handleInputChange}
                     style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                   />
-                  <span>Pose non effectuée par Wood agency</span>
+                  <span>Pose effectuée par Wood agency</span>
                 </label>
               </div>
               <div className="form-group">
@@ -787,7 +787,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   style={{
                     padding: '10px 12px',
                     borderRadius: '8px',
-                    border: errors.livraison ? '2px solid #ef4444' : '1px solid #333',
+                    border: errors.livraison ? '2px solid #284B73' : '1px solid #333',
                     backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
                     color: isDarkMode ? '#ffffff' : '#111827',
                     fontSize: '14px',
@@ -817,7 +817,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   style={{
                     padding: '10px 12px',
                     borderRadius: '8px',
-                    border: errors.raison ? '2px solid #ef4444' : '1px solid #333',
+                    border: errors.raison ? '2px solid #284B73' : '1px solid #333',
                     backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
                     color: isDarkMode ? '#ffffff' : '#111827',
                     fontSize: '14px',

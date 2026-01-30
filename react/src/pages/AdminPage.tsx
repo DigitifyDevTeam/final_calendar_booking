@@ -8,8 +8,6 @@ import {
   Calendar,
   CalendarCheck,
   ChevronsRight,
-  Moon,
-  Sun,
   Home,
   Settings,
   LogOut,
@@ -39,7 +37,7 @@ function AdminPage() {
   const [selectedCalendar, setSelectedCalendar] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [dateFilter, setDateFilter] = useState<string>('all') // 'all', 'today', 'future', 'past'
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+  const [isDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('darkMode')
     return saved ? JSON.parse(saved) : true
   })
@@ -57,6 +55,46 @@ function AdminPage() {
   const [infoBooking, setInfoBooking] = useState<any | null>(null)
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null)
   const [usersList, setUsersList] = useState<UserRecord[]>([])
+  type SortColumnKey = 'client' | 'facture' | 'statut' | 'date' | 'pose_wood' | 'creé_le'
+  const [sortColumn, setSortColumn] = useState<SortColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const handleSort = (column: SortColumnKey) => {
+    if (sortColumn === column) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const SortableTh = ({ label, columnKey }: { label: string; columnKey: SortColumnKey }) => (
+    <th>
+      <button
+        type="button"
+        className="sortable-th"
+        onClick={() => handleSort(columnKey)}
+        style={{
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          font: 'inherit',
+          fontWeight: 700,
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
+        }}
+      >
+        {label}
+        {sortColumn === columnKey && (
+          <span style={{ fontSize: '0.75rem' }}>{sortDirection === 'asc' ? ' ↑' : ' ↓'}</span>
+        )}
+      </button>
+    </th>
+  )
 
   useEffect(() => {
     // Check if user is logged in (admin or regular user)
@@ -116,7 +154,7 @@ function AdminPage() {
 
   useEffect(() => {
     filterBookings()
-  }, [bookings, selectedCalendar, searchTerm, dateFilter, currentUser, isAdmin])
+  }, [bookings, selectedCalendar, searchTerm, dateFilter, currentUser, isAdmin, sortColumn, sortDirection])
 
   // Handle deep-link navigation (e.g., from dashboard recent bookings)
   useEffect(() => {
@@ -300,18 +338,56 @@ function AdminPage() {
       })
     }
 
+    // Apply dynamic sort when a column is selected
+    if (sortColumn) {
+      filtered = [...filtered].sort((a: any, b: any) => {
+        let cmp = 0
+        if (sortColumn === 'client') {
+          // Alphabetic A–Z, numbers sorted naturally (e.g. "Client 2" before "Client 10")
+          cmp = (a.name || '').localeCompare(b.name || '', undefined, { numeric: true })
+        } else if (sortColumn === 'facture') {
+          const sa = (a.statut_facturation || 'en_attente') as string
+          const sb = (b.statut_facturation || 'en_attente') as string
+          cmp = sa.localeCompare(sb)
+        } else if (sortColumn === 'statut') {
+          const sa = (a.status || 'en_attente') as string
+          const sb = (b.status || 'en_attente') as string
+          cmp = sa.localeCompare(sb)
+        } else if (sortColumn === 'date') {
+          const dateCmp = (a.date || '').localeCompare(b.date || '')
+          if (dateCmp !== 0) cmp = dateCmp
+          else cmp = (a.time || '').localeCompare(b.time || '')
+        } else if (sortColumn === 'pose_wood') {
+          const isPoseA = (a.calendarId === 'calendar2' || a.calendar_id === 'calendar2') && a.pose_effectue_par_wood_agency === true ? 1 : 0
+          const isPoseB = (b.calendarId === 'calendar2' || b.calendar_id === 'calendar2') && b.pose_effectue_par_wood_agency === true ? 1 : 0
+          cmp = isPoseA - isPoseB
+        } else if (sortColumn === 'creé_le') {
+          const ta = a.timestamp ?? 0
+          const tb = b.timestamp ?? 0
+          cmp = ta - tb
+        }
+        return sortDirection === 'asc' ? cmp : -cmp
+      })
+    }
+
     setFilteredBookings(filtered)
   }
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString + 'T00:00:00')
-    if (isNaN(date.getTime())) {
-      return dateString
-    }
-    const day = String(date.getDate()).padStart(2, '0')
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const year = String(date.getFullYear()).slice(-2)
-    return `${day}/${month}/${year}`
+    return date.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+  }
+
+  const formatDateShort = (dateString: string): string => {
+    if (!dateString) return ''
+    const [year, month, day] = dateString.split('-')
+    if (!year || !month || !day) return dateString
+    return `${day}/${month}/${year.slice(2)}`
   }
 
   const formatDateTime = (timestamp: number): string => {
@@ -335,26 +411,16 @@ function AdminPage() {
     return roleLabels[role] || role
   }
 
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode)
-  }
-
   const handleLogout = () => {
     sessionStorage.removeItem('user')
     navigate('/')
   }
 
-  const [orangeColor, setOrangeColor] = useState<string>(() => {
-    const saved = localStorage.getItem('accentColor')
-    return saved || '#fa541c'
-  })
-
-  // Listen for settings updates
+  // Listen for settings updates (accent color applied via CSS variable)
   useEffect(() => {
     const handleSettingsUpdate = () => {
       const saved = localStorage.getItem('accentColor')
       if (saved) {
-        setOrangeColor(saved)
         document.documentElement.style.setProperty('--accent-color', saved)
       }
     }
@@ -362,10 +428,8 @@ function AdminPage() {
     window.addEventListener('settingsUpdated', handleSettingsUpdate)
     window.addEventListener('storage', handleSettingsUpdate)
     
-    // Check on mount
     const saved = localStorage.getItem('accentColor')
     if (saved) {
-      setOrangeColor(saved)
       document.documentElement.style.setProperty('--accent-color', saved)
     }
     
@@ -377,7 +441,7 @@ function AdminPage() {
   const bgColor = isDarkMode ? '#000000' : '#f5f5f5'
   const textColor = isDarkMode ? '#ffffff' : '#111827'
   const textSecondary = isDarkMode ? '#9ca3af' : '#6b7280'
-  const borderColor = isDarkMode ? '#333333' : '#e5e7eb'
+  const borderColor = isDarkMode ? '#BA4E8E' : '#e5e7eb'
 
 
   const handleEditClick = (booking: any) => {
@@ -564,17 +628,16 @@ function AdminPage() {
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              background: `linear-gradient(135deg, ${orangeColor} 0%, #ff6b35 100%)`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Calendar style={{ width: '16px', height: '16px', color: '#ffffff' }} />
-            </div>
+            <img
+              src="/favicon.svg"
+              alt="Logo"
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                objectFit: 'contain'
+              }}
+            />
             <span style={{ fontSize: '16px', fontWeight: 600, color: textColor }}>Réservations</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -603,7 +666,7 @@ function AdminPage() {
                   right: '-2px',
                   minWidth: '16px',
                   height: '16px',
-                  backgroundColor: '#ef4444',
+                  backgroundColor: '#284B73',
                   borderRadius: '50%',
                   display: 'flex',
                   alignItems: 'center',
@@ -649,7 +712,7 @@ function AdminPage() {
             left: '16px',
             maxHeight: 'calc(100vh - 80px)',
             backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-            border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+            border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
             borderRadius: '12px',
             boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
             zIndex: 1001,
@@ -660,7 +723,7 @@ function AdminPage() {
         >
           <div style={{
             padding: '16px',
-            borderBottom: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+            borderBottom: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center'
@@ -676,7 +739,7 @@ function AdminPage() {
             {unreadCount > 0 && (
               <span style={{
                 fontSize: '12px',
-                color: '#ef4444',
+                color: '#284B73',
                 fontWeight: 600
               }}>
                 {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
@@ -806,7 +869,7 @@ function AdminPage() {
           {allNotifications.length > 0 && (
             <div style={{
               padding: '12px 16px',
-              borderTop: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+              borderTop: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
               textAlign: 'center'
             }}>
               <button
@@ -823,7 +886,7 @@ function AdminPage() {
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: '#fa541c',
+                  color: '#284B73',
                   cursor: 'pointer',
                   fontSize: '14px',
                   fontWeight: 500
@@ -871,13 +934,17 @@ function AdminPage() {
             width: '40px',
             height: '40px',
             borderRadius: '8px',
-            background: `linear-gradient(135deg, ${orangeColor} 0%, #ff6b35 100%)`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(250, 84, 28, 0.3)'
+            boxShadow: '0 2px 8px rgba(40, 75, 115, 0.3)',
+            overflow: 'hidden'
           }}>
-            <Calendar style={{ width: '20px', height: '20px', color: '#ffffff' }} />
+            <img
+              src="/favicon.svg"
+              alt="Logo"
+              style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+            />
           </div>
           {sidebarOpen && (
             <div>
@@ -896,7 +963,6 @@ function AdminPage() {
             open={sidebarOpen}
             onClick={() => navigate('/dashboard')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -908,7 +974,6 @@ function AdminPage() {
             open={sidebarOpen}
             onClick={() => navigate('/réservation')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -920,7 +985,6 @@ function AdminPage() {
             open={sidebarOpen}
             onClick={() => navigate('/jours-feries')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -932,7 +996,6 @@ function AdminPage() {
             open={sidebarOpen}
             onClick={() => navigate('/magasins')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -944,7 +1007,6 @@ function AdminPage() {
             open={sidebarOpen}
             onClick={() => navigate('/utilisateurs')}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -999,7 +1061,6 @@ function AdminPage() {
                 open={sidebarOpen}
                 onClick={() => navigate('/metre')}
                 isDarkMode={isDarkMode}
-                orangeColor={orangeColor}
                 textColor={textColor}
                 textSecondary={textSecondary}
               />
@@ -1010,7 +1071,6 @@ function AdminPage() {
                 open={sidebarOpen}
                 onClick={() => navigate('/pose')}
                 isDarkMode={isDarkMode}
-                orangeColor={orangeColor}
                 textColor={textColor}
                 textSecondary={textSecondary}
               />
@@ -1021,7 +1081,6 @@ function AdminPage() {
                 open={sidebarOpen}
                 onClick={() => navigate('/sav')}
                 isDarkMode={isDarkMode}
-                orangeColor={orangeColor}
                 textColor={textColor}
                 textSecondary={textSecondary}
               />
@@ -1056,7 +1115,6 @@ function AdminPage() {
               open={sidebarOpen}
               onClick={() => navigate('/parametres')}
               isDarkMode={isDarkMode}
-              orangeColor={orangeColor}
               textColor={textColor}
               textSecondary={textSecondary}
             />
@@ -1077,7 +1135,6 @@ function AdminPage() {
             open={sidebarOpen}
             onClick={handleLogout}
             isDarkMode={isDarkMode}
-            orangeColor={orangeColor}
             textColor={textColor}
             textSecondary={textSecondary}
           />
@@ -1141,7 +1198,7 @@ function AdminPage() {
                     padding: '0',
                     borderRadius: '8px',
                     backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                     color: isDarkMode ? '#9ca3af' : '#6b7280',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
@@ -1166,7 +1223,7 @@ function AdminPage() {
                       right: '-4px',
                       minWidth: '18px',
                       height: '18px',
-                      backgroundColor: '#ef4444',
+                      backgroundColor: '#284B73',
                       borderRadius: '50%',
                       display: 'flex',
                       alignItems: 'center',
@@ -1192,7 +1249,7 @@ function AdminPage() {
                     width: '380px',
                     maxHeight: '500px',
                     backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                     borderRadius: '12px',
                     boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
                     zIndex: 1000,
@@ -1202,7 +1259,7 @@ function AdminPage() {
                   }}>
                     <div style={{
                       padding: '16px',
-                      borderBottom: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                      borderBottom: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center'
@@ -1218,7 +1275,7 @@ function AdminPage() {
                       {unreadCount > 0 && (
                         <span style={{
                           fontSize: '12px',
-                          color: '#ef4444',
+                          color: '#284B73',
                           fontWeight: 600
                         }}>
                           {unreadCount} nouvelle{unreadCount > 1 ? 's' : ''}
@@ -1340,7 +1397,7 @@ function AdminPage() {
                     {allNotifications.length > 0 && (
                       <div style={{
                         padding: '12px 16px',
-                        borderTop: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                        borderTop: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                         textAlign: 'center'
                       }}>
                         <button
@@ -1357,7 +1414,7 @@ function AdminPage() {
                           style={{
                             background: 'transparent',
                             border: 'none',
-                            color: '#fa541c',
+                            color: '#284B73',
                             cursor: 'pointer',
                             fontSize: '14px',
                             fontWeight: 500
@@ -1377,7 +1434,7 @@ function AdminPage() {
                     padding: '0',
                     borderRadius: '8px',
                     backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                    border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                     color: isDarkMode ? '#9ca3af' : '#6b7280',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
@@ -1463,16 +1520,15 @@ function AdminPage() {
               <table className="bookings-table">
                 <thead>
                   <tr>
-                    <th>Date</th>
+                    <SortableTh label="Date" columnKey="date" />
                     <th>Calendrier</th>
-                    <th>Client</th>
+                    <SortableTh label="Client" columnKey="client" />
                     <th>Téléphone</th>
                     <th>Concepteur</th>
-                    <th>Pose Wood agency</th>
-                    <th>Facturé</th>
-                    <th>Statut</th>
-                    <th>Message</th>
-                    <th>Créé le</th>
+                    <SortableTh label="Pose  Wood agency" columnKey="pose_wood" />
+                    <SortableTh label="Facturé" columnKey="facture" />
+                    <SortableTh label="Statut" columnKey="statut" />
+                    <SortableTh label="Créé le" columnKey="creé_le" />
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -1484,8 +1540,8 @@ function AdminPage() {
                       className={highlightBookingId === booking.id ? 'highlighted-booking-row' : ''}
                     >
                       <td className="date-cell">
-                        <div className="date-value">{formatDate(booking.date)}</div>
-                        <div className="time-value">
+                        <div>{formatDateShort(booking.date)}</div>
+                        <div className="time-slot-sub">
                           {booking.time && booking.time !== '21h00' ? booking.time : '-'}
                         </div>
                       </td>
@@ -1536,7 +1592,7 @@ function AdminPage() {
                         {(() => {
                           const bookingStatus = (booking as any).status || 'en_attente'
                           const statusText = bookingStatus === 'termine' ? 'Terminé' : 'En attente'
-                          const statusColor = bookingStatus === 'termine' ? '#10b981' : '#ef4444'
+                          const statusColor = bookingStatus === 'termine' ? '#10b981' : '#284B73'
                           return (
                             <span
                               style={{
@@ -1555,28 +1611,25 @@ function AdminPage() {
                           )
                         })()}
                       </td>
-                      <td className="message-cell">
-                        {booking.message || <span className="no-message">-</span>}
-                      </td>
                       <td>{formatDateTime(booking.timestamp)}</td>
                       <td className="actions-cell">
                         {isAdmin || isBookingOwnedByUser(booking) ? (
-                          <div className="actions-stack">
-                            <button
-                              className="edit-button"
-                              onClick={() => handleEditClick(booking)}
-                              title="Modifier"
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              className="delete-button"
-                              onClick={() => handleDeleteClick(booking)}
-                              title="Supprimer"
-                            >
-                              🗑️
-                            </button>
-                          </div>
+                          <>
+                        <button
+                          className="edit-button"
+                          onClick={() => handleEditClick(booking)}
+                          title="Modifier"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          className="delete-button"
+                          onClick={() => handleDeleteClick(booking)}
+                          title="Supprimer"
+                        >
+                          🗑️
+                        </button>
+                          </>
                         ) : (
                           <span style={{ color: isDarkMode ? '#6b7280' : '#9ca3af', fontSize: '12px' }}>
                             Non autorisé
@@ -1700,7 +1753,7 @@ function AdminPage() {
                 style={{
                   padding: '8px 16px',
                   borderRadius: '8px',
-                  border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                  border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                   backgroundColor: 'transparent',
                   color: isDarkMode ? '#ffffff' : '#111827',
                   cursor: 'pointer',
@@ -1727,10 +1780,11 @@ interface AdminSidebarItemProps {
   open: boolean
   onClick: () => void
   isDarkMode: boolean
-  orangeColor: string
   textColor: string
   textSecondary: string
 }
+
+const SIDEBAR_ACTIVE_COLOR = '#284B73'
 
 const AdminSidebarItem: React.FC<AdminSidebarItemProps> = ({
   Icon,
@@ -1739,7 +1793,6 @@ const AdminSidebarItem: React.FC<AdminSidebarItemProps> = ({
   open,
   onClick,
   isDarkMode,
-  orangeColor,
   textColor,
   textSecondary
 }) => {
@@ -1757,10 +1810,10 @@ const AdminSidebarItem: React.FC<AdminSidebarItemProps> = ({
         border: 'none',
         cursor: 'pointer',
         backgroundColor: isActive
-          ? (isDarkMode ? `${orangeColor}30` : `${orangeColor}15`)
+          ? (isDarkMode ? `${SIDEBAR_ACTIVE_COLOR}30` : `${SIDEBAR_ACTIVE_COLOR}15`)
           : 'transparent',
-        color: isActive ? orangeColor : textSecondary,
-        borderLeft: isActive ? `3px solid ${orangeColor}` : '3px solid transparent',
+        color: isActive ? SIDEBAR_ACTIVE_COLOR : textSecondary,
+        borderLeft: isActive ? `3px solid ${SIDEBAR_ACTIVE_COLOR}` : '3px solid transparent',
         transition: 'all 0.2s',
         fontSize: '14px',
         fontWeight: isActive ? 600 : 500

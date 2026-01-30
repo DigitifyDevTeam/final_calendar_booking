@@ -64,7 +64,7 @@ function App() {
     <div className={`App ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
       <div className="app-logo">
         <img 
-          src="https://cdn.prod.website-files.com/5bf555ae8892f8064dda7415/5fbfc91e9d2e7ae94b22dbb4_logo.svg" 
+          src="/logo.svg" 
           alt="Logo" 
           className="logo-image"
         />

@@ -4,8 +4,6 @@ import NoelDecorations from '../components/NoelDecorations'
 import { getMyMagasin } from '../services/magasinService'
 import {
   Bell,
-  Moon,
-  Sun,
   LogOut,
   Menu,
   X,
@@ -21,7 +19,7 @@ interface HomePageProps {
 
 function HomePage({ disableAnimations = false, isAdminView = false }: HomePageProps) {
   const navigate = useNavigate()
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+  const [isDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('darkMode')
     return saved ? JSON.parse(saved) : true
   })
@@ -108,7 +106,7 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
 
   const textColor = isDarkMode ? '#ffffff' : '#111827'
   const textSecondary = isDarkMode ? '#9ca3af' : '#6b7280'
-  const borderColor = isDarkMode ? '#333333' : '#e5e7eb'
+  const borderColor = isDarkMode ? '#BA4E8E' : '#e5e7eb'
   const orangeColor = '#fa541c'
 
   return (
@@ -178,7 +176,7 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
               width: '32px',
               height: '32px',
               borderRadius: '8px',
-              background: `linear-gradient(135deg, ${orangeColor} 0%, #ff6b35 100%)`,
+              background: `linear-gradient(135deg, ${orangeColor} 0%, #284B73 100%)`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -268,13 +266,17 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
               width: '40px',
               height: '40px',
               borderRadius: '8px',
-              background: `linear-gradient(135deg, ${orangeColor} 0%, #ff6b35 100%)`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 2px 8px rgba(250, 84, 28, 0.3)'
+              boxShadow: '0 2px 8px rgba(40, 75, 115, 0.3)',
+              overflow: 'hidden'
             }}>
-              <Calendar style={{ width: '20px', height: '20px', color: '#ffffff' }} />
+              <img
+                src="/favicon.svg"
+                alt="Logo"
+                style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+              />
             </div>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 600, color: textColor }}>Calendrier</div>
@@ -474,7 +476,7 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
       {!isAdminView && (
       <div className="app-logo" style={{ display: isMobile ? 'none' : 'flex' }}>
         <img 
-          src="https://cdn.prod.website-files.com/5bf555ae8892f8064dda7415/5fbfc91e9d2e7ae94b22dbb4_logo.svg" 
+          src="/logo.svg" 
           alt="Logo" 
           className="logo-image"
         />
@@ -498,38 +500,103 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
             {userRole === 'concepteur' && userName && !isAdminView && (
               <div style={{
                 display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-end',
-                gap: '2px'
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: '12px'
               }}>
+                <button
+                  type="button"
+                  onClick={() => navigate('/rechercher')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: `1px solid ${isDarkMode ? '#284B73' : '#284B73'}`,
+                    backgroundColor: isDarkMode ? 'transparent' : '#284B73',
+                    color: isDarkMode ? '#284B73' : '#ffffff',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  Rechercher
+                </button>
                 <div style={{
-                  fontSize: '16px',
-                  fontWeight: 500,
-                  color: isDarkMode ? '#ffffff' : '#111827',
-                  marginBottom: '0'
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-end',
+                  gap: '2px'
                 }}>
-                  Bienvenue <span style={{ color: orangeColor }}>{userName}</span>
-                </div>
-                {userMagasin ? (
                   <div style={{
                     fontSize: '16px',
                     fontWeight: 500,
                     color: isDarkMode ? '#ffffff' : '#111827',
-                    marginTop: '0'
+                    marginBottom: '0'
                   }}>
-                    chez <span style={{ color: orangeColor }}>{userMagasin}</span>
+                    Bienvenue <span style={{ color: '#284B73' }}>{userName}</span>
                   </div>
-                ) : (
+                  {userMagasin ? (
+                    <div style={{
+                      fontSize: '16px',
+                      fontWeight: 500,
+                      color: isDarkMode ? '#ffffff' : '#111827',
+                      marginTop: '0'
+                    }}>
+                      chez <span style={{ color: '#284B73' }}>{userMagasin}</span>
+                    </div>
+                  ) : (
+                    <div style={{
+                      fontSize: '12px',
+                      fontWeight: 400,
+                      color: isDarkMode ? '#9ca3af' : '#6b7280',
+                      opacity: 0.6,
+                      fontStyle: 'italic'
+                    }}>
+                      (chargement...)
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {userRole === 'technicien' && userName && !isAdminView && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => navigate('/rechercher')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: `1px solid ${isDarkMode ? '#284B73' : '#284B73'}`,
+                    backgroundColor: isDarkMode ? 'transparent' : '#284B73',
+                    color: isDarkMode ? '#284B73' : '#ffffff',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  Rechercher
+                </button>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-end',
+                  gap: '2px'
+                }}>
                   <div style={{
-                    fontSize: '12px',
-                    fontWeight: 400,
-                    color: isDarkMode ? '#9ca3af' : '#6b7280',
-                    opacity: 0.6,
-                    fontStyle: 'italic'
+                    fontSize: '16px',
+                    fontWeight: 500,
+                    color: isDarkMode ? '#ffffff' : '#111827',
+                    marginBottom: '0'
                   }}>
-                    (chargement...)
+                    Bienvenue <span style={{ color: '#284B73' }}>{userName}</span>
                   </div>
-                )}
+                </div>
               </div>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -549,7 +616,7 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
                 padding: '8px',
                 borderRadius: '8px',
                 backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                 color: isDarkMode ? '#9ca3af' : '#6b7280',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
@@ -573,7 +640,7 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
                   right: '-4px',
                   width: '12px',
                   height: '12px',
-                  backgroundColor: '#ef4444',
+                  backgroundColor: '#284B73',
                   borderRadius: '50%'
                 }}></span>
               </button>
@@ -585,7 +652,7 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
                 padding: '8px',
                 borderRadius: '8px',
                 backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                 color: isDarkMode ? '#9ca3af' : '#6b7280',
                 cursor: 'pointer',
                 transition: 'all 0.2s',

@@ -82,17 +82,6 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
     }
   }
 
-  // Helper function to display date as dd/MM/yy
-  const formatDateDisplay = (dateString: string): string => {
-    if (!dateString) return ''
-    const date = new Date(dateString + 'T00:00:00')
-    if (isNaN(date.getTime())) return dateString
-    const day = String(date.getDate()).padStart(2, '0')
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const year = String(date.getFullYear()).slice(-2)
-    return `${day}/${month}/${year}`
-  }
-
   useEffect(() => {
     if (booking) {
       // Edit mode - populate form with existing booking data
@@ -483,7 +472,12 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
             <label htmlFor="booking_date">Date * {booking && <span style={{ fontSize: '0.85rem', fontWeight: 'normal', color: '#666', marginLeft: '8px' }}>(Vous pouvez modifier la date)</span>}</label>
             {formData.booking_date && (
               <div className="selected-date-display">
-                Date sélectionnée : {formatDateDisplay(formData.booking_date)}
+                Date sélectionnée : {new Date(formData.booking_date + 'T00:00:00').toLocaleDateString('fr-FR', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
               </div>
             )}
             <input
@@ -614,7 +608,7 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
                     onChange={handleInputChange}
                     style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                   />
-                  <span>Pose non effectuée par Wood agency</span>
+                  <span>Pose effectuée par Wood agency</span>
                 </label>
               </div>
               <div className="form-group">
@@ -633,7 +627,7 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
                   style={{
                     padding: '10px 12px',
                     borderRadius: '8px',
-                    border: errors.livraison ? '2px solid #ef4444' : '1px solid #333',
+                    border: errors.livraison ? '2px solid #284B73' : '1px solid #333',
                     backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
                     color: isDarkMode ? '#ffffff' : '#111827',
                     fontSize: '14px',
@@ -663,7 +657,7 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
                   style={{
                     padding: '10px 12px',
                     borderRadius: '8px',
-                    border: errors.raison ? '2px solid #ef4444' : '1px solid #333',
+                    border: errors.raison ? '2px solid #284B73' : '1px solid #333',
                     backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
                     color: isDarkMode ? '#ffffff' : '#111827',
                     fontSize: '14px',

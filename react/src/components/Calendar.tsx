@@ -13,9 +13,9 @@ const InfoIcon: React.FC = () => (
     xmlns="http://www.w3.org/2000/svg"
     style={{ width: '100%', height: '100%', display: 'block' }}
   >
-    <circle cx="12" cy="12" r="10" stroke="#fa541c" strokeWidth="2" fill="none"/>
-    <path d="M12 16V12" stroke="#fa541c" strokeWidth="2" strokeLinecap="round"/>
-    <circle cx="12" cy="8" r="1" fill="#fa541c"/>
+    <circle cx="12" cy="12" r="10" stroke="#284B73" strokeWidth="2" fill="none"/>
+    <path d="M12 16V12" stroke="#284B73" strokeWidth="2" strokeLinecap="round"/>
+    <circle cx="12" cy="8" r="1" fill="#284B73"/>
   </svg>
 )
 
@@ -205,8 +205,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   }
 
   const handleDateClick = (date: Date, timeSlot?: string) => {
-    // Technicien can only view, not book
+    // Technicien: open view modal when clicking a date/slot that has a booking (no booking flow)
     if (isTechnicien) {
+      handleTechnicienSlotClick(date, timeSlot)
       return
     }
     
@@ -252,6 +253,17 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     return date < today
   }
 
+  // Check if date is yesterday (day before today) - used for Pose technicien: allow yesterday so they can finish J+1
+  const isYesterday = (date: Date): boolean => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const checkDate = new Date(date)
+    checkDate.setHours(0, 0, 0, 0)
+    return checkDate.getTime() === yesterday.getTime()
+  }
+
   // Check if a date is Sunday (day 0 in JavaScript)
   const isSunday = (date: Date): boolean => {
     return date.getDay() === 0
@@ -290,8 +302,10 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   }
 
   // Check if a date should be disabled (past date, Sunday, holiday, or today/tomorrow for non-admin)
+  // Exception: technicien on Pose (calendar1) can click yesterday (last past day) to finish reservations (J+1 rule)
   const isDisabledDate = (date: Date): boolean => {
-    const baseDisabled = isPastDate(date) || isSunday(date) || isHolidayDate(date)
+    const pastCountsAsDisabled = isPastDate(date) && !(isTechnicien && binId === 'calendar1' && isYesterday(date))
+    const baseDisabled = pastCountsAsDisabled || isSunday(date) || isHolidayDate(date)
     // Non-admin users cannot book today or tomorrow
     return baseDisabled || isTodayOrTomorrowDisabledForUser(date)
   }
@@ -370,6 +384,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         // Get today's date (without time) for comparison
         const today = new Date()
         today.setHours(0, 0, 0, 0)
+        const yesterday = new Date(today)
+        yesterday.setDate(yesterday.getDate() - 1)
+        const isBookingYesterday = (d: Date) => d.getTime() === yesterday.getTime()
         
         // Calculate counts for ALL dates (all months), not just visible month
         // This way when user navigates to December, fully-booked dates are already gray
@@ -388,11 +405,11 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           
           const isPastDate = bookingDate < today
           const isAdminOnSavMetre = isAdmin && usesTimeSlots(binId) && (binId === 'calendar2' || binId === 'calendar3')
+          const isTechnicienPoseYesterday = isTechnicien && binId === 'calendar1' && isPastDate && isBookingYesterday(bookingDate)
           
           // For admin on SAV/Metré: include past bookings in slots/details but not in counts
-          // For technicien: include today and all future bookings (bookingDate >= today)
-          // For all others: only include today and future bookings (bookingDate >= today)
-          if (bookingDate >= today || (isPastDate && isAdminOnSavMetre)) {
+          // For technicien on Pose: also include yesterday so they can open and finish (J+1)
+          if (bookingDate >= today || (isPastDate && isAdminOnSavMetre) || isTechnicienPoseYesterday) {
             // For calendars with time slots (calendar2/SAV and calendar3/Metré), only count if time slot is present
             // For calendar1/Pose, count all bookings
             if (usesTimeSlots(binId)) {
@@ -420,8 +437,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                 filteredTimeSlotCount++
               }
             } else {
-              // For Pose calendar (calendar1), only count future bookings
-              if (!isPastDate) {
+              // For Pose calendar (calendar1), count future bookings; for technicien also count yesterday (J+1 finish)
+              if (!isPastDate || isTechnicienPoseYesterday) {
                 counts[booking.date] = (counts[booking.date] || 0) + 1
               }
             }
@@ -622,6 +639,14 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     // Only show info icon for Pose calendar (calendar1), hide for SAV (calendar2) and Metré (calendar3)
     if (binId === 'calendar2' || binId === 'calendar3') {
       return false
+    }
+    
+    // Technicien: show info icon when there is at least one booking (incl. yesterday on Pose for J+1 finish)
+    if (isTechnicien) {
+      if (timeSlot) {
+        return isSlotBooked(date, timeSlot)
+      }
+      return getBookingsForDate(date).length > 0
     }
     
     if (isAdmin) {
@@ -3024,7 +3049,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
             {isTechnicien && (
               <div style={{
                 fontSize: '11px',
-                color: '#fa541c',
+                color: '#284B73',
                 marginBottom: '8px',
                 display: 'flex',
                 alignItems: 'center',
@@ -3054,7 +3079,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                         padding: '8px 12px',
                         marginBottom: '4px',
                         borderRadius: '6px',
-                        border: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                        border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                         backgroundColor: isDarkMode ? '#0a0a0a' : '#f9fafb',
                         color: isDarkMode ? '#ffffff' : '#111827',
                         cursor: 'pointer',
@@ -3064,11 +3089,11 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f3f4f6'
-                        e.currentTarget.style.borderColor = '#fa541c'
+                        e.currentTarget.style.borderColor = '#284B73'
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.backgroundColor = isDarkMode ? '#0a0a0a' : '#f9fafb'
-                        e.currentTarget.style.borderColor = isDarkMode ? '#333333' : '#e5e7eb'
+                        e.currentTarget.style.borderColor = isDarkMode ? '#BA4E8E' : '#e5e7eb'
                       }}
                     >
                       {booking.name}
@@ -3089,7 +3114,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
               <div style={{
                 marginTop: '16px',
                 paddingTop: '16px',
-                borderTop: `1px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                borderTop: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                 display: 'flex',
                 gap: '8px',
                 justifyContent: 'flex-end'
@@ -3103,7 +3128,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                     padding: '8px 16px',
                     borderRadius: '8px',
                     border: 'none',
-                    backgroundColor: '#fa541c',
+                    backgroundColor: '#284B73',
                     color: '#ffffff',
                     cursor: 'pointer',
                     fontSize: '14px',
@@ -3115,12 +3140,12 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                     boxShadow: '0 2px 4px rgba(250, 84, 28, 0.3)'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#ff6b35'
+                    e.currentTarget.style.backgroundColor = '#284B73'
                     e.currentTarget.style.transform = 'translateY(-1px)'
                     e.currentTarget.style.boxShadow = '0 4px 8px rgba(250, 84, 28, 0.4)'
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#fa541c'
+                    e.currentTarget.style.backgroundColor = '#284B73'
                     e.currentTarget.style.transform = 'translateY(0)'
                     e.currentTarget.style.boxShadow = '0 2px 4px rgba(250, 84, 28, 0.3)'
                   }}
@@ -3137,7 +3162,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                     padding: '8px 16px',
                     borderRadius: '8px',
                     border: 'none',
-                    backgroundColor: isDarkMode ? '#dc2626' : '#ef4444',
+                    backgroundColor: isDarkMode ? '#dc2626' : '#284B73',
                     color: '#ffffff',
                     cursor: 'pointer',
                     fontSize: '14px',
@@ -3154,7 +3179,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                     e.currentTarget.style.boxShadow = '0 4px 8px rgba(239, 68, 68, 0.4)'
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = isDarkMode ? '#dc2626' : '#ef4444'
+                    e.currentTarget.style.backgroundColor = isDarkMode ? '#dc2626' : '#284B73'
                     e.currentTarget.style.transform = 'translateY(0)'
                     e.currentTarget.style.boxShadow = '0 2px 4px rgba(239, 68, 68, 0.3)'
                   }}
@@ -3193,7 +3218,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
               transform: 'translate(-50%, -50%)',
               zIndex: 10000,
               backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-              border: `2px solid ${isDarkMode ? '#fa541c' : '#fa541c'}`,
+              border: `2px solid ${isDarkMode ? '#284B73' : '#284B73'}`,
               borderRadius: '16px',
               boxShadow: '0 20px 50px rgba(0, 0, 0, 0.4)',
               padding: '20px',
@@ -3210,7 +3235,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
               color: isDarkMode ? '#ffffff' : '#111827',
               marginBottom: '16px',
               paddingBottom: '12px',
-              borderBottom: `2px solid ${isDarkMode ? '#fa541c' : '#fa541c'}`
+              borderBottom: `2px solid ${isDarkMode ? '#284B73' : '#284B73'}`
             }}>
               {bookingSelectPopup.action === 'edit' ? '✏️ Sélectionner une réservation à modifier' : '🗑️ Sélectionner une réservation à supprimer'}
             </div>
@@ -3235,7 +3260,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                     gap: '6px',
                     padding: '14px 16px',
                     borderRadius: '10px',
-                    border: `2px solid ${isDarkMode ? '#333333' : '#e5e7eb'}`,
+                    border: `2px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
                     backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
@@ -3244,12 +3269,12 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#fff7ed'
-                    e.currentTarget.style.borderColor = '#fa541c'
+                    e.currentTarget.style.borderColor = '#284B73'
                     e.currentTarget.style.transform = 'translateX(4px)'
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = isDarkMode ? '#0a0a0a' : '#ffffff'
-                    e.currentTarget.style.borderColor = isDarkMode ? '#333333' : '#e5e7eb'
+                    e.currentTarget.style.borderColor = isDarkMode ? '#BA4E8E' : '#e5e7eb'
                     e.currentTarget.style.transform = 'translateX(0)'
                   }}
                 >
@@ -3268,7 +3293,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                   </div>
                   <div style={{
                     fontSize: '12px',
-                    color: '#fa541c',
+                    color: '#284B73',
                     fontWeight: 500
                   }}>
                     🎨 Concepteur: {booking.designer}
@@ -3293,7 +3318,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = isDarkMode ? '#3a3a3a' : '#e5e7eb'
-              e.currentTarget.style.borderColor = '#fa541c'
+              e.currentTarget.style.borderColor = '#284B73'
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = isDarkMode ? '#2a2a2a' : '#f3f4f6'

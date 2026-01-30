@@ -93,7 +93,7 @@
 }
 
 .calendar.light-mode .nav-button {
-  background: #333333;
+  background: #284B73;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(0, 0, 0, 0.1);
 }
@@ -141,7 +141,7 @@
 }
 
 .calendar.light-mode .month-year {
-  background: #333333;
+  background: #284B73;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(0, 0, 0, 0.1);
 }
@@ -225,7 +225,7 @@
 }
 
 .calendar.light-mode .day-header-cell {
-  background: #333333;
+  background: #284B73;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(0, 0, 0, 0.1);
 }
@@ -311,7 +311,7 @@
   font-size: 1.8rem;
   font-weight: 700;
   color: #ffffff;
-  background: #fa541c;
+  background: #284B73;
   border-radius: 50%;
   width: 48px;
   height: 48px;
@@ -408,7 +408,7 @@
 
 .date-number:hover {
   transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 8px 25px rgba(255, 152, 0, 0.6);
+  box-shadow: 0 8px 25px rgba(40, 75, 115, 0.6);
 }
 
 /* Time slot boxes under each date */
@@ -455,7 +455,7 @@
 .calendar.light-mode .time-slot {
   background: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.1);
-  color: #333333;
+  color: #BA4E8E;
 }
 
 .time-slot:hover:not(.disabled) {
@@ -486,7 +486,7 @@
 .calendar.dark-mode .time-slot.disabled {
   background: #1a1a1a !important;
   color: #ffffff !important;
-  border-color: #333333 !important;
+  border-color: #BA4E8E !important;
   opacity: 1 !important; /* keep reserved text readable in dark mode */
 }
 
@@ -876,7 +876,7 @@
 
 .calendar-info-popup-content {
   background: white;
-  border: 2px solid #fa541c;
+  border: 2px solid #284B73;
   border-radius: 8px;
   padding: 12px 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -888,13 +888,13 @@
 
 .calendar.dark-mode .calendar-info-popup-content {
   background: #2a2a2a;
-  border-color: #fa541c;
+  border-color: #284B73;
   color: white;
 }
 
 .calendar-info-popup-title {
   font-weight: 600;
-  color: #fa541c;
+  color: #284B73;
   margin-bottom: 8px;
   font-size: 0.85rem;
 }
@@ -920,7 +920,7 @@
   border: none;
   font-size: 20px;
   line-height: 1;
-  color: #fa541c;
+  color: #284B73;
   cursor: pointer;
   padding: 4px 8px;
   width: 24px;
@@ -934,17 +934,17 @@
 
 .calendar-info-popup-close:hover {
   background: rgba(250, 84, 28, 0.1);
-  color: #ff6b35;
+  color: #284B73;
   transform: scale(1.1);
 }
 
 .calendar.dark-mode .calendar-info-popup-close {
-  color: #fa541c;
+  color: #284B73;
 }
 
 .calendar.dark-mode .calendar-info-popup-close:hover {
   background: rgba(250, 84, 28, 0.2);
-  color: #ff6b35;
+  color: #284B73;
 }
 
 /* Technicien clickable slots - special styling for view-only mode */
@@ -955,7 +955,7 @@
 
 .time-slot.technicien-clickable:hover {
   background: rgba(250, 84, 28, 0.15) !important;
-  border-color: #fa541c !important;
+  border-color: #284B73 !important;
 }
 
 .time-slot.technicien-clickable::after {

@@ -94,6 +94,7 @@ class Booking(models.Model):
     menage_fait = models.BooleanField(default=False)
     cft_signe = models.BooleanField(default=False)
     electromenager_fonctionnel = models.BooleanField(null=True, blank=True)
+    sav_a_prevoir = models.BooleanField(null=True, blank=True, help_text='Un SAV à prévoir ? (SAV et Pose)')
     completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     

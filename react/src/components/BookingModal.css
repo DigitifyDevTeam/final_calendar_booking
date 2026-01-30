@@ -114,13 +114,13 @@
 
 .modal-content.light-mode .selected-date {
   background: #f8f9ff;
-  color: #fa541c;
+  color: #284B73;
   border-bottom: 1px solid #eee;
 }
 
 .modal-content.dark-mode .selected-date {
   background: #2a2a2a;
-  color: #fa541c;
+  color: #284B73;
   border-bottom: 1px solid #444;
 }
 
@@ -271,14 +271,14 @@
 }
 
 .submit-button {
-  background: #fa541c !important;
+  background: #284B73 !important;
   color: white !important;
 }
 
 .submit-button:hover {
-  background: #e6450f !important;
+  background: #284B73 !important;
   transform: translateY(-2px);
-  box-shadow: 0 10px 25px rgba(250, 84, 28, 0.3);
+  box-shadow: 0 10px 25px rgba(40, 75, 115, 0.3);
 }
 
 .submit-button:active {

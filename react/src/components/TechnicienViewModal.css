@@ -44,7 +44,7 @@
 
 .dark-mode .technicien-modal {
   background-color: #1a1a1a;
-  border: 1px solid #333333;
+  border: 1px solid #BA4E8E;
 }
 
 .light-mode .technicien-modal {
@@ -61,7 +61,7 @@
 }
 
 .dark-mode .technicien-modal-header {
-  border-color: #333333;
+  border-color: #BA4E8E;
 }
 
 .light-mode .technicien-modal-header {
@@ -101,7 +101,7 @@
 }
 
 .dark-mode .technicien-modal-header .close-button:hover {
-  background-color: #333333;
+  background-color: #BA4E8E;
   color: #ffffff;
 }
 
@@ -135,13 +135,13 @@
 
 .dark-mode .info-badge {
   background-color: rgba(250, 84, 28, 0.15);
-  color: #fa541c;
+  color: #284B73;
   border: 1px solid rgba(250, 84, 28, 0.3);
 }
 
 .light-mode .info-badge {
   background-color: rgba(250, 84, 28, 0.1);
-  color: #fa541c;
+  color: #284B73;
   border: 1px solid rgba(250, 84, 28, 0.2);
 }
 
@@ -180,7 +180,7 @@
 .dark-mode .info-value {
   color: #ffffff;
   background-color: #0a0a0a;
-  border: 1px solid #333333;
+  border: 1px solid #BA4E8E;
 }
 
 .light-mode .info-value {
@@ -210,14 +210,14 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  background: linear-gradient(135deg, #fa541c 0%, #ff6b35 100%);
+  background: linear-gradient(135deg, #284B73 0%, #284B73 100%);
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(250, 84, 28, 0.3);
+  box-shadow: 0 2px 8px rgba(40, 75, 115, 0.3);
 }
 
 .close-action-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(250, 84, 28, 0.4);
+  box-shadow: 0 4px 12px rgba(40, 75, 115, 0.4);
 }
 
 .close-action-button:active {
@@ -246,6 +246,11 @@
   transform: translateY(0);
 }
 
+.finish-action-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
 
 /* Responsive */
 @media (max-width: 500px) {
