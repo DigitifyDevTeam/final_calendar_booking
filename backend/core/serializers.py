@@ -254,6 +254,7 @@ class BookingSerializer(serializers.ModelSerializer):
             'menage_fait',
             'cft_signe',
             'electromenager_fonctionnel',
+            'ascenseur_escaliers',
             'completed_at',
             'created_at',
         ]

@@ -1089,8 +1089,25 @@ def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_
             time_display = booking.booking_time.strip()
         
         # Build checkmarks: selected = green check; except "Un SAV à prévoir ?" where selected = red X
+        # Electromenager and SAV à prévoir show Oui/Non (from radio choices)
         check_icon = "✅"
         cross_icon = "❌"
+        
+        electromenager_html = ""
+        if booking.electromenager_fonctionnel is not None:
+            icon = check_icon if booking.electromenager_fonctionnel else cross_icon
+            rep = "Oui" if booking.electromenager_fonctionnel else "Non"
+            electromenager_html = f"<div style='margin: 8px 0;'><span style='font-size: 18px;'>{icon}</span><span style='margin-left: 8px;'>L'électroménager est fonctionnel: <strong>{rep}</strong></span></div>"
+        sav_prevoir_html = ""
+        if booking.sav_a_prevoir is not None:
+            icon = cross_icon if booking.sav_a_prevoir else check_icon
+            rep = "Oui" if booking.sav_a_prevoir else "Non"
+            sav_prevoir_html = f"<div style='margin: 8px 0;'><span style='font-size: 18px;'>{icon}</span><span style='margin-left: 8px;'>Un SAV à prévoir ?: <strong>{rep}</strong></span></div>"
+        # Metré only: J'ai pris l'ascenseur et les escaliers
+        ascenseur_escaliers_html = ""
+        if booking.ascenseur_escaliers is not None and booking.calendar_id in ['calendar3', '3']:
+            icon = check_icon if booking.ascenseur_escaliers else cross_icon
+            ascenseur_escaliers_html = f"<div style='margin: 8px 0;'><span style='font-size: 18px;'>{icon}</span><span style='margin-left: 8px;'>J'ai pris l'ascenseur et les escaliers</span></div>"
         
         checks_html = f"""
         <div style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #28a745;">
@@ -1103,8 +1120,9 @@ def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_
                 <span style="font-size: 18px;">{check_icon if booking.cft_signe else cross_icon}</span>
                 <span style="margin-left: 8px;">Le CFT est signé</span>
             </div>
-            {"<div style='margin: 8px 0;'><span style='font-size: 18px;'>" + (check_icon if booking.electromenager_fonctionnel else cross_icon) + "</span><span style='margin-left: 8px;'>L'électroménager est fonctionnel</span></div>" if booking.electromenager_fonctionnel is not None else ""}
-            {"<div style='margin: 8px 0;'><span style='font-size: 18px;'>" + (cross_icon if booking.sav_a_prevoir else check_icon) + "</span><span style='margin-left: 8px;'>Un SAV à prévoir ?</span></div>" if booking.sav_a_prevoir is not None else ""}
+            {electromenager_html}
+            {sav_prevoir_html}
+            {ascenseur_escaliers_html}
         </div>
         """
         
@@ -1195,12 +1213,15 @@ def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_
         """
         
         # Plain text fallback (same inverted meaning: Oui = technicien selected = shown as attention in HTML)
+        ascenseur_text = ""
+        if booking.ascenseur_escaliers is not None and booking.calendar_id in ['calendar3', '3']:
+            ascenseur_text = "\n- J'ai pris l'ascenseur et les escaliers: " + ('Oui' if booking.ascenseur_escaliers else 'Non')
         checks_text = f"""
 État de l'intervention:
 - Le ménage est fait: {'Oui' if booking.menage_fait else 'Non'}
 - Le CFT est signé: {'Oui' if booking.cft_signe else 'Non'}
 {"- L'électroménager est fonctionnel: " + ('Oui' if booking.electromenager_fonctionnel else 'Non') if booking.electromenager_fonctionnel is not None else ""}
-{"- Un SAV à prévoir ?: " + ('Oui' if booking.sav_a_prevoir else 'Non') if booking.sav_a_prevoir is not None else ""}
+{"- Un SAV à prévoir ?: " + ('Oui' if booking.sav_a_prevoir else 'Non') if booking.sav_a_prevoir is not None else ""}{ascenseur_text}
         """.strip()
         
         files_text = ""
@@ -1380,6 +1401,10 @@ class BookingFinishView(APIView):
                 if 'sav_a_prevoir' in request.data:
                     booking.sav_a_prevoir = str_to_bool(request.data.get('sav_a_prevoir'))
             
+            # J'ai pris l'ascenseur et les escaliers (Metré only)
+            if booking.calendar_id in ['calendar3', '3'] and 'ascenseur_escaliers' in request.data:
+                booking.ascenseur_escaliers = str_to_bool(request.data.get('ascenseur_escaliers'))
+            
             # Set status to 'termine' when technician finishes the booking
             booking.status = 'termine'
             booking.completed_at = timezone.now()
@@ -1438,6 +1463,7 @@ class BookingFinishView(APIView):
                     'menage_fait': booking.menage_fait,
                     'cft_signe': booking.cft_signe,
                     'electromenager_fonctionnel': booking.electromenager_fonctionnel,
+                    'ascenseur_escaliers': booking.ascenseur_escaliers,
                     'completed_at': booking.completed_at.isoformat() if booking.completed_at else None,
                     'status': booking.status
                 }

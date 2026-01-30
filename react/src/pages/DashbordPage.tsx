@@ -245,18 +245,17 @@ function DashbordPage() {
       concepteurEntry.total = concepteurEntry.pose + concepteurEntry.sav + concepteurEntry.metre
     })
 
-    // Convert to array format: each magasin with its top concepteurs
+    // Convert to array format: each magasin with all its concepteurs (no top-10 limit)
     return Array.from(magasinStatsMap.entries()).map(([magasinId, magasinData]) => {
-      const topConcepteurs = Array.from(magasinData.concepteurs.values())
+      const allConcepteurs = Array.from(magasinData.concepteurs.values())
         .map(({ displayName, ...counts }) => ({ name: displayName, ...counts }))
         .sort((a, b) => b.total - a.total)
-        .slice(0, 10)
       
       return {
         magasinId,
         magasinName: magasinData.magasinName,
-        concepteurs: topConcepteurs,
-        total: topConcepteurs.reduce((sum, c) => sum + c.total, 0)
+        concepteurs: allConcepteurs,
+        total: allConcepteurs.reduce((sum, c) => sum + c.total, 0)
       }
     }).sort((a, b) => b.total - a.total) // Sort magasins by total
   }
@@ -418,11 +417,10 @@ function DashbordPage() {
       })
     }
 
-    // Convert Map to array and return
+    // Convert Map to array and return (all concepteurs, no top-10 limit)
     return Array.from(concepteurCountsMap.values())
       .map(({ displayName, ...counts }) => ({ name: displayName, ...counts }))
       .sort((a, b) => b.total - a.total)
-      .slice(0, 10)
   }
 
   useEffect(() => {

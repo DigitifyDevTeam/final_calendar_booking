@@ -494,16 +494,8 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
           <div>
             <h1>Réservez Votre Rendez-vous</h1>
             <p>Sélectionnez un type de rendez-vous</p>
-          </div>
-          )}
-          <div style={{ display: isMobile && !isAdminView ? 'none' : 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-            {userRole === 'concepteur' && userName && !isAdminView && (
-              <div style={{
-                display: 'flex',
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: '12px'
-              }}>
+            {(userRole === 'concepteur' || userRole === 'technicien') && userName && !isAdminView && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
                 <button
                   type="button"
                   onClick={() => navigate('/rechercher')}
@@ -521,6 +513,18 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
                 >
                   Rechercher
                 </button>
+              </div>
+            )}
+          </div>
+          )}
+          <div style={{ display: isMobile && !isAdminView ? 'none' : 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+            {userRole === 'concepteur' && userName && !isAdminView && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
                 <div style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -565,23 +569,6 @@ function HomePage({ disableAnimations = false, isAdminView = false }: HomePagePr
                 alignItems: 'center',
                 gap: '12px'
               }}>
-                <button
-                  type="button"
-                  onClick={() => navigate('/rechercher')}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    border: `1px solid ${isDarkMode ? '#284B73' : '#284B73'}`,
-                    backgroundColor: isDarkMode ? 'transparent' : '#284B73',
-                    color: isDarkMode ? '#284B73' : '#ffffff',
-                    fontWeight: 600,
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  Rechercher
-                </button>
                 <div style={{
                   display: 'flex',
                   flexDirection: 'column',

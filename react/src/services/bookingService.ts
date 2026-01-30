@@ -596,6 +596,7 @@ export const finishBooking = async (
     cftSigne: boolean
     electromenagerFonctionnel?: boolean
     savAPrevoir?: boolean
+    ascenseurEscaliers?: boolean
     attachments: File[]
   }
 ): Promise<{
@@ -626,6 +627,9 @@ export const finishBooking = async (
     }
     if (data.savAPrevoir !== undefined) {
       formData.append('sav_a_prevoir', String(data.savAPrevoir))
+    }
+    if (data.ascenseurEscaliers !== undefined) {
+      formData.append('ascenseur_escaliers', String(data.ascenseurEscaliers))
     }
     
     // Append all files

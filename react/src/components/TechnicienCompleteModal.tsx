@@ -16,6 +16,7 @@ interface TechnicienCompleteModalProps {
     cftSigne: boolean
     electromenager_fonctionnel?: boolean
     sav_a_prevoir?: boolean
+    ascenseur_escaliers?: boolean
     attachments: File[]
   }) => void
 }
@@ -32,8 +33,9 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
 }) => {
   const [menageFait, setMenageFait] = useState(false)
   const [cftSigne, setCftSigne] = useState(false)
-  const [electromenagerFonctionnel, setElectromenagerFonctionnel] = useState(false)
-  const [savAPrevoir, setSavAPrevoir] = useState(false)
+  const [electromenagerFonctionnel, setElectromenagerFonctionnel] = useState<boolean | null>(null)
+  const [savAPrevoir, setSavAPrevoir] = useState<boolean | null>(null)
+  const [ascenseurEscaliers, setAscenseurEscaliers] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [submitting, setSubmitting] = useState(false)
 
@@ -43,6 +45,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
   const isSavOrMetre = isSavCalendar || isMetreCalendar
   const showElectromenagerCheckbox = isSavCalendar || isMetreCalendar || isPoseCalendar
   const showSavAPrevoirCheckbox = isSavCalendar || isPoseCalendar
+  const showAscenseurEscaliersCheckbox = isMetreCalendar
   const isAlreadyFinished = bookingStatus === 'termine'
 
   // SAV and Metré: can only finish on the same day as the reservation
@@ -71,8 +74,9 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
     if (isOpen) {
       setMenageFait(false)
       setCftSigne(false)
-      setElectromenagerFonctionnel(false)
-      setSavAPrevoir(false)
+      setElectromenagerFonctionnel(null)
+      setSavAPrevoir(null)
+      setAscenseurEscaliers(false)
       setFiles([])
       setSubmitting(false)
     }
@@ -80,8 +84,11 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
 
   if (!isOpen) return null
 
-  // Check if button should be enabled: same-day (SAV/Metre), checkboxes, files, and not already finished
-  const isFinishButtonEnabled = canFinishByDate && menageFait && cftSigne && files.length > 0 && !isAlreadyFinished
+  // Check if button should be enabled: same-day (SAV/Metre), checkboxes, radio answers (Oui/Non), ascenseur (Metré), files, and not already finished
+  const electromenagerAnswered = !showElectromenagerCheckbox || electromenagerFonctionnel !== null
+  const savAnswered = !showSavAPrevoirCheckbox || savAPrevoir !== null
+  const ascenseurRequired = !showAscenseurEscaliersCheckbox || ascenseurEscaliers
+  const isFinishButtonEnabled = canFinishByDate && menageFait && cftSigne && electromenagerAnswered && savAnswered && ascenseurRequired && files.length > 0 && !isAlreadyFinished
 
   const handleFinish = async () => {
     if (!isFinishButtonEnabled || isAlreadyFinished) {
@@ -101,8 +108,9 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
       await finishBooking(bookingId, {
         menageFait,
         cftSigne,
-        electromenagerFonctionnel: showElectromenagerCheckbox ? electromenagerFonctionnel : undefined,
-        savAPrevoir: showSavAPrevoirCheckbox ? savAPrevoir : undefined,
+        electromenagerFonctionnel: showElectromenagerCheckbox && electromenagerFonctionnel !== null ? electromenagerFonctionnel : undefined,
+        savAPrevoir: showSavAPrevoirCheckbox && savAPrevoir !== null ? savAPrevoir : undefined,
+        ascenseurEscaliers: showAscenseurEscaliersCheckbox ? ascenseurEscaliers : undefined,
         attachments: files
       })
       
@@ -112,8 +120,9 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
           bookingId,
           menageFait,
           cftSigne,
-          electromenager_fonctionnel: showElectromenagerCheckbox ? electromenagerFonctionnel : undefined,
-          sav_a_prevoir: showSavAPrevoirCheckbox ? savAPrevoir : undefined,
+          electromenager_fonctionnel: showElectromenagerCheckbox && electromenagerFonctionnel !== null ? electromenagerFonctionnel : undefined,
+          sav_a_prevoir: showSavAPrevoirCheckbox && savAPrevoir !== null ? savAPrevoir : undefined,
+          ascenseur_escaliers: showAscenseurEscaliersCheckbox ? ascenseurEscaliers : undefined,
           attachments: files
         })
       }
@@ -196,25 +205,65 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
               />
               <span>Le CFT est signé </span>
             </label>
-            {showElectromenagerCheckbox && (
+            {showAscenseurEscaliersCheckbox && (
               <label>
                 <input
                   type="checkbox"
-                  checked={electromenagerFonctionnel}
-                  onChange={(e) => setElectromenagerFonctionnel(e.target.checked)}
+                  checked={ascenseurEscaliers}
+                  onChange={(e) => setAscenseurEscaliers(e.target.checked)}
                 />
-                <span>L’électroménager est fonctionnel </span>
+                <span>J'ai pris l'ascenseur et les escaliers</span>
               </label>
             )}
+            {showElectromenagerCheckbox && (
+              <div className="radio-group">
+                <span className="radio-group-label">L'électroménager est fonctionnel</span>
+                <div className="radio-options">
+                  <label>
+                    <input
+                      type="radio"
+                      name="electromenager"
+                      checked={electromenagerFonctionnel === true}
+                      onChange={() => setElectromenagerFonctionnel(true)}
+                    />
+                    <span>Oui</span>
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="electromenager"
+                      checked={electromenagerFonctionnel === false}
+                      onChange={() => setElectromenagerFonctionnel(false)}
+                    />
+                    <span>Non</span>
+                  </label>
+                </div>
+              </div>
+            )}
             {showSavAPrevoirCheckbox && (
-              <label>
-                <input
-                  type="checkbox"
-                  checked={savAPrevoir}
-                  onChange={(e) => setSavAPrevoir(e.target.checked)}
-                />
-                <span>Un SAV à prévoir ? </span>
-              </label>
+              <div className="radio-group">
+                <span className="radio-group-label">Un SAV à prévoir ?</span>
+                <div className="radio-options">
+                  <label>
+                    <input
+                      type="radio"
+                      name="sav_prevoir"
+                      checked={savAPrevoir === true}
+                      onChange={() => setSavAPrevoir(true)}
+                    />
+                    <span>Oui</span>
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="sav_prevoir"
+                      checked={savAPrevoir === false}
+                      onChange={() => setSavAPrevoir(false)}
+                    />
+                    <span>Non</span>
+                  </label>
+                </div>
+              </div>
             )}
           </div>
 
