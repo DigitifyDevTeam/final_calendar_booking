@@ -544,10 +544,11 @@ function DashbordPage() {
           return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear
         }) || []
         
-        // Calculate rates based on capacity
-        // Pose: 3 per day, Metré: 8 per day, SAV: 3 per day
+        // Calculate rates based on capacity (Taux d'engorgement)
+        // Pose: 3*x, Metré: 7*x, SAV: 3*x (x = number of days in that month)
+        // Metré has 7 time slots per day since 18:30 was removed
         const poseCapacity = daysInMonth * 3
-        const metreCapacity = daysInMonth * 8
+        const metreCapacity = daysInMonth * 7
         const savCapacity = daysInMonth * 3
         const totalCapacity = poseCapacity + metreCapacity + savCapacity
         

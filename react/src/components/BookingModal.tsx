@@ -323,8 +323,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
       // SAV calendar time slots
       return ['8:00-11:00', '11:00-14:00', '14:00-17:00']
     } else if (calendarId === CALENDAR_CONFIGS['calendar3']) {
-      // Metré calendar time slots
-      return ['8:00', '9:30', '11:00', '12:30', '14:00', '15:30', '17:00', '18:30']
+      // Metré calendar time slots (18:30 removed)
+      return ['8:00', '9:30', '11:00', '12:30', '14:00', '15:30', '17:00']
     }
     return []
   }

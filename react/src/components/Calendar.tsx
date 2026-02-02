@@ -1328,7 +1328,6 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                               const slot14_00Booked = isSlotBooked(date, '14:00')
                               const slot15_30Booked = isSlotBooked(date, '15:30')
                               const slot17_00Booked = isSlotBooked(date, '17:00')
-                              const slot18_30Booked = isSlotBooked(date, '18:30')
                               
                               // Helper to get display text for booked slots (Metré and SAV only)
                               const getSlotDisplayText = (timeSlot: string, isBooked: boolean): string => {
@@ -1684,56 +1683,6 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                             onClick={(e) => {
                                               e.stopPropagation()
                                               handleDeleteBooking(date, '17:00')
-                                            }}
-                                            title="Supprimer"
-                                          >
-                                            🗑️
-                                          </button>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div 
-                                    className={`time-slot ${slot18_30Booked ? 'disabled' : ''} ${!slot18_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot18_30Booked ? 'technicien-clickable' : ''}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot18_30Booked) {
-                                        handleTechnicienSlotClick(date, '18:30')
-                                      } else if (!slot18_30Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '18:30')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot18_30Booked) ? 'pointer' : (slot18_30Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
-                                  >
-                                    <span style={{ fontWeight: slot18_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot18_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('18:30', slot18_30Booked)}
-                                    </span>
-                                    <div className="time-slot-actions">
-                                      {shouldShowInfoIcon(date, '18:30') && (
-                                      <button
-                                        className="calendar-info-button"
-                          onClick={(e) => handleInfoClick(e, date, '18:30')}
-                                        title="Voir les réservations"
-                                      >
-                                        <InfoIcon />
-                                      </button>
-                                    )}
-                                      {(isAdmin || isConcepteur || isRegularUser) && getBookingForDateAndSlot(date, '18:30') && (
-                                        <>
-                                          <button
-                                            className="calendar-edit-button"
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              handleEditBooking(date, '18:30')
-                                            }}
-                                            title="Modifier"
-                                          >
-                                            ✏️
-                                          </button>
-                                          <button
-                                            className="calendar-delete-button"
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              handleDeleteBooking(date, '18:30')
                                             }}
                                             title="Supprimer"
                                           >
@@ -2422,7 +2371,6 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                               const slot14_00Booked = isSlotBooked(date, '14:00')
                               const slot15_30Booked = isSlotBooked(date, '15:30')
                               const slot17_00Booked = isSlotBooked(date, '17:00')
-                              const slot18_30Booked = isSlotBooked(date, '18:30')
                               
                               // Helper to get display text for booked slots (SAV and Metré only)
                               const getSlotDisplayText = (timeSlot: string, isBooked: boolean): string => {
@@ -2778,56 +2726,6 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                             onClick={(e) => {
                                               e.stopPropagation()
                                               handleDeleteBooking(date, '17:00')
-                                            }}
-                                            title="Supprimer"
-                                          >
-                                            🗑️
-                                          </button>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div 
-                                    className={`time-slot ${slot18_30Booked ? 'disabled' : ''} ${!slot18_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot18_30Booked ? 'technicien-clickable' : ''}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot18_30Booked) {
-                                        handleTechnicienSlotClick(date, '18:30')
-                                      } else if (!slot18_30Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '18:30')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot18_30Booked) ? 'pointer' : (slot18_30Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
-                                  >
-                                    <span style={{ fontWeight: slot18_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot18_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('18:30', slot18_30Booked)}
-                                    </span>
-                                    <div className="time-slot-actions">
-                                      {shouldShowInfoIcon(date, '18:30') && (
-                                      <button
-                                        className="calendar-info-button"
-                          onClick={(e) => handleInfoClick(e, date, '18:30')}
-                                        title="Voir les réservations"
-                                      >
-                                        <InfoIcon />
-                                      </button>
-                                    )}
-                                      {(isAdmin || isConcepteur || isRegularUser) && getBookingForDateAndSlot(date, '18:30') && (
-                                        <>
-                                          <button
-                                            className="calendar-edit-button"
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              handleEditBooking(date, '18:30')
-                                            }}
-                                            title="Modifier"
-                                          >
-                                            ✏️
-                                          </button>
-                                          <button
-                                            className="calendar-delete-button"
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              handleDeleteBooking(date, '18:30')
                                             }}
                                             title="Supprimer"
                                           >

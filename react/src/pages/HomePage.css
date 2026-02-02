@@ -314,13 +314,32 @@
     max-width: 100% !important;
     right: 0 !important;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .home-sidebar::-webkit-scrollbar {
+    display: none;
   }
 }
 
-/* Responsive design */
+/* Responsive design - mobile: no scrollbars, single scroll area */
 @media (max-width: 768px) {
   .home-page {
     padding: 12px;
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    box-sizing: border-box;
+  }
+
+  .home-page::-webkit-scrollbar {
+    display: none;
   }
 
   .header-content {
