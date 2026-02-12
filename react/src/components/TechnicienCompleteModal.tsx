@@ -139,6 +139,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
 
   return (
     <div className={`technicien-complete-modal-overlay ${isDarkMode ? 'dark-mode' : 'light-mode'}`} onClick={onClose}>
+      <div className="technicien-complete-modal-wrapper">
       <div className="technicien-complete-modal" onClick={(e) => e.stopPropagation()}>
         <div className="technicien-complete-modal-header">
           <h2>Finaliser l'intervention</h2>
@@ -303,6 +304,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
             {submitting ? 'En cours...' : isAlreadyFinished ? 'Déjà terminé' : 'Terminer'}
           </button>
         </div>
+      </div>
       </div>
     </div>
   )

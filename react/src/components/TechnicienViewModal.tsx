@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import './TechnicienViewModal.css'
 import { BookingRecord } from '../services/bookingService'
 import TechnicienCompleteModal from './TechnicienCompleteModal'
@@ -25,6 +25,16 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
   onFinish
 }) => {
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false)
+
+  useEffect(() => {
+    if (isOpen) {
+      const prev = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = prev
+      }
+    }
+  }, [isOpen])
 
   if (!isOpen || !booking) return null
 
@@ -78,6 +88,7 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
 
   return (
     <div className={`technicien-modal-overlay ${isDarkMode ? 'dark-mode' : 'light-mode'}`} onClick={onClose}>
+      <div className="technicien-modal-wrapper">
       <div className="technicien-modal" onClick={(e) => e.stopPropagation()}>
         <div className="technicien-modal-header">
           <h2>Détails de la réservation</h2>
@@ -173,9 +184,10 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
             </button>
           )}
           <button className="close-action-button" onClick={onClose}>
-            Fermer
-          </button>
+          Fermer
+        </button>
         </div>
+      </div>
       </div>
 
       <TechnicienCompleteModal
