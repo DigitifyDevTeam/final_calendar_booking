@@ -9,14 +9,14 @@ Usage:
 """
 import os
 
-# Determine environment (default to 'production')
+# Determine environment (default to 'local')
 ENV = os.environ.get('DJANGO_ENV', 'local').lower()
 
-if ENV == 'production':
+if ENV == 'production' or ENV == 'prod':
     from .production import *
-elif ENV == 'local':
+elif ENV == 'local' or ENV == 'dev':
     from .local import *
 else:
-    # Default to production if unknown environment
-    from .production import *
+    # Default to local if unknown environment
+    from .local import *
 
