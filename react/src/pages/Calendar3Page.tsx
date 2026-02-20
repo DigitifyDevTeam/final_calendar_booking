@@ -264,12 +264,37 @@ function Calendar3Page({ disableAnimations = false, isAdminView = false }: Calen
             )}
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'flex-end' }}>
+          <div
+            className="desktop-header-icons"
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '12px', 
+              justifyContent: 'flex-end'
+            }}
+          >
             <button 
               onClick={handleLogout}
-              className="home-button"
-              aria-label="Déconnexion"
-              title="Déconnexion"
+              style={{
+                padding: '8px',
+                borderRadius: '8px',
+                backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+                border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
+                color: isDarkMode ? '#9ca3af' : '#6b7280',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
+                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
+                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
+              }}
             >
               <LogOut style={{ width: '20px', height: '20px' }} />
             </button>

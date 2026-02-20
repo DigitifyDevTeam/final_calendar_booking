@@ -10,7 +10,7 @@ Usage:
 import os
 
 # Determine environment (default to 'local')
-ENV = os.environ.get('DJANGO_ENV', 'local').lower()
+ENV = os.environ.get('DJANGO_ENV', 'production').lower()
 
 if ENV == 'production' or ENV == 'prod':
     from .production import *
