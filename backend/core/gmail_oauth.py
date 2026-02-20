@@ -284,56 +284,67 @@ class GmailOAuth2Backend(BaseEmailBackend):
             logger.error(f"Failed to initialize Gmail service: {e}", exc_info=True)
     
     def _create_message(self, email_message: EmailMessage):
-        """Create a MIME message from Django EmailMessage for Gmail API."""
-        # Create multipart message
-        if email_message.content_subtype == 'html' or email_message.attachments:
-            message = MIMEMultipart('alternative')
+        """Create a MIME message from Django EmailMessage for Gmail API.
+        Uses multipart/mixed when there are attachments so the body and attachments
+        are correctly delivered to the recipient (concepteur).
+        """
+        from email import encoders
+
+        has_attachments = bool(email_message.attachments)
+        has_html_body = email_message.content_subtype == 'html' and bool(email_message.body)
+
+        if has_attachments:
+            # Root must be 'mixed' so that body and attachments are separate parts.
+            # Using 'alternative' for the root would make attachments invisible to recipients.
+            message = MIMEMultipart('mixed')
         else:
-            message = MIMEMultipart()
-        
+            message = MIMEMultipart('alternative' if has_html_body else 'mixed')
+
         # Set headers
         message['to'] = ', '.join(email_message.to)
         message['from'] = email_message.from_email
         message['subject'] = email_message.subject
-        
+
         if email_message.cc:
             message['cc'] = ', '.join(email_message.cc)
         if email_message.bcc:
             message['bcc'] = ', '.join(email_message.bcc)
         if email_message.reply_to:
             message['reply-to'] = ', '.join(email_message.reply_to)
-        
-        # Add body
+
+        # Add body: when we have attachments, wrap body in an 'alternative' part
         if email_message.body:
             content_subtype = email_message.content_subtype if email_message.content_subtype in ['html', 'plain'] else 'plain'
-            part = MIMEText(email_message.body, content_subtype)
-            message.attach(part)
-        
-        # Add attachments
+            body_part = MIMEText(email_message.body, content_subtype)
+            if has_attachments:
+                alt = MIMEMultipart('alternative')
+                alt.attach(body_part)
+                message.attach(alt)
+            else:
+                message.attach(body_part)
+
+        # Add attachments to the root (mixed) so they are visible to the recipient
         if email_message.attachments:
-            from email import encoders
             for attachment in email_message.attachments:
-                if isinstance(attachment, tuple):
-                    if len(attachment) == 2:
-                        filename, content = attachment
-                        mimetype = 'application/octet-stream'
-                    elif len(attachment) == 3:
-                        filename, content, mimetype = attachment
-                    else:
-                        continue
-                    
-                    # Ensure content is bytes
-                    if isinstance(content, str):
-                        content = content.encode('utf-8')
-                    
-                    part = MIMEBase(*mimetype.split('/'))
-                    part.set_payload(content)
-                    # Encode the payload in base64 for binary content
-                    encoders.encode_base64(part)
-                    part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
-                    message.attach(part)
-        
-        # Encode message for Gmail API
+                if not isinstance(attachment, tuple):
+                    continue
+                if len(attachment) == 2:
+                    filename, content = attachment
+                    mimetype = 'application/octet-stream'
+                elif len(attachment) == 3:
+                    filename, content, mimetype = attachment
+                else:
+                    continue
+
+                if isinstance(content, str):
+                    content = content.encode('utf-8')
+
+                part = MIMEBase(*mimetype.split('/'))
+                part.set_payload(content)
+                encoders.encode_base64(part)
+                part.add_header('Content-Disposition', 'attachment', filename=filename)
+                message.attach(part)
+
         raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
         return {'raw': raw_message}
     

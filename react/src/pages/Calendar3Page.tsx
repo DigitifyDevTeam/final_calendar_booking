@@ -162,8 +162,8 @@ function Calendar3Page({ disableAnimations = false, isAdminView = false }: Calen
       </div>
       )}
       <header className={`app-header ${isAdminView ? 'admin-style' : ''}`}>
-        <div className="header-content" style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', minWidth: '50px' }}>
+        <div className="header-content">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
             {!isAdminView && (
               <button 
                 className="home-button"
@@ -176,7 +176,7 @@ function Calendar3Page({ disableAnimations = false, isAdminView = false }: Calen
             )}
           </div>
           
-          <div style={{ textAlign: 'center', gridColumn: 2, display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
             {isAdminView ? (
               <div>
                 <h1>Administration - Metré</h1>
@@ -264,38 +264,12 @@ function Calendar3Page({ disableAnimations = false, isAdminView = false }: Calen
             )}
           </div>
           
-          <div 
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '12px', 
-              justifyContent: 'flex-end', 
-              minWidth: '100px'
-            }}
-            className="desktop-header-icons"
-          >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'flex-end' }}>
             <button 
               onClick={handleLogout}
-              style={{
-                padding: '8px',
-                borderRadius: '8px',
-                backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
-                border: `1px solid ${isDarkMode ? '#BA4E8E' : '#e5e7eb'}`,
-                color: isDarkMode ? '#9ca3af' : '#6b7280',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = isDarkMode ? '#ffffff' : '#111827'
-                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#f9fafb'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = isDarkMode ? '#9ca3af' : '#6b7280'
-                e.currentTarget.style.backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff'
-              }}
+              className="home-button"
+              aria-label="Déconnexion"
+              title="Déconnexion"
             >
               <LogOut style={{ width: '20px', height: '20px' }} />
             </button>

@@ -163,8 +163,8 @@ function Calendar2Page({ disableAnimations = false, isAdminView = false }: Calen
       </div>
       )}
       <header className={`app-header ${isAdminView ? 'admin-style' : ''}`}>
-        <div className="header-content" style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', minWidth: '50px' }}>
+        <div className="header-content">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
             {!isAdminView && (
               <button 
                 className="home-button"
@@ -177,7 +177,7 @@ function Calendar2Page({ disableAnimations = false, isAdminView = false }: Calen
             )}
           </div>
           
-          <div style={{ textAlign: 'center', gridColumn: 2, display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
             {isAdminView ? (
               <div>
                 <h1>Administration - SAV</h1>
@@ -265,15 +265,14 @@ function Calendar2Page({ disableAnimations = false, isAdminView = false }: Calen
             )}
           </div>
           
-          <div 
+          <div
+            className="desktop-header-icons"
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
               gap: '12px', 
-              justifyContent: 'flex-end', 
-              minWidth: '100px'
+              justifyContent: 'flex-end'
             }}
-            className="desktop-header-icons"
           >
             <button 
               onClick={handleLogout}

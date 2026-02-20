@@ -165,10 +165,7 @@
     display: none;
   }
   
-  /* Hide desktop header icons on mobile to avoid duplication */
-  .desktop-header-icons {
-    display: none !important;
-  }
+  /* Keep home (left) and logout (right) visible on mobile, same as desktop */
 }
 
 .app-main {
@@ -460,13 +457,32 @@
     padding-bottom: 16px;
   }
 
-  /* Header content - better grid layout for mobile */
+  /* Header content - mobile: title+search full width on row 1, home (max left) and logout (right) side-by-side on row 2 */
   .header-content {
-    display: grid;
-    grid-template-columns: 48px 1fr 48px;
-    gap: 10px;
+    display: grid !important;
+    grid-template-columns: auto 1fr !important;
+    grid-template-rows: auto auto !important;
+    gap: 10px 16px;
     align-items: center;
     padding: 0;
+  }
+
+  .header-content > div:first-child {
+    grid-row: 2 !important;
+    grid-column: 1 !important;
+    justify-self: start !important;
+  }
+
+  .header-content > div:nth-child(2) {
+    grid-row: 1 !important;
+    grid-column: 1 / -1 !important;
+    width: 100%;
+  }
+
+  .header-content > div:last-child {
+    grid-row: 2 !important;
+    grid-column: 2 !important;
+    justify-self: end !important;
   }
 
   .app-header h1 {
@@ -584,8 +600,26 @@
   }
 
   .header-content {
-    grid-template-columns: 40px 1fr 40px;
-    gap: 8px;
+    grid-template-columns: auto 1fr !important;
+    grid-template-rows: auto auto !important;
+    gap: 8px 12px;
+  }
+
+  .header-content > div:first-child {
+    grid-row: 2 !important;
+    grid-column: 1 !important;
+    justify-self: start !important;
+  }
+
+  .header-content > div:nth-child(2) {
+    grid-row: 1 !important;
+    grid-column: 1 / -1 !important;
+  }
+
+  .header-content > div:last-child {
+    grid-row: 2 !important;
+    grid-column: 2 !important;
+    justify-self: end !important;
   }
 
   .app-header h1 {
