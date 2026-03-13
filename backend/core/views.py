@@ -1056,10 +1056,12 @@ class ConcepteurMagasinView(APIView):
         return Response(serializer.data)
 
 
-def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_files: list):
-    """Send email notification to the designer when a technician finishes a booking"""
+def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_files: list, is_admin_finish: bool = False):
+    """Send email notification to the designer when a booking is finished.
+    is_admin_finish: if True, show 'Administrateur' instead of 'Technicien' in the email content (still sent to designer).
+    """
     try:
-        # Find the designer (concepteur) by name
+        # Always send to the designer (concepteur)
         designer = User.objects.filter(name__iexact=booking.designer_name, role='concepteur').first()
         
         if not designer:
@@ -1069,6 +1071,7 @@ def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_
         if not designer or not designer.email:
             logger.warning(f"Could not find designer email for booking #{booking.id}, designer name: {booking.designer_name}")
             return
+        recipient_email = designer.email
         
         calendar_label = CALENDAR_LABELS.get(booking.calendar_id, booking.calendar_id)
         subject = f"✅ Intervention terminée - {booking.client_name} - {calendar_label}"
@@ -1156,13 +1159,13 @@ def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_
     <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
         <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 30px; text-align: center;">
             <h1 style="margin: 0; font-size: 24px;">✅ Intervention Terminée</h1>
-            <p style="margin: 10px 0 0 0; opacity: 0.9;">Le technicien a finalisé l'intervention</p>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">{"L'administrateur a finalisé l'intervention" if is_admin_finish else "Le technicien a finalisé l'intervention"}</p>
         </div>
         
         <div style="padding: 30px;">
             <div style="background-color: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #28a745;">
                 <p style="margin: 0; font-size: 16px;">
-                    <strong>👷 Technicien :</strong> {technicien_name}
+                    <strong>{"👔 Administrateur" if is_admin_finish else "👷 Technicien"} :</strong> {technicien_name}
                 </p>
                 <p style="margin: 5px 0 0 0; font-size: 14px; color: #666;">
                     Terminé le {formatted_completed}
@@ -1231,7 +1234,7 @@ def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_
         text_body = f"""
 Intervention Terminée - {calendar_label}
 
-Technicien: {technicien_name}
+{"Administrateur" if is_admin_finish else "Technicien"}: {technicien_name}
 Terminé le: {formatted_completed}
 
 --- Détails de la réservation ---
@@ -1254,13 +1257,13 @@ Notification automatique du système de réservation
         # Get email settings
         default_from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com')
         
-        logger.info(f"Sending completion notification to designer {designer.email} for booking #{booking.id}")
+        logger.info(f"Sending completion notification to {recipient_email} for booking #{booking.id}")
         
         email_message = EmailMessage(
             subject=subject,
             body=text_body,
             from_email=default_from_email,
-            to=[designer.email],
+            to=[recipient_email],
         )
         
         # Set HTML content
@@ -1314,7 +1317,7 @@ Notification automatique du système de réservation
         
         email_message.send(fail_silently=False)
         
-        logger.info(f"Completion notification sent to {designer.email} for booking #{booking.id} with {len(uploaded_files)} attached files")
+        logger.info(f"Completion notification sent to {recipient_email} for booking #{booking.id} with {len(uploaded_files)} attached files")
         
     except Exception as e:
         logger.error(f"Failed to send completion notification for booking #{booking.id}: {e}", exc_info=True)
@@ -1375,8 +1378,9 @@ class BookingFinishView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
             
-            # Get the technician name from the authenticated user
-            technicien_name = request.user.name if hasattr(request.user, 'name') else 'Technicien'
+            # Determine who is finishing: admin or technician
+            is_admin_user = getattr(request.user, 'role', None) == 'admin'
+            technicien_name = request.user.name if hasattr(request.user, 'name') else ('Admin' if is_admin_user else 'Technicien')
             
             # Helper function to convert string boolean to actual boolean
             def str_to_bool(value):
@@ -1387,10 +1391,11 @@ class BookingFinishView(APIView):
                 return bool(value)
             
             # Update completion fields - convert string booleans from FormData
-            booking.menage_fait = str_to_bool(request.data.get('menage_fait', False))
+            # menage_fait: only for Pose/SAV (not sent for Metré)
+            if 'menage_fait' in request.data:
+                booking.menage_fait = str_to_bool(request.data.get('menage_fait', False))
             booking.cft_signe = str_to_bool(request.data.get('cft_signe', False))
-            
-            # Only set electromenager_fonctionnel if provided (for SAV/Metré calendars)
+            # electromenager_fonctionnel: only for Pose/SAV (not sent for Metré)
             if 'electromenager_fonctionnel' in request.data:
                 booking.electromenager_fonctionnel = str_to_bool(request.data.get('electromenager_fonctionnel'))
             
@@ -1452,8 +1457,8 @@ class BookingFinishView(APIView):
             
             logger.info(f"Booking {booking.id} completed by technician {technicien_name}. Files uploaded: {len(uploaded_files)}")
             
-            # Send email notification to the designer (concepteur)
-            _notify_booking_completion(booking, technicien_name, uploaded_files)
+            # Send email notification to the designer (same for admin or technician finish)
+            _notify_booking_completion(booking, technicien_name, uploaded_files, is_admin_finish=is_admin_user)
             
             return Response({
                 'message': 'Réservation finalisée avec succès.',

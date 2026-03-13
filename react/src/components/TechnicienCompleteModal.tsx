@@ -12,7 +12,7 @@ interface TechnicienCompleteModalProps {
   isDarkMode?: boolean
   onFinish?: (payload: {
     bookingId: string
-    menageFait: boolean
+    menageFait?: boolean
     cftSigne: boolean
     electromenager_fonctionnel?: boolean
     sav_a_prevoir?: boolean
@@ -43,7 +43,8 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
   const isMetreCalendar = ['calendar3', '3'].includes(bookingCalendarId || '')
   const isPoseCalendar = ['calendar1', '1'].includes(bookingCalendarId || '')
   const isSavOrMetre = isSavCalendar || isMetreCalendar
-  const showElectromenagerCheckbox = isSavCalendar || isMetreCalendar || isPoseCalendar
+  const showMenageCheckbox = !isMetreCalendar
+  const showElectromenagerCheckbox = isSavCalendar || isPoseCalendar
   const showSavAPrevoirCheckbox = isSavCalendar || isPoseCalendar
   const showAscenseurEscaliersCheckbox = isMetreCalendar
   const isAlreadyFinished = bookingStatus === 'termine'
@@ -85,10 +86,11 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
   if (!isOpen) return null
 
   // Check if button should be enabled: same-day (SAV/Metre), checkboxes, radio answers (Oui/Non), ascenseur (Metré), files, and not already finished
+  const menageRequired = !showMenageCheckbox || menageFait
   const electromenagerAnswered = !showElectromenagerCheckbox || electromenagerFonctionnel !== null
   const savAnswered = !showSavAPrevoirCheckbox || savAPrevoir !== null
   const ascenseurRequired = !showAscenseurEscaliersCheckbox || ascenseurEscaliers
-  const isFinishButtonEnabled = canFinishByDate && menageFait && cftSigne && electromenagerAnswered && savAnswered && ascenseurRequired && files.length > 0 && !isAlreadyFinished
+  const isFinishButtonEnabled = canFinishByDate && menageRequired && cftSigne && electromenagerAnswered && savAnswered && ascenseurRequired && files.length > 0 && !isAlreadyFinished
 
   const handleFinish = async () => {
     if (!isFinishButtonEnabled || isAlreadyFinished) {
@@ -106,7 +108,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
     try {
       // Call the API to finish the booking
       await finishBooking(bookingId, {
-        menageFait,
+        menageFait: showMenageCheckbox ? menageFait : undefined,
         cftSigne,
         electromenagerFonctionnel: showElectromenagerCheckbox && electromenagerFonctionnel !== null ? electromenagerFonctionnel : undefined,
         savAPrevoir: showSavAPrevoirCheckbox && savAPrevoir !== null ? savAPrevoir : undefined,
@@ -118,7 +120,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
       if (onFinish) {
         await onFinish({
           bookingId,
-          menageFait,
+          menageFait: showMenageCheckbox ? menageFait : undefined,
           cftSigne,
           electromenager_fonctionnel: showElectromenagerCheckbox && electromenagerFonctionnel !== null ? electromenagerFonctionnel : undefined,
           sav_a_prevoir: showSavAPrevoirCheckbox && savAPrevoir !== null ? savAPrevoir : undefined,
@@ -190,14 +192,16 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
             </div>
           )}
           <div className="checkbox-row">
-            <label>
-              <input
-                type="checkbox"
-                checked={menageFait}
-                onChange={(e) => setMenageFait(e.target.checked)}
-              />
-              <span>Le ménage est fait </span>
-            </label>
+            {showMenageCheckbox && (
+              <label>
+                <input
+                  type="checkbox"
+                  checked={menageFait}
+                  onChange={(e) => setMenageFait(e.target.checked)}
+                />
+                <span>Le ménage est fait </span>
+              </label>
+            )}
             <label>
               <input
                 type="checkbox"

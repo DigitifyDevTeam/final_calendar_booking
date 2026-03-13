@@ -4,6 +4,7 @@ import { getAllBookings, BookingRecord, getCalendarName, CALENDAR_CONFIGS, updat
 import { getAllNotifications, NotificationItem, getTimeAgo as getNotificationTimeAgo } from '../services/notificationService'
 import { getAllUsers, UserRecord } from '../services/userService'
 import AdminBookingModal, { AdminBookingFormData } from '../components/AdminBookingModal'
+import TechnicienCompleteModal from '../components/TechnicienCompleteModal'
 import {
   Calendar,
   CalendarCheck,
@@ -565,6 +566,14 @@ function AdminPage() {
       const errorMessage = error?.message || 'Erreur lors de l\'enregistrement de la réservation'
       alert(`❌ ${errorMessage}`)
     }
+  }
+
+  const [adminCompleteBooking, setAdminCompleteBooking] = useState<any | null>(null)
+
+  const handleTerminerSav = (bookingId: string) => {
+    const booking = editingBooking || bookings.find((b: any) => String(b.id) === String(bookingId))
+    if (!booking) return
+    setAdminCompleteBooking(booking)
   }
 
   return (
@@ -1652,11 +1661,31 @@ function AdminPage() {
           setEditingBooking(null)
         }}
         onSubmit={handleModalSubmit}
+        onTerminer={isAdmin ? handleTerminerSav : undefined}
         booking={editingBooking}
         isDarkMode={isDarkMode}
         users={isAdmin ? usersList : []}
         isAdmin={isAdmin}
       />
+
+      {adminCompleteBooking && (
+        <TechnicienCompleteModal
+          isOpen={!!adminCompleteBooking}
+          onClose={() => setAdminCompleteBooking(null)}
+          bookingId={String(adminCompleteBooking.id)}
+          bookingCalendarId={adminCompleteBooking.calendarId || adminCompleteBooking.calendar_id}
+          bookingDate={adminCompleteBooking.date}
+          bookingStatus={adminCompleteBooking.status || 'en_attente'}
+          isDarkMode={isDarkMode}
+          onFinish={async () => {
+            setAdminCompleteBooking(null)
+            setIsModalOpen(false)
+            setEditingBooking(null)
+            await loadAllBookings()
+            loadNotifications()
+          }}
+        />
+      )}
 
       {/* Info Modal */}
       {infoBooking && (

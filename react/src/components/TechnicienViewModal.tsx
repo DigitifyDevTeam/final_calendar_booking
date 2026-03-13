@@ -10,7 +10,7 @@ interface TechnicienViewModalProps {
   isDarkMode?: boolean
   onFinish?: (payload: {
     bookingId: string
-    menageFait: boolean
+    menageFait?: boolean
     cftSigne: boolean
     electromenager_fonctionnel?: boolean
     attachments: File[]
@@ -136,15 +136,41 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
                 </div>
               )}
 
-              {booking.calendar_id === 'calendar2' && (
-                <div className="info-group">
-                  <div className="info-label">Pose effectuée par Wood agency</div>
-                  <div className="info-value">
-                    {booking.pose_effectue_par_wood_agency === null || booking.pose_effectue_par_wood_agency === undefined 
-                      ? '-' 
-                      : booking.pose_effectue_par_wood_agency ? 'Oui' : 'Non'}
+              {isSavCalendar && (
+                <>
+                  <div className="info-group">
+                    <div className="info-label">Livraison</div>
+                    <div className="info-value">
+                      {(booking as any).livraison === 'livre_chez_client'
+                        ? 'Livré chez le client'
+                        : (booking as any).livraison === 'venir_chercher_magasin'
+                          ? 'Venir chercher au magasin'
+                          : (booking as any).livraison || '-'}
+                    </div>
                   </div>
-                </div>
+                  <div className="info-group">
+                    <div className="info-label">Raison</div>
+                    <div className="info-value">
+                      {(booking as any).raison === 'erreur_poseur'
+                        ? 'Erreur Poseur'
+                        : (booking as any).raison === 'erreur_concepteur'
+                          ? 'Erreur concepteur'
+                          : (booking as any).raison === 'erreur_livraison'
+                            ? 'Erreur livraison'
+                            : (booking as any).raison === 'manquant'
+                              ? 'Manquant'
+                              : (booking as any).raison || '-'}
+                    </div>
+                  </div>
+                  <div className="info-group">
+                    <div className="info-label">Pose effectuée par Wood agency</div>
+                    <div className="info-value">
+                      {booking.pose_effectue_par_wood_agency === null || booking.pose_effectue_par_wood_agency === undefined 
+                        ? '-' 
+                        : booking.pose_effectue_par_wood_agency ? 'Oui' : 'Non'}
+                    </div>
+                  </div>
+                </>
               )}
 
               {isAlreadyFinished && (

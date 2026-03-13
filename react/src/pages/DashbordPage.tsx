@@ -29,6 +29,9 @@ import {
 } from 'lucide-react'
 import './DashbordPage.css'
 
+// Concepteurs excluded from dashboard stats (their reservations remain in the data, just not in charts/stats)
+const EXCLUDED_CONCEPTEURS_FROM_STATS = new Set(['ancien_rdv', 'congé'])
+
 function DashbordPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -92,11 +95,14 @@ function DashbordPage() {
   ) => {
     if (!bookings || bookings.length === 0 || magasins.length === 0) return []
 
-    // Filter only SAV bookings (calendar2)
+    // Filter only SAV bookings (calendar2), exclude ancien_rdv and congé
     const savBookings = bookings.filter((booking: any) => {
       const calendarId = booking.calendar_id || booking.calendarId
       const calendarIdStr = String(calendarId || '').toLowerCase()
-      return calendarIdStr === 'calendar2' || calendarIdStr === '2'
+      if (calendarIdStr !== 'calendar2' && calendarIdStr !== '2') return false
+      const designer = (booking.designer || '').trim().toLowerCase()
+      if (EXCLUDED_CONCEPTEURS_FROM_STATS.has(designer)) return false
+      return true
     })
 
     // Create a map of concepteur ID to magasin ID
@@ -125,6 +131,8 @@ function DashbordPage() {
       if (!booking.designer) return
 
       const designer = (booking.designer || '').trim().toLowerCase()
+      if (EXCLUDED_CONCEPTEURS_FROM_STATS.has(designer)) return
+
       const concepteurId = concepteurNameToIdMap.get(designer)
       
       if (!concepteurId) return // Skip if concepteur not found
@@ -197,6 +205,8 @@ function DashbordPage() {
       if (!booking.date || !booking.designer) return
 
       const designer = (booking.designer || '').trim().toLowerCase()
+      if (EXCLUDED_CONCEPTEURS_FROM_STATS.has(designer)) return
+
       const concepteurId = concepteurNameToIdMap.get(designer)
       
       if (!concepteurId) return // Skip if concepteur not found
@@ -338,8 +348,7 @@ function DashbordPage() {
       const displayName = rawDesigner.trim() || 'Sans concepteur'
       const concepteurKey = normalizedDesigner || 'sans concepteur'
 
-      // Exclude ancien_rdv (imported/legacy bookings placeholder)
-      if (normalizedDesigner === 'ancien_rdv') return
+      if (EXCLUDED_CONCEPTEURS_FROM_STATS.has(normalizedDesigner)) return
 
       // Get or create entry
       if (!concepteurCountsMap.has(concepteurKey)) {
@@ -574,11 +583,15 @@ function DashbordPage() {
         setRecentBookings(sortedBookings)
 
         // Process top clients (SAV calendar only) - calendar2 = SAV after swap
+        // Exclude bookings from ancien_rdv and congé concepteurs
         const savBookingsOnly = allBookings.filter(booking => {
           const calendarId = (booking as any).calendarId
-          // Use calendar_id from booking if available, otherwise use calendarId
           const actualCalendarId = (booking as any).calendar_id || calendarId
-          return actualCalendarId === 'calendar2' || actualCalendarId === '2'
+          const isSav = actualCalendarId === 'calendar2' || actualCalendarId === '2'
+          if (!isSav) return false
+          const designer = ((booking as any).designer || '').trim().toLowerCase()
+          if (EXCLUDED_CONCEPTEURS_FROM_STATS.has(designer)) return false
+          return true
         })
         
         // Use a Map to track counts and preserve original display names
@@ -663,10 +676,14 @@ function DashbordPage() {
           }
           return false
         })
-        
-        const savDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar2').length
-        const poseDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar1').length
-        const metreDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar3').length
+        const dayBookingsForStats = dayBookings.filter(b => {
+          const designer = ((b as any).designer || '').trim().toLowerCase()
+          return !EXCLUDED_CONCEPTEURS_FROM_STATS.has(designer)
+        })
+        const cal = (b: any) => (b.calendar_id || b.calendarId || '').toString().toLowerCase()
+        const savDayCount = dayBookingsForStats.filter(b => cal(b) === 'calendar2' || cal(b) === '2').length
+        const poseDayCount = dayBookingsForStats.filter(b => cal(b) === 'calendar1' || cal(b) === '1').length
+        const metreDayCount = dayBookingsForStats.filter(b => cal(b) === 'calendar3' || cal(b) === '3').length
         
         // Accumulate totals
         cumulMetré += metreDayCount
@@ -720,10 +737,14 @@ function DashbordPage() {
           }
           return false
         })
-        
-        const savDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar2').length
-        const poseDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar1').length
-        const metreDayCount = dayBookings.filter(b => (b as any).calendarId === 'calendar3').length
+        const dayBookingsForStats = dayBookings.filter(b => {
+          const designer = ((b as any).designer || '').trim().toLowerCase()
+          return !EXCLUDED_CONCEPTEURS_FROM_STATS.has(designer)
+        })
+        const cal = (b: any) => (b.calendar_id || b.calendarId || '').toString().toLowerCase()
+        const savDayCount = dayBookingsForStats.filter(b => cal(b) === 'calendar2' || cal(b) === '2').length
+        const poseDayCount = dayBookingsForStats.filter(b => cal(b) === 'calendar1' || cal(b) === '1').length
+        const metreDayCount = dayBookingsForStats.filter(b => cal(b) === 'calendar3' || cal(b) === '3').length
         
         // Accumulate totals
         cumulMetré += metreDayCount

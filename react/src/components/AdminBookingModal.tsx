@@ -13,6 +13,7 @@ interface AdminBookingModalProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (data: AdminBookingFormData) => void
+  onTerminer?: (bookingId: string) => void
   booking?: any // Existing booking for edit mode
   isDarkMode?: boolean
   users?: UserOption[] // List of users for designer selection (admin only)
@@ -37,6 +38,7 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
+  onTerminer,
   booking,
   isDarkMode = true,
   users = [],
@@ -713,9 +715,59 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
           })()}
 
           <div className="form-actions">
-            <button type="button" className="cancel-button" onClick={onClose}>
-              Annuler
-            </button>
+            {booking && isAdmin && (() => {
+              const cal = (booking as any).calendarId || (booking as any).calendar_id || formData.calendar_id
+              const isSav = cal === CALENDAR_CONFIGS['calendar2'] || cal === 'calendar2' || cal === '2'
+              const isAlreadyFinished = (booking as any).status === 'termine'
+              if (isSav && onTerminer) {
+                const isSameDay = (() => {
+                  const bookingDate = booking.date || formData.booking_date
+                  if (!bookingDate) return false
+                  const today = new Date()
+                  const resDate = new Date(bookingDate + 'T00:00:00')
+                  return today.getFullYear() === resDate.getFullYear() &&
+                    today.getMonth() === resDate.getMonth() &&
+                    today.getDate() === resDate.getDate()
+                })()
+                const cantFinish = isAlreadyFinished || !isSameDay
+                return (
+                  <button
+                    type="button"
+                    className="cancel-button"
+                    style={cantFinish ? {
+                      opacity: 0.5,
+                      cursor: 'not-allowed',
+                      background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+                      borderColor: '#10b981',
+                      color: '#0b1f16'
+                    } : {
+                      background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+                      borderColor: '#10b981',
+                      color: '#0b1f16'
+                    }}
+                    disabled={cantFinish}
+                    title={isAlreadyFinished
+                      ? 'Cette réservation a déjà été terminée'
+                      : !isSameDay
+                        ? 'Vous ne pouvez terminer que le jour même de la réservation'
+                        : ''}
+                    onClick={() => onTerminer(booking.id)}
+                  >
+                    {isAlreadyFinished ? '✓ Déjà terminé' : 'Terminer'}
+                  </button>
+                )
+              }
+              return (
+                <button type="button" className="cancel-button" onClick={onClose}>
+                  Annuler
+                </button>
+              )
+            })()}
+            {!booking && (
+              <button type="button" className="cancel-button" onClick={onClose}>
+                Annuler
+              </button>
+            )}
             <button type="submit" className="submit-button">
               {booking ? 'Modifier' : 'Créer'}
             </button>

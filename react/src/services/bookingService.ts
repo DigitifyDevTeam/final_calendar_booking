@@ -592,7 +592,7 @@ export const deleteBooking = async (bookingId: string, calendarId?: string): Pro
 export const finishBooking = async (
   bookingId: string,
   data: {
-    menageFait: boolean
+    menageFait?: boolean
     cftSigne: boolean
     electromenagerFonctionnel?: boolean
     savAPrevoir?: boolean
@@ -619,7 +619,9 @@ export const finishBooking = async (
     
     // Create FormData for multipart/form-data request
     const formData = new FormData()
-    formData.append('menage_fait', String(data.menageFait))
+    if (data.menageFait !== undefined) {
+      formData.append('menage_fait', String(data.menageFait))
+    }
     formData.append('cft_signe', String(data.cftSigne))
     
     if (data.electromenagerFonctionnel !== undefined) {

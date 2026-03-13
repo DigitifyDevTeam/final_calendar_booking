@@ -4,6 +4,7 @@ import { getAllBookings, BookingRecord, getMaxBookingsPerDay, usesTimeSlots, get
 import { getAllUsers, UserRecord } from '../services/userService'
 import AdminBookingModal, { AdminBookingFormData } from './AdminBookingModal'
 import TechnicienViewModal from './TechnicienViewModal'
+import TechnicienCompleteModal from './TechnicienCompleteModal'
 
 // Orange info icon component
 const InfoIcon: React.FC = () => (
@@ -1114,7 +1115,14 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     }
   }
 
-  
+  const [adminCompleteBooking, setAdminCompleteBooking] = useState<BookingRecord | null>(null)
+
+  const handleTerminerSav = (bookingId: string) => {
+    const booking = editingBooking || allBookingsData.find(b => String(b.id) === String(bookingId))
+    if (!booking) return
+    setAdminCompleteBooking(booking)
+  }
+
   // Check if date numbers should be clickable (only for calendar1, not for calendar2/3 with time slots)
   // Metré calendar (numerical) also doesn't allow clicking date numbers - only time slots
   const isDateNumberClickable = timeSlotType !== 'pose' && timeSlotType !== 'sav' && timeSlotType !== 'numerical'
@@ -3243,6 +3251,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
             setEditingBooking(null)
           }}
           onSubmit={handleEditModalSubmit}
+          onTerminer={isAdmin ? handleTerminerSav : undefined}
           booking={{
             id: editingBooking.id,
             calendarId: editingBooking.calendar_id || binId,
@@ -3257,6 +3266,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
             livraison: editingBooking.livraison ?? null,
             raison: editingBooking.raison ?? null,
             statut_facturation: (editingBooking as any).statut_facturation ?? null,
+            status: (editingBooking as any).status ?? null,
           }}
           isDarkMode={isDarkMode}
           users={isAdmin ? usersList : []}
@@ -3274,6 +3284,24 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         booking={technicienViewBooking}
         isDarkMode={isDarkMode}
       />
+
+      {adminCompleteBooking && (
+        <TechnicienCompleteModal
+          isOpen={!!adminCompleteBooking}
+          onClose={() => setAdminCompleteBooking(null)}
+          bookingId={String(adminCompleteBooking.id)}
+          bookingCalendarId={adminCompleteBooking.calendar_id || binId}
+          bookingDate={adminCompleteBooking.date}
+          bookingStatus={(adminCompleteBooking as any).status || 'en_attente'}
+          isDarkMode={isDarkMode}
+          onFinish={async () => {
+            setAdminCompleteBooking(null)
+            setIsEditModalOpen(false)
+            setEditingBooking(null)
+            setInternalRefreshTrigger(prev => prev + 1)
+          }}
+        />
+      )}
     </div>
   )
 }
