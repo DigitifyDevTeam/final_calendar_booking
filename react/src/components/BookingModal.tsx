@@ -51,7 +51,7 @@ interface BookingModalProps {
   // Props for duration availability (Pose calendar)
   existingBookings?: ExistingBooking[] // All bookings for this calendar
   holidays?: HolidayRecord[] // All holidays for this calendar
-  maxBookingsPerDay?: number // Max bookings per day (default: 2 for Pose)
+  maxBookingsPerDay?: number // Max bookings per day (default: 4 for Pose)
   showDurationField?: boolean // Whether to show duration field (only for Pose)
 }
 
@@ -87,7 +87,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   calendarId,
   existingBookings = [],
   holidays = [],
-  maxBookingsPerDay = 2,
+  maxBookingsPerDay = 4,
   showDurationField = false
 }) => {
   // Get user info from localStorage to auto-fill designer for concepteurs
@@ -227,8 +227,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
     // Duration 2 logic:
     // - Creates 2 reservations: 1 on current day + 1 on next valid day (skipping holidays and Sundays)
-    // - Both days must have at least 1 available slot (max 2 bookings per day)
-    // - If either day is fully booked (2 bookings) or is invalid, unavailable
+    // - Both days must have at least 1 available slot
+    // - If either day is fully booked or is invalid, unavailable
     const checkDuration2 = (): boolean => {
       // Check current day has at least 1 slot available
       const currentDayCount = getBookingCountForDate(selectedDate)
@@ -249,9 +249,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
     // Duration 3 logic:
     // - Creates 3 reservations: 1 on current day + 1 on next valid day + 1 on day after next valid day
-    // - All three days must have at least 1 available slot (max 2 bookings per day)
+    // - All three days must have at least 1 available slot
     // - Skips holidays and Sundays when finding consecutive days
-    // - If any of these days is fully booked (2 bookings) or is invalid, unavailable
+    // - If any of these days is fully booked or is invalid, unavailable
     const checkDuration3 = (): boolean => {
       // Check current day has at least 1 slot available
       const currentDayCount = getBookingCountForDate(selectedDate)

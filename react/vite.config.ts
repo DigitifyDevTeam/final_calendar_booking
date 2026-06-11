@@ -1,16 +1,17 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: './',
   plugins: [react()],
   server: {
     host: '0.0.0.0', // Bind to all network interfaces - allows access from other devices on the same network
-    port: 5174, // Default Vite port
+    port: 5173, // Default Vite port
     strictPort: false, // Allow port to be changed if 5173 is taken
     proxy: {
       // Proxy API requests to backend on localhost

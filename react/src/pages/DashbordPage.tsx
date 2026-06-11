@@ -554,9 +554,9 @@ function DashbordPage() {
         }) || []
         
         // Calculate rates based on capacity (Taux d'engorgement)
-        // Pose: 3*x, Metré: 7*x, SAV: 3*x (x = number of days in that month)
+        // Pose: 4*x, Metré: 7*x, SAV: 3*x (x = number of days in that month)
         // Metré has 7 time slots per day since 18:30 was removed
-        const poseCapacity = daysInMonth * 3
+        const poseCapacity = daysInMonth * 4
         const metreCapacity = daysInMonth * 7
         const savCapacity = daysInMonth * 3
         const totalCapacity = poseCapacity + metreCapacity + savCapacity

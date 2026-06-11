@@ -320,16 +320,16 @@ export const getAllBookings = async (
   return requestPromise
 }
 
-// Get max bookings per day for a calendar (default: 3, calendar1: 3)
+// Get max bookings per day for a calendar (default: 4, calendar1: 4)
 const MAX_BOOKINGS_PER_DAY_BY_BIN: { [key: string]: number } = {
-  [CALENDAR_CONFIGS['calendar1']]: 3, // Pose calendar (per-day bookings)
+  [CALENDAR_CONFIGS['calendar1']]: 4, // Pose calendar (per-day bookings)
   [CALENDAR_CONFIGS['calendar2']]: 3, // SAV calendar (per-day capacity for rates)
   [CALENDAR_CONFIGS['calendar3']]: 7, // Metré calendar (per-day capacity for rates; 18:30 slot removed)
 };
 
 export const getMaxBookingsPerDay = (binId?: string): number => {
-  if (!binId) return 3;
-  return MAX_BOOKINGS_PER_DAY_BY_BIN[binId] ?? 3;
+  if (!binId) return 4;
+  return MAX_BOOKINGS_PER_DAY_BY_BIN[binId] ?? 4;
 };
 
 // Check if a calendar uses time slots (calendar2 and calendar3)

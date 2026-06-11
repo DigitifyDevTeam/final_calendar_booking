@@ -240,9 +240,9 @@ class BookingApiTests(TestCase):
         self.assertEqual(Booking.objects.count(), 0)
     
     def test_create_booking_pose_calendar_limit(self):
-        """Test Pose calendar limit of 3 bookings per day"""
-        # Create 3 bookings for the same date (limit is 3)
-        for i in range(3):
+        """Test Pose calendar limit of 4 bookings per day"""
+        # Create 4 bookings for the same date (limit is 4)
+        for i in range(4):
             Booking.objects.create(
                 calendar_id="calendar1",
                 booking_date=date.fromisoformat(self.future_date),
@@ -252,11 +252,11 @@ class BookingApiTests(TestCase):
                 booking_time="21h00"
             )
 
-        # Fourth booking should be rejected
+        # Fifth booking should be rejected
         response = self.client.post(self.list_url, self._booking_payload(), format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("booking_date", response.data)
-        self.assertEqual(Booking.objects.count(), 3)
+        self.assertEqual(Booking.objects.count(), 4)
     
     def test_time_slot_calendar_requires_time(self):
         """Test that time slot calendars (SAV, Metré) require booking_time"""

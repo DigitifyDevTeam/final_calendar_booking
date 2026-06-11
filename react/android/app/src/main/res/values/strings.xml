@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Calender</string>
+    <string name="title_activity_main">Calender</string>
+    <string name="package_name">com.digitify.calender</string>
+    <string name="custom_url_scheme">com.digitify.calender</string>
+</resources>
