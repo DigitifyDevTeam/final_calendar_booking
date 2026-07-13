@@ -436,6 +436,30 @@
   color: #ffffff;
 }
 
+.export-button {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  height: fit-content;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #10b98130;
+  border-color: #10b981;
+  color: #ffffff;
+}
+
+.export-button:hover {
+  transform: translateY(-2px);
+  background: #059669;
+  border-color: #059669;
+  color: #ffffff;
+}
+
 .refresh-icon {
   width: 18px;
   height: 18px;

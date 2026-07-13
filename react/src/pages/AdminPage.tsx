@@ -5,6 +5,7 @@ import { getAllNotifications, NotificationItem, getTimeAgo as getNotificationTim
 import { getAllUsers, UserRecord } from '../services/userService'
 import AdminBookingModal, { AdminBookingFormData } from '../components/AdminBookingModal'
 import TechnicienCompleteModal from '../components/TechnicienCompleteModal'
+import ExportBookingsModal from '../components/ExportBookingsModal'
 import {
   Calendar,
   CalendarCheck,
@@ -20,7 +21,8 @@ import {
   RefreshCw,
   Menu,
   X,
-  Store
+  Store,
+  Download
 } from 'lucide-react'
 import './AdminPage.css'
 
@@ -59,6 +61,7 @@ function AdminPage() {
   type SortColumnKey = 'client' | 'facture' | 'statut' | 'date' | 'pose_wood' | 'creé_le'
   const [sortColumn, setSortColumn] = useState<SortColumnKey | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
 
   const handleSort = (column: SortColumnKey) => {
     if (sortColumn === column) {
@@ -1513,6 +1516,17 @@ function AdminPage() {
           <RefreshCw className="refresh-icon" />
           Actualiser
         </button>
+        {isAdmin && (
+          <button
+            className="export-button"
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            title="Exporter les réservations filtrées vers Excel"
+          >
+            <Download className="refresh-icon" />
+            Extraire
+          </button>
+        )}
       </div>
 
       <main className="admin-main">
@@ -1685,6 +1699,15 @@ function AdminPage() {
             await loadAllBookings()
             loadNotifications()
           }}
+        />
+      )}
+
+      {isAdmin && (
+        <ExportBookingsModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          bookings={filteredBookings}
+          isDarkMode={isDarkMode}
         />
       )}
 
