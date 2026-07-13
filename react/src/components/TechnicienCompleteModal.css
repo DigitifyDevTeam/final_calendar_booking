@@ -206,6 +206,46 @@
   accent-color: #284B73;
 }
 
+.message-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.completion-message-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.45;
+  resize: vertical;
+  min-height: 96px;
+}
+
+.dark-mode .completion-message-input {
+  background-color: #0a0a0a;
+  border-color: #BA4E8E;
+  color: #e5e7eb;
+}
+
+.light-mode .completion-message-input {
+  background-color: #f9fafb;
+  border-color: #e5e7eb;
+  color: #374151;
+}
+
+.completion-message-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.completion-message-input::placeholder {
+  color: #9ca3af;
+}
+
 .upload-row {
   display: flex;
   flex-direction: column;
@@ -216,10 +256,73 @@
   font-size: 14px;
   font-weight: 500;
   color: #9ca3af;
+  margin: 0;
 }
 
 .light-mode .upload-label {
   color: #4b5563;
+}
+
+.upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.upload-action-button {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: transparent;
+}
+
+.dark-mode .upload-action-button {
+  border-color: #BA4E8E;
+  color: #e5e7eb;
+}
+
+.dark-mode .upload-action-button:hover:not(:disabled) {
+  background-color: #BA4E8E;
+  color: #ffffff;
+}
+
+.light-mode .upload-action-button {
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+.light-mode .upload-action-button:hover:not(:disabled) {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.upload-action-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.upload-input-hidden {
+  display: none !important;
+}
+
+.upload-error {
+  margin: 0;
+  font-size: 13px;
+  color: #ef4444;
+}
+
+.upload-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.light-mode .upload-hint {
+  color: #6b7280;
 }
 
 .technicien-complete-modal input[type='file'] {
@@ -246,16 +349,71 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .file-chip {
-  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 6px 8px 6px 10px;
   border-radius: 999px;
   font-size: 12px;
-  background-color: rgba(250, 84, 28, 0.15);
+  background-color: rgba(40, 75, 115, 0.12);
   color: #284B73;
-  border: 1px solid rgba(250, 84, 28, 0.3);
+  border: 1px solid rgba(40, 75, 115, 0.25);
+}
+
+.file-chip-pdf {
+  background-color: rgba(186, 78, 142, 0.12);
+  border-color: rgba(186, 78, 142, 0.3);
+  color: #BA4E8E;
+}
+
+.file-chip-image {
+  background-color: rgba(40, 75, 115, 0.12);
+  border-color: rgba(40, 75, 115, 0.25);
+  color: #284B73;
+}
+
+.file-chip-label {
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+}
+
+.file-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.file-chip-remove {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  background-color: rgba(0, 0, 0, 0.08);
+  color: inherit;
+}
+
+.file-chip-remove:hover:not(:disabled) {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.file-chip-remove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .technicien-complete-modal-footer {

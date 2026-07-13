@@ -13,6 +13,9 @@ interface TechnicienViewModalProps {
     menageFait?: boolean
     cftSigne: boolean
     electromenager_fonctionnel?: boolean
+    sav_a_prevoir?: boolean
+    ascenseur_escaliers?: boolean
+    message?: string
     attachments: File[]
   }) => void
 }

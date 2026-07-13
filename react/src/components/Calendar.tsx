@@ -3294,6 +3294,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           bookingDate={adminCompleteBooking.date}
           bookingStatus={(adminCompleteBooking as any).status || 'en_attente'}
           isDarkMode={isDarkMode}
+          skipDateRestrictions
           onFinish={async () => {
             setAdminCompleteBooking(null)
             setIsEditModalOpen(false)

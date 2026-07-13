@@ -1677,6 +1677,7 @@ function AdminPage() {
           bookingDate={adminCompleteBooking.date}
           bookingStatus={adminCompleteBooking.status || 'en_attente'}
           isDarkMode={isDarkMode}
+          skipDateRestrictions
           onFinish={async () => {
             setAdminCompleteBooking(null)
             setIsModalOpen(false)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import './TechnicienCompleteModal.css'
 import { finishBooking } from '../services/bookingService'
 
@@ -10,6 +10,8 @@ interface TechnicienCompleteModalProps {
   bookingDate?: string
   bookingStatus?: 'en_attente' | 'termine' | null
   isDarkMode?: boolean
+  /** Admin can close anytime without date constraints */
+  skipDateRestrictions?: boolean
   onFinish?: (payload: {
     bookingId: string
     menageFait?: boolean
@@ -17,9 +19,33 @@ interface TechnicienCompleteModalProps {
     electromenager_fonctionnel?: boolean
     sav_a_prevoir?: boolean
     ascenseur_escaliers?: boolean
+    message?: string
     attachments: File[]
   }) => void
 }
+
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif', '.bmp']
+const PDF_EXTENSIONS = ['.pdf']
+const ALLOWED_EXTENSIONS = new Set([...IMAGE_EXTENSIONS, ...PDF_EXTENSIONS])
+
+const getFileExtension = (fileName: string): string => {
+  const idx = fileName.lastIndexOf('.')
+  return idx >= 0 ? fileName.slice(idx).toLowerCase() : ''
+}
+
+const isAllowedAttachment = (file: File): boolean => {
+  const ext = getFileExtension(file.name)
+  if (ALLOWED_EXTENSIONS.has(ext)) return true
+  const type = (file.type || '').toLowerCase()
+  return type === 'application/pdf' || type.startsWith('image/')
+}
+
+const isPdfFile = (file: File): boolean => {
+  const ext = getFileExtension(file.name)
+  return ext === '.pdf' || (file.type || '').toLowerCase() === 'application/pdf'
+}
+
+const fileKey = (file: File): string => `${file.name}__${file.size}__${file.lastModified}`
 
 const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
   isOpen,
@@ -29,6 +55,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
   bookingDate,
   bookingStatus = 'en_attente',
   isDarkMode = true,
+  skipDateRestrictions = false,
   onFinish
 }) => {
   const [menageFait, setMenageFait] = useState(false)
@@ -36,8 +63,12 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
   const [electromenagerFonctionnel, setElectromenagerFonctionnel] = useState<boolean | null>(null)
   const [savAPrevoir, setSavAPrevoir] = useState<boolean | null>(null)
   const [ascenseurEscaliers, setAscenseurEscaliers] = useState(false)
+  const [message, setMessage] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
 
   const isSavCalendar = ['calendar2', '2'].includes(bookingCalendarId || '')
   const isMetreCalendar = ['calendar3', '3'].includes(bookingCalendarId || '')
@@ -69,7 +100,9 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
       today.getMonth() === nextDay.getMonth() && today.getDate() === nextDay.getDate()
     return sameDay || nextDayMatch
   })()
-  const canFinishByDate = isPoseCalendar ? isSameDayOrNextDay : (!isSavOrMetre || isSameDayAsReservation)
+  const canFinishByDate = skipDateRestrictions
+    ? true
+    : (isPoseCalendar ? isSameDayOrNextDay : (!isSavOrMetre || isSameDayAsReservation))
 
   useEffect(() => {
     if (isOpen) {
@@ -78,8 +111,12 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
       setElectromenagerFonctionnel(null)
       setSavAPrevoir(null)
       setAscenseurEscaliers(false)
+      setMessage('')
       setFiles([])
+      setUploadError(null)
       setSubmitting(false)
+      if (imageInputRef.current) imageInputRef.current.value = ''
+      if (pdfInputRef.current) pdfInputRef.current.value = ''
     }
   }, [isOpen, bookingId])
 
@@ -91,6 +128,36 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
   const savAnswered = !showSavAPrevoirCheckbox || savAPrevoir !== null
   const ascenseurRequired = !showAscenseurEscaliersCheckbox || ascenseurEscaliers
   const isFinishButtonEnabled = canFinishByDate && menageRequired && cftSigne && electromenagerAnswered && savAnswered && ascenseurRequired && files.length > 0 && !isAlreadyFinished
+
+  const addAttachments = (incoming: File[]) => {
+    if (incoming.length === 0) return
+
+    const rejected = incoming.filter((file) => !isAllowedAttachment(file))
+    const accepted = incoming.filter((file) => isAllowedAttachment(file))
+
+    setFiles((prev) => {
+      const existingKeys = new Set(prev.map(fileKey))
+      const uniqueNew = accepted.filter((file) => !existingKeys.has(fileKey(file)))
+      return [...prev, ...uniqueNew]
+    })
+
+    if (rejected.length > 0) {
+      setUploadError('Seuls les fichiers PDF et images sont autorisés.')
+    } else {
+      setUploadError(null)
+    }
+  }
+
+  const handleAttachmentSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = e.target.files ? Array.from(e.target.files) : []
+    addAttachments(list)
+    e.target.value = ''
+  }
+
+  const removeAttachment = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index))
+    setUploadError(null)
+  }
 
   const handleFinish = async () => {
     if (!isFinishButtonEnabled || isAlreadyFinished) {
@@ -113,6 +180,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
         electromenagerFonctionnel: showElectromenagerCheckbox && electromenagerFonctionnel !== null ? electromenagerFonctionnel : undefined,
         savAPrevoir: showSavAPrevoirCheckbox && savAPrevoir !== null ? savAPrevoir : undefined,
         ascenseurEscaliers: showAscenseurEscaliersCheckbox ? ascenseurEscaliers : undefined,
+        message: message.trim(),
         attachments: files
       })
       
@@ -125,6 +193,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
           electromenager_fonctionnel: showElectromenagerCheckbox && electromenagerFonctionnel !== null ? electromenagerFonctionnel : undefined,
           sav_a_prevoir: showSavAPrevoirCheckbox && savAPrevoir !== null ? savAPrevoir : undefined,
           ascenseur_escaliers: showAscenseurEscaliersCheckbox ? ascenseurEscaliers : undefined,
+          message: message.trim(),
           attachments: files
         })
       }
@@ -163,7 +232,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
               ✓ Cette réservation a déjà été terminée
             </div>
           )}
-          {isSavOrMetre && !isSameDayAsReservation && !isAlreadyFinished && (
+          {isSavOrMetre && !isSameDayAsReservation && !isAlreadyFinished && !skipDateRestrictions && (
             <div style={{
               padding: '12px 16px',
               borderRadius: '8px',
@@ -177,7 +246,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
               Vous ne pouvez terminer que le jour même de la réservation.
             </div>
           )}
-          {isPoseCalendar && !isSameDayOrNextDay && !isAlreadyFinished && (
+          {isPoseCalendar && !isSameDayOrNextDay && !isAlreadyFinished && !skipDateRestrictions && (
             <div style={{
               padding: '12px 16px',
               borderRadius: '8px',
@@ -273,26 +342,85 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
           </div>
 
           <div className="upload-row">
-            <label htmlFor="technicien-complete-files" className="upload-label">
-              Ajouter un ou plusieurs fichiers (PDF ou images)
-            </label>
+            <p className="upload-label">
+              Ajouter des pièces jointes (images et PDF, ensemble)
+            </p>
+            <div className="upload-actions">
+              <button
+                type="button"
+                className="upload-action-button"
+                disabled={isAlreadyFinished || submitting}
+                onClick={() => imageInputRef.current?.click()}
+              >
+                Ajouter des images
+              </button>
+              <button
+                type="button"
+                className="upload-action-button"
+                disabled={isAlreadyFinished || submitting}
+                onClick={() => pdfInputRef.current?.click()}
+              >
+                Ajouter des PDF
+              </button>
+            </div>
             <input
-              id="technicien-complete-files"
+              ref={imageInputRef}
+              id="technicien-complete-images"
               type="file"
-              accept=".pdf,image/*"
+              accept="image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.bmp"
               multiple
-              onChange={(e) => {
-                const list = e.target.files ? Array.from(e.target.files) : []
-                setFiles((prev) => [...prev, ...list])
-              }}
+              className="upload-input-hidden"
+              onChange={handleAttachmentSelect}
             />
+            <input
+              ref={pdfInputRef}
+              id="technicien-complete-pdfs"
+              type="file"
+              accept="application/pdf,.pdf"
+              multiple
+              className="upload-input-hidden"
+              onChange={handleAttachmentSelect}
+            />
+            {uploadError && (
+              <p className="upload-error">{uploadError}</p>
+            )}
             {files.length > 0 && (
               <div className="upload-preview">
                 {files.map((f, idx) => (
-                  <span key={idx} className="file-chip">{f.name}</span>
+                  <span key={`${fileKey(f)}-${idx}`} className={`file-chip ${isPdfFile(f) ? 'file-chip-pdf' : 'file-chip-image'}`}>
+                    <span className="file-chip-label">{isPdfFile(f) ? 'PDF' : 'IMG'}</span>
+                    <span className="file-chip-name">{f.name}</span>
+                    <button
+                      type="button"
+                      className="file-chip-remove"
+                      aria-label={`Retirer ${f.name}`}
+                      onClick={() => removeAttachment(idx)}
+                      disabled={submitting}
+                    >
+                      ×
+                    </button>
+                  </span>
                 ))}
               </div>
             )}
+            <p className="upload-hint">
+              Vous pouvez ajouter plusieurs images et PDF en même temps.
+            </p>
+          </div>
+
+          <div className="message-row">
+            <label htmlFor="technicien-complete-message" className="upload-label">
+              💬 Message / Commentaire (optionnel)
+            </label>
+            <textarea
+              id="technicien-complete-message"
+              className="completion-message-input"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Indiquez la cause, le détail de l'intervention ou toute information importante…"
+              rows={4}
+              disabled={isAlreadyFinished || submitting}
+            />
           </div>
         </div>
 

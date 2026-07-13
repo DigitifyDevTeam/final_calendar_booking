@@ -715,26 +715,29 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
           })()}
 
           <div className="form-actions">
-            {booking && isAdmin && (() => {
+            {booking && isAdmin && onTerminer && (() => {
               const cal = (booking as any).calendarId || (booking as any).calendar_id || formData.calendar_id
-              const isSav = cal === CALENDAR_CONFIGS['calendar2'] || cal === 'calendar2' || cal === '2'
+              const isClosableCalendar =
+                cal === CALENDAR_CONFIGS['calendar1'] || cal === 'calendar1' || cal === '1' ||
+                cal === CALENDAR_CONFIGS['calendar2'] || cal === 'calendar2' || cal === '2' ||
+                cal === CALENDAR_CONFIGS['calendar3'] || cal === 'calendar3' || cal === '3'
               const isAlreadyFinished = (booking as any).status === 'termine'
-              if (isSav && onTerminer) {
-                const isSameDay = (() => {
-                  const bookingDate = booking.date || formData.booking_date
-                  if (!bookingDate) return false
-                  const today = new Date()
-                  const resDate = new Date(bookingDate + 'T00:00:00')
-                  return today.getFullYear() === resDate.getFullYear() &&
-                    today.getMonth() === resDate.getMonth() &&
-                    today.getDate() === resDate.getDate()
-                })()
-                const cantFinish = isAlreadyFinished || !isSameDay
+              if (!isClosableCalendar) {
                 return (
+                  <button type="button" className="cancel-button" onClick={onClose}>
+                    Annuler
+                  </button>
+                )
+              }
+              return (
+                <>
+                  <button type="button" className="cancel-button" onClick={onClose}>
+                    Annuler
+                  </button>
                   <button
                     type="button"
                     className="cancel-button"
-                    style={cantFinish ? {
+                    style={isAlreadyFinished ? {
                       opacity: 0.5,
                       cursor: 'not-allowed',
                       background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
@@ -745,24 +748,27 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
                       borderColor: '#10b981',
                       color: '#0b1f16'
                     }}
-                    disabled={cantFinish}
+                    disabled={isAlreadyFinished}
                     title={isAlreadyFinished
                       ? 'Cette réservation a déjà été terminée'
-                      : !isSameDay
-                        ? 'Vous ne pouvez terminer que le jour même de la réservation'
-                        : ''}
+                      : 'Clôturer sans contrainte de date (administrateur)'}
                     onClick={() => onTerminer(booking.id)}
                   >
                     {isAlreadyFinished ? '✓ Déjà terminé' : 'Terminer'}
                   </button>
-                )
-              }
-              return (
-                <button type="button" className="cancel-button" onClick={onClose}>
-                  Annuler
-                </button>
+                </>
               )
             })()}
+            {booking && isAdmin && !onTerminer && (
+              <button type="button" className="cancel-button" onClick={onClose}>
+                Annuler
+              </button>
+            )}
+            {booking && !isAdmin && (
+              <button type="button" className="cancel-button" onClick={onClose}>
+                Annuler
+              </button>
+            )}
             {!booking && (
               <button type="button" className="cancel-button" onClick={onClose}>
                 Annuler

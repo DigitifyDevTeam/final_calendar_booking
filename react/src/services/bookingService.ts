@@ -597,6 +597,7 @@ export const finishBooking = async (
     electromenagerFonctionnel?: boolean
     savAPrevoir?: boolean
     ascenseurEscaliers?: boolean
+    message?: string
     attachments: File[]
   }
 ): Promise<{
@@ -633,10 +634,13 @@ export const finishBooking = async (
     if (data.ascenseurEscaliers !== undefined) {
       formData.append('ascenseur_escaliers', String(data.ascenseurEscaliers))
     }
+    if (data.message !== undefined && data.message.trim()) {
+      formData.append('message', data.message.trim())
+    }
     
-    // Append all files
+    // Append all files (images and PDFs can be mixed)
     data.attachments.forEach((file) => {
-      formData.append('files', file)
+      formData.append('files', file, file.name)
     })
     
     // Get access token

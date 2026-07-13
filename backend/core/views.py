@@ -1056,25 +1056,57 @@ class ConcepteurMagasinView(APIView):
         return Response(serializer.data)
 
 
-def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_files: list, is_admin_finish: bool = False):
-    """Send email notification to the designer when a booking is finished.
-    is_admin_finish: if True, show 'Administrateur' instead of 'Technicien' in the email content (still sent to designer).
+def _collect_completion_recipients(booking: Booking, is_admin_finish: bool = False, admin_user=None):
+    """Build recipient list for completion emails.
+    - Technician finish: concepteur (designer)
+    - Admin finish: admin (himself) + all technicians + concepteur
+    """
+    recipients = []
+    seen = set()
+
+    def add_email(email):
+        if not email:
+            return
+        normalized = email.strip().lower()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            recipients.append(email.strip())
+
+    designer = User.objects.filter(name__iexact=booking.designer_name, role='concepteur').first()
+    if not designer and booking.designer_name:
+        first = booking.designer_name.split()[0]
+        designer = User.objects.filter(name__icontains=first, role='concepteur').first()
+    if designer and designer.email:
+        add_email(designer.email)
+
+    if is_admin_finish:
+        if admin_user is not None and getattr(admin_user, 'email', None):
+            add_email(admin_user.email)
+        for tech_email in User.objects.filter(role='technicien').exclude(email='').values_list('email', flat=True):
+            add_email(tech_email)
+        if not recipients:
+            contact = getattr(settings, 'CONTACT_EMAIL_RECIPIENTS', '') or ''
+            for part in contact.split(','):
+                add_email(part)
+
+    return recipients
+
+
+def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_files: list, is_admin_finish: bool = False, admin_user=None):
+    """Send email notification when a booking is finished.
+    is_admin_finish: explicit admin-closure wording; recipients include admin + technicians (+ concepteur).
     """
     try:
-        # Always send to the designer (concepteur)
-        designer = User.objects.filter(name__iexact=booking.designer_name, role='concepteur').first()
-        
-        if not designer:
-            # Try partial match
-            designer = User.objects.filter(name__icontains=booking.designer_name.split()[0] if booking.designer_name else '', role='concepteur').first()
-        
-        if not designer or not designer.email:
-            logger.warning(f"Could not find designer email for booking #{booking.id}, designer name: {booking.designer_name}")
+        recipients = _collect_completion_recipients(booking, is_admin_finish=is_admin_finish, admin_user=admin_user)
+        if not recipients:
+            logger.warning(f"No completion email recipients for booking #{booking.id} (designer={booking.designer_name})")
             return
-        recipient_email = designer.email
-        
+
         calendar_label = CALENDAR_LABELS.get(booking.calendar_id, booking.calendar_id)
-        subject = f"✅ Intervention terminée - {booking.client_name} - {calendar_label}"
+        if is_admin_finish:
+            subject = f"✅ Mission clôturée par un administrateur - {booking.client_name} - {calendar_label}"
+        else:
+            subject = f"✅ Intervention terminée - {booking.client_name} - {calendar_label}"
         
         # Format date
         from django.utils import timezone as dj_timezone
@@ -1158,8 +1190,8 @@ def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_
 <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5;">
     <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
         <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 30px; text-align: center;">
-            <h1 style="margin: 0; font-size: 24px;">✅ Intervention Terminée</h1>
-            <p style="margin: 10px 0 0 0; opacity: 0.9;">{"L'administrateur a finalisé l'intervention" if is_admin_finish else "Le technicien a finalisé l'intervention"}</p>
+            <h1 style="margin: 0; font-size: 24px;">{"✅ Mission clôturée par un administrateur" if is_admin_finish else "✅ Intervention Terminée"}</h1>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">{"Cette mission a été clôturée par un administrateur (sans contrainte de date)." if is_admin_finish else "Le technicien a finalisé l'intervention"}</p>
         </div>
         
         <div style="padding: 30px;">
@@ -1171,6 +1203,7 @@ def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_
                     Terminé le {formatted_completed}
                 </p>
             </div>
+            {"<div style=\"background-color: #fff3cd; padding: 12px 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;\"><strong>Mention explicite :</strong> Cette mission a été clôturée par un administrateur.</div>" if is_admin_finish else ""}
             
             <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #2196f3;">
                 <h3 style="margin: 0 0 15px 0; color: #1976d2;">📋 Détails de la réservation</h3>
@@ -1232,10 +1265,11 @@ def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_
             files_text = "\nFichiers joints:\n" + "\n".join([f"- {f['original_name']}" for f in uploaded_files])
         
         text_body = f"""
-Intervention Terminée - {calendar_label}
+{"Mission clôturée par un administrateur" if is_admin_finish else "Intervention Terminée"} - {calendar_label}
 
 {"Administrateur" if is_admin_finish else "Technicien"}: {technicien_name}
 Terminé le: {formatted_completed}
+{"Mention explicite: cette mission a été clôturée par un administrateur." if is_admin_finish else ""}
 
 --- Détails de la réservation ---
 Calendrier: {calendar_label}
@@ -1257,13 +1291,13 @@ Notification automatique du système de réservation
         # Get email settings
         default_from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com')
         
-        logger.info(f"Sending completion notification to {recipient_email} for booking #{booking.id}")
+        logger.info(f"Sending completion notification to {recipients} for booking #{booking.id} (admin_finish={is_admin_finish})")
         
         email_message = EmailMessage(
             subject=subject,
             body=text_body,
             from_email=default_from_email,
-            to=[recipient_email],
+            to=recipients,
         )
         
         # Set HTML content
@@ -1317,7 +1351,7 @@ Notification automatique du système de réservation
         
         email_message.send(fail_silently=False)
         
-        logger.info(f"Completion notification sent to {recipient_email} for booking #{booking.id} with {len(uploaded_files)} attached files")
+        logger.info(f"Completion notification sent to {recipients} for booking #{booking.id} with {len(uploaded_files)} attached files")
         
     except Exception as e:
         logger.error(f"Failed to send completion notification for booking #{booking.id}: {e}", exc_info=True)
@@ -1353,34 +1387,36 @@ class BookingFinishView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            today = timezone.now().date()
-            
-            # For SAV and Metré: technicien can only finish on the day of the reservation
-            is_sav_or_metre = booking.calendar_id in ['calendar2', '2', 'calendar3', '3']
-            if is_sav_or_metre:
-                if booking.booking_date != today:
-                    return Response(
-                        {
-                            'detail': 'Pour les réservations SAV et Metré, la finalisation n\'est possible que le jour même de la réservation.'
-                        },
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-            
-            # For Pose: technicien can finish on the reservation day or the next day at most
-            is_pose = booking.calendar_id in ['calendar1', '1']
-            if is_pose:
-                deadline = booking.booking_date + timedelta(days=1)
-                if today < booking.booking_date or today > deadline:
-                    return Response(
-                        {
-                            'detail': 'Pour les réservations Pose, la finalisation n\'est possible que le jour de la réservation ou le lendemain au plus tard.'
-                        },
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-            
             # Determine who is finishing: admin or technician
             is_admin_user = getattr(request.user, 'role', None) == 'admin'
             technicien_name = request.user.name if hasattr(request.user, 'name') else ('Admin' if is_admin_user else 'Technicien')
+
+            # Date constraints apply to technicians only — admins can close anytime
+            if not is_admin_user:
+                today = timezone.now().date()
+
+                # For SAV and Metré: technicien can only finish on the day of the reservation
+                is_sav_or_metre = booking.calendar_id in ['calendar2', '2', 'calendar3', '3']
+                if is_sav_or_metre:
+                    if booking.booking_date != today:
+                        return Response(
+                            {
+                                'detail': 'Pour les réservations SAV et Metré, la finalisation n\'est possible que le jour même de la réservation.'
+                            },
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                # For Pose: technicien can finish on the reservation day or the next day at most
+                is_pose = booking.calendar_id in ['calendar1', '1']
+                if is_pose:
+                    deadline = booking.booking_date + timedelta(days=1)
+                    if today < booking.booking_date or today > deadline:
+                        return Response(
+                            {
+                                'detail': 'Pour les réservations Pose, la finalisation n\'est possible que le jour de la réservation ou le lendemain au plus tard.'
+                            },
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
             
             # Helper function to convert string boolean to actual boolean
             def str_to_bool(value):
@@ -1409,15 +1445,46 @@ class BookingFinishView(APIView):
             # J'ai pris l'ascenseur et les escaliers (Metré only)
             if booking.calendar_id in ['calendar3', '3'] and 'ascenseur_escaliers' in request.data:
                 booking.ascenseur_escaliers = str_to_bool(request.data.get('ascenseur_escaliers'))
+
+            # Message / Commentaire de clôture (technicien ou admin)
+            if 'message' in request.data:
+                finish_message = str(request.data.get('message') or '').strip()
+                if finish_message:
+                    existing = (booking.message or '').strip()
+                    if existing:
+                        booking.message = f"{existing}\n\n--- Clôture ---\n{finish_message}"
+                    else:
+                        booking.message = finish_message
             
             # Set status to 'termine' when technician finishes the booking
             booking.status = 'termine'
             booking.completed_at = timezone.now()
             booking.save()
             
-            # Handle file uploads
+            # Handle file uploads (images and PDFs can be mixed in the same request)
             uploaded_files = []
-            if 'files' in request.FILES:
+            files_list = request.FILES.getlist('files')
+            if not files_list:
+                # Fallback for clients that send files under slightly different keys
+                for key in request.FILES:
+                    files_list.extend(request.FILES.getlist(key))
+
+            if files_list:
+                allowed_extensions = {
+                    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif', '.bmp', '.pdf'
+                }
+                allowed_content_types = {
+                    'application/pdf',
+                    'image/jpeg',
+                    'image/png',
+                    'image/gif',
+                    'image/webp',
+                    'image/heic',
+                    'image/heif',
+                    'image/bmp',
+                    'image/jpg',
+                }
+
                 # Create folder name from client name and booking date
                 # Sanitize client name for folder name (remove special characters)
                 client_name_safe = "".join(c for c in booking.client_name if c.isalnum() or c in (' ', '-', '_')).strip()
@@ -1429,17 +1496,31 @@ class BookingFinishView(APIView):
                 booking_folder = os.path.join(media_root, 'bookings', folder_name)
                 os.makedirs(booking_folder, exist_ok=True)
                 
-                # Save each file
-                files_list = request.FILES.getlist('files')
-                for file in files_list:
-                    # Generate safe filename
-                    original_filename = file.name
-                    # Keep original extension
-                    file_extension = os.path.splitext(original_filename)[1]
-                    # Create unique filename with timestamp
-                    from datetime import datetime
-                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    safe_filename = f"{timestamp}_{original_filename}"
+                # Save each file (PDF + images allowed together)
+                from datetime import datetime
+                for index, file in enumerate(files_list):
+                    original_filename = file.name or f'attachment_{index}'
+                    file_extension = os.path.splitext(original_filename)[1].lower()
+                    content_type = (getattr(file, 'content_type', None) or '').lower()
+
+                    is_allowed = (
+                        file_extension in allowed_extensions
+                        or content_type in allowed_content_types
+                        or content_type.startswith('image/')
+                    )
+                    if not is_allowed:
+                        logger.warning(
+                            f"Skipping unsupported attachment '{original_filename}' "
+                            f"(type={content_type}) for booking {booking.id}"
+                        )
+                        continue
+
+                    # Unique filename to avoid collisions when mixing several attachments
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+                    safe_original = "".join(
+                        c for c in original_filename if c.isalnum() or c in (' ', '-', '_', '.')
+                    ).strip() or f'file{file_extension}'
+                    safe_filename = f"{timestamp}_{index}_{safe_original}"
                     
                     # Save file
                     file_path = os.path.join(booking_folder, safe_filename)
@@ -1457,8 +1538,14 @@ class BookingFinishView(APIView):
             
             logger.info(f"Booking {booking.id} completed by technician {technicien_name}. Files uploaded: {len(uploaded_files)}")
             
-            # Send email notification to the designer (same for admin or technician finish)
-            _notify_booking_completion(booking, technicien_name, uploaded_files, is_admin_finish=is_admin_user)
+            # Send completion emails (admin finish => admin + technicians + concepteur)
+            _notify_booking_completion(
+                booking,
+                technicien_name,
+                uploaded_files,
+                is_admin_finish=is_admin_user,
+                admin_user=request.user if is_admin_user else None,
+            )
             
             return Response({
                 'message': 'Réservation finalisée avec succès.',
