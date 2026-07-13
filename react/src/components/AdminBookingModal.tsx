@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { CALENDAR_CONFIGS, getAllBookings, BookingRecord } from '../services/bookingService'
+import { CALENDAR_CONFIGS, getAllBookings, getBookingAvailability, BookingRecord } from '../services/bookingService'
 import './AdminBookingModal.css'
 
 interface UserOption {
@@ -64,6 +64,7 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
   
   // Track bookings for the selected date to filter available time slots
   const [bookingsForSelectedDate, setBookingsForSelectedDate] = useState<BookingRecord[]>([])
+  const [occupiedSlotsForSelectedDate, setOccupiedSlotsForSelectedDate] = useState<string[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
 
   // Helper function to format date to YYYY-MM-DD for date input
@@ -331,9 +332,12 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
       })
       .map((b: BookingRecord) => b.time)
     
-    // Normalize time strings for comparison
+    // Normalize time strings for comparison (own list + anonymous occupancy)
     const normalizeTime = (time: string) => time.trim().toLowerCase()
-    const normalizedBookedSlots = bookedSlots.map(normalizeTime)
+    const normalizedBookedSlots = [
+      ...bookedSlots.map(normalizeTime),
+      ...occupiedSlotsForSelectedDate.map(normalizeTime),
+    ]
     
     // Get current booking's time slot
     const currentBookingTimeSlot = booking?.time
@@ -360,12 +364,13 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
     })
     
     return availableSlots
-  }, [formData.booking_date, formData.calendar_id, bookingsForSelectedDate, booking])
+  }, [formData.booking_date, formData.calendar_id, bookingsForSelectedDate, occupiedSlotsForSelectedDate, booking])
 
   // Fetch bookings when date changes
   useEffect(() => {
     if (!formData.booking_date) {
       setBookingsForSelectedDate([])
+      setOccupiedSlotsForSelectedDate([])
       return
     }
     
@@ -380,20 +385,33 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
     // Only fetch for time-slot calendars (SAV and Metré)
     if (calendarId !== CALENDAR_CONFIGS['calendar2'] && calendarId !== CALENDAR_CONFIGS['calendar3']) {
       setBookingsForSelectedDate([])
+      setOccupiedSlotsForSelectedDate([])
       return
     }
     
     const fetchBookings = async () => {
       setLoadingBookings(true)
       try {
-        const bookings = await getAllBookings(calendarId, {
-          startDate: formData.booking_date,
-          endDate: formData.booking_date
-        })
+        const [bookings, availability] = await Promise.all([
+          getAllBookings(calendarId, {
+            startDate: formData.booking_date,
+            endDate: formData.booking_date
+          }),
+          getBookingAvailability(calendarId, {
+            startDate: formData.booking_date,
+            endDate: formData.booking_date
+          }),
+        ])
         setBookingsForSelectedDate(bookings)
+        setOccupiedSlotsForSelectedDate(
+          (availability.occupied_slots || [])
+            .filter((s) => s.date === formData.booking_date)
+            .map((s) => s.time)
+        )
       } catch (error) {
         console.error('Error fetching bookings for date:', error)
         setBookingsForSelectedDate([])
+        setOccupiedSlotsForSelectedDate([])
       } finally {
         setLoadingBookings(false)
       }
@@ -408,14 +426,26 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
       const fetchBookings = async () => {
         setLoadingBookings(true)
         try {
-          const bookings = await getAllBookings(formData.calendar_id, {
-            startDate: formData.booking_date,
-            endDate: formData.booking_date
-          })
+          const [bookings, availability] = await Promise.all([
+            getAllBookings(formData.calendar_id, {
+              startDate: formData.booking_date,
+              endDate: formData.booking_date
+            }),
+            getBookingAvailability(formData.calendar_id, {
+              startDate: formData.booking_date,
+              endDate: formData.booking_date
+            }),
+          ])
           setBookingsForSelectedDate(bookings)
+          setOccupiedSlotsForSelectedDate(
+            (availability.occupied_slots || [])
+              .filter((s) => s.date === formData.booking_date)
+              .map((s) => s.time)
+          )
         } catch (error) {
           console.error('Error fetching bookings for date:', error)
           setBookingsForSelectedDate([])
+          setOccupiedSlotsForSelectedDate([])
         } finally {
           setLoadingBookings(false)
         }

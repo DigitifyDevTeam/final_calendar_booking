@@ -376,6 +376,97 @@ class ContactEmailView(generics.ListCreateAPIView):
             logger.error(f"Error sending contact message email: {e}", exc_info=True)
 
 
+
+def _is_concepteur(user) -> bool:
+    return bool(user and getattr(user, 'role', None) == 'concepteur')
+
+
+def _scope_bookings_queryset_for_user(queryset, user):
+    """
+    Concepteurs may only list/retrieve their own bookings (designer_name).
+    Admin and technicien keep full visibility.
+    """
+    if _is_concepteur(user):
+        name = (getattr(user, 'name', None) or '').strip()
+        if not name:
+            return queryset.none()
+        return queryset.filter(designer_name__iexact=name)
+    return queryset
+
+
+
+class BookingAvailabilityView(APIView):
+    """
+    Occupancy without personal details.
+    Used by concepteurs so reserved créneaux stay visible (as 'Réservé')
+    without revealing other concepteurs' clients.
+    """
+    permission_classes = [IsAuthenticatedCustom]
+
+    def get(self, request):
+        calendar_id = request.query_params.get('calendar_id')
+        if not calendar_id:
+            return Response(
+                {'detail': 'calendar_id est requis.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        calendar_ids = [calendar_id]
+        if calendar_id == 'calendar1':
+            calendar_ids.append('1')
+        elif calendar_id == 'calendar2':
+            calendar_ids.append('2')
+        elif calendar_id == 'calendar3':
+            calendar_ids.append('3')
+        elif calendar_id == '1':
+            calendar_ids.append('calendar1')
+        elif calendar_id == '2':
+            calendar_ids.append('calendar2')
+        elif calendar_id == '3':
+            calendar_ids.append('calendar3')
+
+        queryset = Booking.objects.filter(calendar_id__in=calendar_ids)
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        if start_date:
+            queryset = queryset.filter(booking_date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(booking_date__lte=end_date)
+
+        occupied_slots = []
+        daily_counts = {}
+        seen_slots = set()
+
+        for booking in queryset.only('booking_date', 'booking_time', 'calendar_id'):
+            date_str = booking.booking_date.isoformat()
+            daily_counts[date_str] = daily_counts.get(date_str, 0) + 1
+
+            time_str = (booking.booking_time or '').strip()
+            if not time_str or time_str == '21h00':
+                continue
+
+            # Normalize range start for Métré-style matching when needed
+            slot_time = time_str
+            if '-' in time_str and calendar_id in ('calendar3', '3'):
+                # Keep full range for SAV-style; for point slots extract start only if needed by client
+                pass
+
+            key = f"{date_str}|{slot_time.lower()}"
+            if key in seen_slots:
+                continue
+            seen_slots.add(key)
+            occupied_slots.append({
+                'date': date_str,
+                'time': slot_time,
+            })
+
+        return Response({
+            'calendar_id': calendar_id,
+            'occupied_slots': occupied_slots,
+            'daily_counts': daily_counts,
+        })
+
+
 class BookingListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticatedCustom]
     serializer_class = BookingSerializer
@@ -411,11 +502,16 @@ class BookingListCreateView(generics.ListCreateAPIView):
         if end_date:
             queryset = queryset.filter(booking_date__lte=end_date)
 
+        queryset = _scope_bookings_queryset_for_user(queryset, self.request.user)
         return queryset.order_by('booking_date', 'booking_time', 'id')
 
     def perform_create(self, serializer):
-        booking = serializer.save()
-        # Refresh from database to ensure we have the latest saved values
+        # Concepteur: always assign their own name as designer (cannot impersonate)
+        if _is_concepteur(self.request.user):
+            serializer.save(designer_name=self.request.user.name)
+        else:
+            serializer.save()
+        booking = serializer.instance
         booking.refresh_from_db()
         _notify_booking(booking)
 
@@ -424,10 +520,17 @@ class BookingRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticatedCustom]
     serializer_class = BookingSerializer
     queryset = Booking.objects.all()
-    
+
+    def get_queryset(self):
+        return _scope_bookings_queryset_for_user(super().get_queryset(), self.request.user)
+
     def perform_update(self, serializer):
-        booking = serializer.save()
-        # Refresh from database to ensure we have the latest saved values
+        # Concepteur cannot reassign designer_name to someone else
+        if _is_concepteur(self.request.user):
+            serializer.save(designer_name=self.request.user.name)
+        else:
+            serializer.save()
+        booking = serializer.instance
         booking.refresh_from_db()
         _notify_booking(booking, is_update=True)
     
@@ -1052,8 +1155,20 @@ class ConcepteurMagasinView(APIView):
         
         # Return the first magasin (a concepteur should typically belong to one magasin)
         magasin = magasins.first()
-        serializer = MagasinSerializer(magasin)
-        return Response(serializer.data)
+        # Hide colleague concepteurs from this endpoint (visibility restriction)
+        return Response({
+            'id': magasin.id,
+            'name': magasin.name,
+            'concepteurs': [user.id],
+            'concepteurs_details': [{
+                'id': user.id,
+                'name': user.name,
+                'email': user.email,
+                'phone': getattr(user, 'phone', '') or '',
+            }],
+            'created_at': magasin.created_at.isoformat() if magasin.created_at else None,
+            'updated_at': magasin.updated_at.isoformat() if magasin.updated_at else None,
+        })
 
 
 def _collect_completion_recipients(booking: Booking, is_admin_finish: bool = False, admin_user=None):

@@ -320,6 +320,30 @@ export const getAllBookings = async (
   return requestPromise
 }
 
+export interface BookingAvailability {
+  calendar_id: string
+  occupied_slots: Array<{ date: string; time: string }>
+  daily_counts: Record<string, number>
+}
+
+/** Occupancy without personal details (for concepteur reserved-slot display). */
+export const getBookingAvailability = async (
+  binId?: string,
+  options?: { startDate?: string; endDate?: string }
+): Promise<BookingAvailability> => {
+  const targetBinId = resolveBinId(binId)
+  const params = new URLSearchParams({ calendar_id: targetBinId })
+  if (options?.startDate) params.append('start_date', options.startDate)
+  if (options?.endDate) params.append('end_date', options.endDate)
+
+  try {
+    return await apiRequest<BookingAvailability>(`/bookings/availability/?${params.toString()}`)
+  } catch (error) {
+    console.warn('[getBookingAvailability] Failed:', error)
+    return { calendar_id: targetBinId, occupied_slots: [], daily_counts: {} }
+  }
+}
+
 // Get max bookings per day for a calendar (default: 4, calendar1: 4)
 const MAX_BOOKINGS_PER_DAY_BY_BIN: { [key: string]: number } = {
   [CALENDAR_CONFIGS['calendar1']]: 4, // Pose calendar (per-day bookings)
@@ -351,17 +375,13 @@ export const isDateFullyBooked = async (date: string, binId?: string, maxBooking
     if (checkDate < today) {
       return false
     }
+
+    // Use anonymous occupancy so concepteurs see global capacity (not only their own bookings)
+    const availability = await getBookingAvailability(binId, { startDate: date, endDate: date })
+    const count = availability.daily_counts?.[date] ?? 0
+    const limit = maxBookings ?? getMaxBookingsPerDay(binId)
     
-    const allBookings = await getAllBookings(binId);
-    // Only count bookings for future dates
-    const dateBookings = allBookings.filter(booking => {
-      const bookingDate = new Date(booking.date + 'T00:00:00')
-      bookingDate.setHours(0, 0, 0, 0)
-      return booking.date === date && bookingDate >= today
-    });
-    const limit = maxBookings ?? getMaxBookingsPerDay(binId);
-    
-    return dateBookings.length >= limit;
+    return count >= limit;
   } catch (error) {
     console.error('Error checking booking limit:', error);
     return false; // Allow booking if we can't check
@@ -378,8 +398,13 @@ export const addBooking = async (bookingData: BookingData, binId?: string, maxBo
       throw new Error('Cette date est un jour férié ou un jour non disponible. Les réservations ne sont pas autorisées pour cette date.')
     }
     
-    // Get existing bookings first
+    // Get existing bookings first (may be scoped for concepteur)
     const existingBookings = await getAllBookings(targetBinId)
+    // Global occupancy without personal details (needed when own list is filtered)
+    const availability = await getBookingAvailability(targetBinId, {
+      startDate: bookingData.date,
+      endDate: bookingData.date,
+    })
 
     // For calendar2 and calendar3, check if the specific time slot is already booked
     if (usesTimeSlots(targetBinId) && bookingData.timeSlot) {
@@ -395,7 +420,7 @@ export const addBooking = async (bookingData: BookingData, binId?: string, maxBo
         const normalizeTime = (time: string) => time.trim().toLowerCase()
         const normalizedTimeSlot = normalizeTime(bookingData.timeSlot)
         
-        const isSlotBooked = existingBookings.some(
+        const isSlotBookedVisible = existingBookings.some(
           booking => {
             // Only check bookings for future dates
             const existingBookingDate = new Date(booking.date + 'T00:00:00')
@@ -409,7 +434,19 @@ export const addBooking = async (bookingData: BookingData, binId?: string, maxBo
             return booking.date === bookingData.date && normalizedBookingTime === normalizedTimeSlot
           }
         )
-        if (isSlotBooked) {
+        const isSlotBookedGlobal = (availability.occupied_slots || []).some((slot) => {
+          if (slot.date !== bookingData.date) return false
+          let slotTime = normalizeTime(slot.time || '')
+          if (targetBinId === CALENDAR_CONFIGS['calendar3'] && slotTime.includes('-')) {
+            // Match either full range or start time depending on what user selected
+            if (normalizedTimeSlot.includes('-')) {
+              return slotTime === normalizedTimeSlot
+            }
+            return slotTime.split('-')[0].trim() === normalizedTimeSlot
+          }
+          return slotTime === normalizedTimeSlot
+        })
+        if (isSlotBookedVisible || isSlotBookedGlobal) {
           throw new Error(`Ce créneau (${bookingData.timeSlot}) est déjà réservé pour cette date. Veuillez choisir un autre créneau.`)
         }
       }

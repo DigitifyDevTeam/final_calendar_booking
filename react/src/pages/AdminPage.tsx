@@ -272,24 +272,29 @@ function AdminPage() {
     }
   }
 
-  // Check if a booking belongs to the current user
+  // Check if a booking belongs to the current user (concepteur / regular)
   const isBookingOwnedByUser = (booking: any): boolean => {
     if (!currentUser) return false
-    if (isAdmin) return true // Admin can see all bookings
-    
+    if (isAdmin) return true
+
     const userName = currentUser.name?.toLowerCase().trim() || ''
+    const designer = (booking.designer || '').toLowerCase().trim()
+
+    // Concepteur: only bookings where they are the designer
+    if (currentUser.role === 'concepteur') {
+      return !!userName && designer === userName
+    }
+
     const userEmail = currentUser.email?.toLowerCase().trim() || ''
     const userPhone = currentUser.phone?.trim() || ''
-    
-    // Match by client name, phone, or designer name
     const clientNameMatch = userName && booking.name?.toLowerCase().trim() === userName
     const phoneMatch = userPhone && booking.phone?.trim() === userPhone
-    const designerMatch = userName && booking.designer?.toLowerCase().trim() === userName
+    const designerMatch = userName && designer === userName
     const emailInName = userEmail && (
       booking.name?.toLowerCase().includes(userEmail) ||
-      booking.designer?.toLowerCase().includes(userEmail)
+      designer.includes(userEmail)
     )
-    
+
     return clientNameMatch || phoneMatch || designerMatch || emailInName || false
   }
 

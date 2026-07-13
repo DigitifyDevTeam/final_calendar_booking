@@ -269,8 +269,16 @@ class BookingSerializer(serializers.ModelSerializer):
             request and getattr(request, 'user', None)
             and getattr(request.user, 'role', None) == 'admin'
         )
+        is_concepteur = bool(
+            request and getattr(request, 'user', None)
+            and getattr(request.user, 'role', None) == 'concepteur'
+        )
         if not is_admin and 'statut_facturation' in attrs:
             attrs.pop('statut_facturation', None)
+
+        # Concepteur: force own designer_name; cannot create/edit under another name
+        if is_concepteur:
+            attrs['designer_name'] = request.user.name
 
         # For updates, use instance's calendar_id if not provided in attrs
         calendar_id = attrs.get('calendar_id')

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Calendar from '../components/Calendar'
 import BookingModal from '../components/BookingModal'
 import NoelDecorations from '../components/NoelDecorations'
-import { addBooking, getBinId as getBinIdFromConfig, getMaxBookingsPerDay, type BookingData, getAllBookings, getAllHolidays, BookingRecord, HolidayRecord } from '../services/bookingService'
+import { addBooking, getBinId as getBinIdFromConfig, getMaxBookingsPerDay, type BookingData, getAllBookings, getBookingAvailability, getAllHolidays, BookingRecord, HolidayRecord } from '../services/bookingService'
 import { getAllUsers, UserRecord } from '../services/userService'
 import { LogOut, Search, X } from 'lucide-react'
 import '../App.css'
@@ -28,6 +28,8 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
   const [userRole, setUserRole] = useState<string>('')
   const [usersList, setUsersList] = useState<UserRecord[]>([])
   const [existingBookings, setExistingBookings] = useState<BookingRecord[]>([])
+  /** Anonymous daily occupancy so duration checks respect other concepteurs' bookings */
+  const [dailyOccupancy, setDailyOccupancy] = useState<Record<string, number>>({})
   const [holidays, setHolidays] = useState<HolidayRecord[]>([])
   const [clientSearch, setClientSearch] = useState<string>('')
 
@@ -63,12 +65,14 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
   // Load bookings and holidays for duration availability calculation
   const loadBookingsAndHolidays = async () => {
     try {
-      const [bookings, holidaysData] = await Promise.all([
+      const [bookings, holidaysData, availability] = await Promise.all([
         getAllBookings(binId),
-        getAllHolidays(binId)
+        getAllHolidays(binId),
+        getBookingAvailability(binId),
       ])
       setExistingBookings(bookings)
       setHolidays(holidaysData)
+      setDailyOccupancy(availability.daily_counts || {})
     } catch (error) {
       console.error('Error loading bookings/holidays:', error)
     }
@@ -426,7 +430,23 @@ function Calendar1Page({ disableAnimations = false, isAdminView = false }: Calen
           onSubmit={handleBookingSubmit}
           isDarkMode={isDarkMode}
           users={isAdmin ? usersList : []}
-          existingBookings={existingBookings.map(b => ({ date: b.date }))}
+          existingBookings={(() => {
+            // Prefer global occupancy so multi-day duration respects other concepteurs
+            const dateSet = new Set<string>([
+              ...Object.keys(dailyOccupancy),
+              ...existingBookings.map((b) => b.date),
+            ])
+            const expanded: { date: string }[] = []
+            dateSet.forEach((date) => {
+              const own = existingBookings.filter((b) => b.date === date).length
+              const global = dailyOccupancy[date] || 0
+              const count = Math.max(own, global)
+              for (let i = 0; i < count; i++) {
+                expanded.push({ date })
+              }
+            })
+            return expanded
+          })()}
           holidays={holidays.map(h => ({ holiday_date: h.holiday_date }))}
           maxBookingsPerDay={getMaxBookingsPerDay(binId)}
           showDurationField={true}

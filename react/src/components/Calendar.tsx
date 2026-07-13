@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import './Calendar.css'
-import { getAllBookings, BookingRecord, getMaxBookingsPerDay, usesTimeSlots, getAllHolidays, HolidayRecord, updateBooking, deleteBooking, CALENDAR_CONFIGS } from '../services/bookingService'
+import { getAllBookings, getBookingAvailability, BookingRecord, getMaxBookingsPerDay, usesTimeSlots, getAllHolidays, HolidayRecord, updateBooking, deleteBooking, CALENDAR_CONFIGS } from '../services/bookingService'
 import { getAllUsers, UserRecord } from '../services/userService'
 import AdminBookingModal, { AdminBookingFormData } from './AdminBookingModal'
 import TechnicienViewModal from './TechnicienViewModal'
@@ -370,10 +370,19 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
 
     const loadBookingCounts = async () => {
       try {
-        // Fetch all bookings for this calendar
+        // Own visible bookings (scoped by API for concepteur)
         let allBookings = await getAllBookings(binId)
+
+        // Anonymous occupancy so concepteurs still see reserved créneaux without details
+        let availabilityCounts: Record<string, number> = {}
+        let availabilitySlots: Array<{ date: string; time: string }> = []
+        if (isConcepteur) {
+          const availability = await getBookingAvailability(binId)
+          availabilityCounts = availability.daily_counts || {}
+          availabilitySlots = availability.occupied_slots || []
+        }
         
-        // Filter by client name search if provided
+        // Filter by client name search if provided (only affects visible own bookings)
         if (clientSearch && clientSearch.trim()) {
           const searchTerm = clientSearch.trim().toLowerCase()
           allBookings = allBookings.filter((booking: BookingRecord) => {
@@ -389,10 +398,6 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         yesterday.setDate(yesterday.getDate() - 1)
         const isBookingYesterday = (d: Date) => d.getTime() === yesterday.getTime()
         
-        // Calculate counts for ALL dates (all months), not just visible month
-        // This way when user navigates to December, fully-booked dates are already gray
-        // IMPORTANT: Only count bookings for future dates (exclude past dates) for counts
-        // BUT: For admin on SAV/Metré calendars, include past bookings in bookedTimeSlots and bookingDetails
         const counts: {[key: string]: number} = {}
         const slots: {[key: string]: boolean} = {}
         const details: {[key: string]: BookingRecord} = {}
@@ -400,7 +405,6 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         let filteredPastCount = 0
         let filteredTimeSlotCount = 0
         allBookings.forEach((booking: BookingRecord) => {
-          // Parse booking date and compare with today
           const bookingDate = new Date(booking.date + 'T00:00:00')
           bookingDate.setHours(0, 0, 0, 0)
           
@@ -408,37 +412,23 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           const isAdminOnSavMetre = isAdmin && usesTimeSlots(binId) && (binId === 'calendar2' || binId === 'calendar3')
           const isTechnicienPoseYesterday = isTechnicien && binId === 'calendar1' && isPastDate && isBookingYesterday(bookingDate)
           
-          // For admin on SAV/Metré: include past bookings in slots/details but not in counts
-          // For technicien on Pose: also include yesterday so they can open and finish (J+1)
           if (bookingDate >= today || (isPastDate && isAdminOnSavMetre) || isTechnicienPoseYesterday) {
-            // For calendars with time slots (calendar2/SAV and calendar3/Metré), only count if time slot is present
-            // For calendar1/Pose, count all bookings
             if (usesTimeSlots(binId)) {
-              // Only count bookings that have a valid time slot (not empty or default)
               if (booking.time && booking.time.trim() && booking.time !== '21h00') {
                 const normalizedTime = booking.time.trim().toLowerCase()
                 
-                // For calendar3 with sav timeSlotType, if booking has range format (e.g., "8:00-11:00"),
-                // we need to extract the start time to match individual slot format (e.g., "8:00")
                 let slotTime = normalizedTime
                 if (binId === 'calendar3' && timeSlotType === 'sav' && normalizedTime.includes('-')) {
-                  // Extract the start time from range format (e.g., "8:00-11:00" -> "8:00")
                   slotTime = normalizedTime.split('-')[0].trim()
                 }
                 
                 const slotKey = `${booking.date}|${slotTime}`
                 slots[slotKey] = true
-                details[slotKey] = booking // Store booking details for admin
-                
-                // Only add to counts if not a past date (past dates should not affect booking counts)
-                if (!isPastDate) {
-                  // Counts are not used for time-slot calendars, but we keep the structure for consistency
-                }
+                details[slotKey] = booking
               } else {
                 filteredTimeSlotCount++
               }
             } else {
-              // For Pose calendar (calendar1), count future bookings; for technicien also count yesterday (J+1 finish)
               if (!isPastDate || isTechnicienPoseYesterday) {
                 counts[booking.date] = (counts[booking.date] || 0) + 1
               }
@@ -447,17 +437,46 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
             filteredPastCount++
           }
         })
+
+        // Merge anonymous occupancy for concepteur (no personal details)
+        if (isConcepteur) {
+          availabilitySlots.forEach((slot) => {
+            const bookingDate = new Date(slot.date + 'T00:00:00')
+            bookingDate.setHours(0, 0, 0, 0)
+            if (bookingDate < today) return
+
+            const time = (slot.time || '').trim()
+            if (!time || time === '21h00') return
+
+            let slotTime = time.toLowerCase()
+            if (binId === 'calendar3' && timeSlotType === 'sav' && slotTime.includes('-')) {
+              slotTime = slotTime.split('-')[0].trim()
+            }
+            const slotKey = `${slot.date}|${slotTime}`
+            slots[slotKey] = true
+            // Do NOT put foreign bookings into details — keeps privacy
+          })
+
+          // Pose daily capacity must reflect global occupancy
+          if (!usesTimeSlots(binId)) {
+            Object.entries(availabilityCounts).forEach(([dateStr, count]) => {
+              const bookingDate = new Date(dateStr + 'T00:00:00')
+              bookingDate.setHours(0, 0, 0, 0)
+              if (bookingDate >= today) {
+                counts[dateStr] = Math.max(counts[dateStr] || 0, count)
+              }
+            })
+          }
+        }
         
         setBookingCounts(counts)
         setBookedTimeSlots(slots)
         setBookingDetails(details)
-        setAllBookingsData(allBookings) // Store all bookings for admin view
+        setAllBookingsData(allBookings)
         
-        // Mark data as loaded
         setIsDataLoaded(true)
       } catch (error) {
         console.error('Error loading booking counts:', error)
-        // On error, keep existing counts from localStorage if available (calendar-specific only)
         if (binId) {
           const storageKey = `booking_calendar_data_${binId}`
           const hasLocalStorageData = localStorage.getItem(storageKey)
@@ -470,10 +489,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           setBookedTimeSlots({})
         }
         
-        // Still mark as loaded even on error (to show dates, even if with 0 bookings)
         setIsDataLoaded(true)
       } finally {
-        // Only clear if this is still the current request (prevents race conditions)
         if (bookingsLoadingRef.current === requestKey) {
           bookingsLoadingRef.current = null
         }
@@ -488,7 +505,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         bookingsLoadingRef.current = null
       }
     }
-  }, [refreshTrigger, binId, internalRefreshTrigger, isAdmin, clientSearch]) // Include clientSearch to reload when search changes
+  }, [refreshTrigger, binId, internalRefreshTrigger, isAdmin, isConcepteur, clientSearch]) // Include clientSearch to reload when search changes; isConcepteur for occupancy merge
 
   // Get booking status for a date
   const getBookingStatus = (date: Date) => {
@@ -578,6 +595,27 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     return bookingDetails[slotKey] || null
   }
 
+  /** Occupied by someone else — show as reserved, never leak details */
+  const isAnonymouslyReserved = (date: Date, timeSlot: string, isBooked: boolean): boolean => {
+    return Boolean(isBooked && !getBookingForSlot(date, timeSlot))
+  }
+
+  const getSlotDisplayText = (date: Date, timeSlot: string, isBooked: boolean): string => {
+    if (!isBooked) return timeSlot
+    const booking = getBookingForSlot(date, timeSlot)
+    if (booking && booking.name && (binId === 'calendar2' || binId === 'calendar3')) {
+      return `client: ${booking.name}`
+    }
+    if (!booking) {
+      return 'Réservé'
+    }
+    return timeSlot
+  }
+
+  const reservedSlotClass = (date: Date, timeSlot: string, isBooked: boolean): string => {
+    return isAnonymouslyReserved(date, timeSlot, isBooked) ? 'is-reserved' : (isBooked ? 'is-booked' : '')
+  }
+
   const getNamesForDate = (date: Date, timeSlot?: string): string[] => {
     const bookings = getBookingsForDate(date, timeSlot)
     return bookings.map(b => b.name)
@@ -608,26 +646,15 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     if (timeSlot) {
       // For time slot calendars (Metré, SAV), get the booking for this specific time slot
       const booking = getBookingForSlot(date, timeSlot)
-      if (booking) {
-        // If search is active, show all matching bookings (search already filtered allBookingsData)
-        if (clientSearch && clientSearch.trim()) {
-          return [booking]
-        }
-        // For admin, show all bookings. For concepteur, only show if it's by another concepteur
-        if (isAdmin) {
-          return [booking]
-        } else if (isBookingByOtherConcepteur(booking)) {
-          return [booking]
-        }
+      if (booking && isVisibleBookingForUser(booking)) {
+        return [booking]
       }
       return []
     } else {
-      // For Pose calendar, get all bookings for this date
-      // Show all bookings so users can see who has booked (for info icon)
-      // But only for future dates (or past dates if admin on SAV/Metré, but Pose doesn't use time slots)
+      // For Pose calendar, get bookings for this date that the user may see
       const bookings: BookingRecord[] = []
       allBookingsData.forEach((booking: BookingRecord) => {
-        if (booking.date === dateString) {
+        if (booking.date === dateString && isVisibleBookingForUser(booking)) {
           bookings.push(booking)
         }
       })
@@ -658,22 +685,18 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         return getBookingStatus(date).count > 0
       }
     } else if (isConcepteur) {
-      // For concepteur, only show info icon if booking is by another concepteur (not their own)
+      // Concepteur: only show info for their own bookings (never other concepteurs)
       if (timeSlot) {
         const booking = getBookingForSlot(date, timeSlot)
-        return booking ? isBookingByOtherConcepteur(booking) : false
+        return booking ? isBookingByConcepteur(booking) : false
       } else {
-        // For non-time-slot calendars (Pose), check if there are bookings by OTHER concepteurs
         const year = date.getFullYear()
         const month = String(date.getMonth() + 1).padStart(2, '0')
         const day = String(date.getDate()).padStart(2, '0')
         const dateString = `${year}-${month}-${day}`
-        
-        // Get all bookings for this date
-        const allBookings = allBookingsData.filter((booking: BookingRecord) => booking.date === dateString)
-        // Filter to only bookings by other concepteurs (not the current one)
-        const otherBookings = allBookings.filter((booking: BookingRecord) => isBookingByOtherConcepteur(booking))
-        return otherBookings.length > 0
+        return allBookingsData.some(
+          (booking: BookingRecord) => booking.date === dateString && isBookingByConcepteur(booking)
+        )
       }
     } else {
       // Regular users see all bookings
@@ -743,37 +766,17 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
 
   // Check if a booking belongs to the current Concepteur user
   const isBookingByConcepteur = (booking: BookingRecord): boolean => {
-    if (!isConcepteur || !userName) {
-      console.log('[isBookingByConcepteur] Not a concepteur or no name:', { isConcepteur, userName, userEmail })
-      return false
-    }
-    // Match by designer field (should contain concepteur's name)
-    // The designer field should match the concepteur's name
-    const designerMatch = booking.designer.toLowerCase().trim() === userName.toLowerCase().trim()
-    const designerContains = booking.designer.toLowerCase().includes(userName.toLowerCase())
-    const matches = designerMatch || designerContains
-    
-    console.log('[isBookingByConcepteur]', {
-      bookingId: booking.id,
-      bookingDesigner: booking.designer,
-      bookingName: booking.name,
-      userName,
-      userEmail,
-      designerMatch,
-      designerContains,
-      matches
-    })
-    return matches
+    if (!isConcepteur || !userName) return false
+    return (booking.designer || '').toLowerCase().trim() === userName.toLowerCase().trim()
   }
 
-  // Check if a booking is by another concepteur (not the current one)
-  const isBookingByOtherConcepteur = (booking: BookingRecord): boolean => {
-    if (!isConcepteur) {
-      // If not a concepteur, show all bookings (regular user behavior)
-      return false
-    }
-    // If it's a booking by the current concepteur, return false (don't show info icon)
-    return !isBookingByConcepteur(booking)
+  // Get bookings for a date that the current user is allowed to see
+  // Concepteur: only their own bookings (others are hidden by API + UI)
+  const isVisibleBookingForUser = (booking: BookingRecord): boolean => {
+    if (isAdmin || isTechnicien) return true
+    if (isConcepteur) return isBookingByConcepteur(booking)
+    if (isRegularUser) return isBookingByUser(booking)
+    return true
   }
 
   // Check if a booking belongs to the current regular user
@@ -1257,7 +1260,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                               return (
                                 <>
                                   <div 
-                                    className={`time-slot ${slot1Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot1Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot1Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot1Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '8:00-11:00', slot1Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot1Booked) {
                                         handleTechnicienSlotClick(date, '8:00-11:00')
@@ -1267,7 +1270,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     }}
                                     style={{ cursor: (isTechnicien && slot1Booked) ? 'pointer' : (slot1Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
-                                    <span>8:00-11:00</span>
+                                    <span>{getSlotDisplayText(date, '8:00-11:00', isSlotBooked(date, '8:00-11:00'))}</span>
                                     {shouldShowInfoIcon(date, '8:00-11:00') && (
                                       <button
                                         className="calendar-info-button"
@@ -1279,7 +1282,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     )}
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot2Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot2Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot2Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot2Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '11:00-14:00', slot2Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot2Booked) {
                                         handleTechnicienSlotClick(date, '11:00-14:00')
@@ -1289,7 +1292,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     }}
                                     style={{ cursor: (isTechnicien && slot2Booked) ? 'pointer' : (slot2Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
-                                    <span>11:00-14:00</span>
+                                    <span>{getSlotDisplayText(date, '11:00-14:00', isSlotBooked(date, '11:00-14:00'))}</span>
                                     {shouldShowInfoIcon(date, '11:00-14:00') && (
                                       <button
                                         className="calendar-info-button"
@@ -1301,7 +1304,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     )}
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot3Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot3Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot3Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot3Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '14:00-17:00', slot3Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot3Booked) {
                                         handleTechnicienSlotClick(date, '14:00-17:00')
@@ -1311,7 +1314,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     }}
                                     style={{ cursor: (isTechnicien && slot3Booked) ? 'pointer' : (slot3Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
-                                    <span>14:00-17:00</span>
+                                    <span>{getSlotDisplayText(date, '14:00-17:00', isSlotBooked(date, '14:00-17:00'))}</span>
                                     {shouldShowInfoIcon(date, '14:00-17:00') && (
                                       <button
                                         className="calendar-info-button"
@@ -1337,21 +1340,10 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                               const slot15_30Booked = isSlotBooked(date, '15:30')
                               const slot17_00Booked = isSlotBooked(date, '17:00')
                               
-                              // Helper to get display text for booked slots (Metré and SAV only)
-                              const getSlotDisplayText = (timeSlot: string, isBooked: boolean): string => {
-                                if (isBooked && (binId === 'calendar2' || binId === 'calendar3')) {
-                                  const booking = getBookingForSlot(date, timeSlot)
-                                  if (booking && booking.name) {
-                                    return `client: ${booking.name}`
-                                  }
-                                }
-                                return timeSlot
-                              }
-                              
                               return (
                                 <>
                                   <div 
-                                    className={`time-slot ${slot8_00Booked ? 'disabled' : ''} ${!slot8_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot8_00Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot8_00Booked ? 'disabled' : ''} ${!slot8_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot8_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '8:00', slot8_00Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot8_00Booked) {
                                         handleTechnicienSlotClick(date, '8:00')
@@ -1362,7 +1354,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot8_00Booked) ? 'pointer' : (slot8_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot8_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot8_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('8:00', slot8_00Booked)}
+                                      {getSlotDisplayText(date, '8:00', slot8_00Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '8:00') && (
@@ -1401,7 +1393,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot9_30Booked ? 'disabled' : ''} ${!slot9_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot9_30Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot9_30Booked ? 'disabled' : ''} ${!slot9_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot9_30Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '9:30', slot9_30Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot9_30Booked) {
                                         handleTechnicienSlotClick(date, '9:30')
@@ -1412,7 +1404,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot9_30Booked) ? 'pointer' : (slot9_30Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot9_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot9_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('9:30', slot9_30Booked)}
+                                      {getSlotDisplayText(date, '9:30', slot9_30Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '9:30') && (
@@ -1451,7 +1443,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot11_00Booked ? 'disabled' : ''} ${!slot11_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot11_00Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot11_00Booked ? 'disabled' : ''} ${!slot11_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot11_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '11:00', slot11_00Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot11_00Booked) {
                                         handleTechnicienSlotClick(date, '11:00')
@@ -1462,7 +1454,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot11_00Booked) ? 'pointer' : (slot11_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot11_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot11_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('11:00', slot11_00Booked)}
+                                      {getSlotDisplayText(date, '11:00', slot11_00Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '11:00') && (
@@ -1501,7 +1493,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot12_30Booked ? 'disabled' : ''} ${!slot12_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot12_30Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot12_30Booked ? 'disabled' : ''} ${!slot12_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot12_30Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '12:30', slot12_30Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot12_30Booked) {
                                         handleTechnicienSlotClick(date, '12:30')
@@ -1512,7 +1504,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot12_30Booked) ? 'pointer' : (slot12_30Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot12_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot12_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('12:30', slot12_30Booked)}
+                                      {getSlotDisplayText(date, '12:30', slot12_30Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '12:30') && (
@@ -1551,7 +1543,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot14_00Booked ? 'disabled' : ''} ${!slot14_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot14_00Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot14_00Booked ? 'disabled' : ''} ${!slot14_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot14_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '14:00', slot14_00Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot14_00Booked) {
                                         handleTechnicienSlotClick(date, '14:00')
@@ -1562,7 +1554,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot14_00Booked) ? 'pointer' : (slot14_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot14_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot14_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('14:00', slot14_00Booked)}
+                                      {getSlotDisplayText(date, '14:00', slot14_00Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '14:00') && (
@@ -1601,7 +1593,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot15_30Booked ? 'disabled' : ''} ${!slot15_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot15_30Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot15_30Booked ? 'disabled' : ''} ${!slot15_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot15_30Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '15:30', slot15_30Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot15_30Booked) {
                                         handleTechnicienSlotClick(date, '15:30')
@@ -1612,7 +1604,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot15_30Booked) ? 'pointer' : (slot15_30Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot15_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot15_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('15:30', slot15_30Booked)}
+                                      {getSlotDisplayText(date, '15:30', slot15_30Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '15:30') && (
@@ -1651,7 +1643,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot17_00Booked ? 'disabled' : ''} ${!slot17_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot17_00Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot17_00Booked ? 'disabled' : ''} ${!slot17_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot17_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '17:00', slot17_00Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot17_00Booked) {
                                         handleTechnicienSlotClick(date, '17:00')
@@ -1662,7 +1654,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot17_00Booked) ? 'pointer' : (slot17_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot17_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot17_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('17:00', slot17_00Booked)}
+                                      {getSlotDisplayText(date, '17:00', slot17_00Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '17:00') && (
@@ -1712,21 +1704,10 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                               const slot11_14Booked = isSlotBooked(date, '11:00-14:00')
                               const slot14_17Booked = isSlotBooked(date, '14:00-17:00')
                               
-                              // Helper to get display text for booked slots (Metré and SAV only)
-                              const getSlotDisplayText = (timeSlot: string, isBooked: boolean): string => {
-                                if (isBooked && (binId === 'calendar2' || binId === 'calendar3')) {
-                                  const booking = getBookingForSlot(date, timeSlot)
-                                  if (booking && booking.name) {
-                                    return `client: ${booking.name}`
-                                  }
-                                }
-                                return timeSlot
-                              }
-                              
                               return (
                                 <>
                                   <div 
-                                    className={`time-slot ${slot8_11Booked ? 'disabled' : ''} ${!slot8_11Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot8_11Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot8_11Booked ? 'disabled' : ''} ${!slot8_11Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot8_11Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '8:00-11:00', slot8_11Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot8_11Booked) {
                                         handleTechnicienSlotClick(date, '8:00-11:00')
@@ -1737,7 +1718,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot8_11Booked) ? 'pointer' : (slot8_11Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot8_11Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot8_11Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('8:00-11:00', slot8_11Booked)}
+                                      {getSlotDisplayText(date, '8:00-11:00', slot8_11Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '8:00-11:00') && (
@@ -1776,7 +1757,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot11_14Booked ? 'disabled' : ''} ${!slot11_14Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot11_14Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot11_14Booked ? 'disabled' : ''} ${!slot11_14Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot11_14Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '11:00-14:00', slot11_14Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot11_14Booked) {
                                         handleTechnicienSlotClick(date, '11:00-14:00')
@@ -1787,7 +1768,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot11_14Booked) ? 'pointer' : (slot11_14Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot11_14Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot11_14Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('11:00-14:00', slot11_14Booked)}
+                                      {getSlotDisplayText(date, '11:00-14:00', slot11_14Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '11:00-14:00') && (
@@ -1826,7 +1807,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot14_17Booked ? 'disabled' : ''} ${!slot14_17Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot14_17Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot14_17Booked ? 'disabled' : ''} ${!slot14_17Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot14_17Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '14:00-17:00', slot14_17Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot14_17Booked) {
                                         handleTechnicienSlotClick(date, '14:00-17:00')
@@ -1837,7 +1818,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot14_17Booked) ? 'pointer' : (slot14_17Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot14_17Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot14_17Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('14:00-17:00', slot14_17Booked)}
+                                      {getSlotDisplayText(date, '14:00-17:00', slot14_17Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '14:00-17:00') && (
@@ -2300,7 +2281,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                               return (
                                 <>
                                   <div 
-                                    className={`time-slot ${slot1Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot1Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot1Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot1Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '8:00-11:00', slot1Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot1Booked) {
                                         handleTechnicienSlotClick(date, '8:00-11:00')
@@ -2310,7 +2291,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     }}
                                     style={{ cursor: (isTechnicien && slot1Booked) ? 'pointer' : (slot1Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
-                                    <span>8:00-11:00</span>
+                                    <span>{getSlotDisplayText(date, '8:00-11:00', isSlotBooked(date, '8:00-11:00'))}</span>
                                     {shouldShowInfoIcon(date, '8:00-11:00') && (
                                       <button
                                         className="calendar-info-button"
@@ -2322,7 +2303,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     )}
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot2Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot2Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot2Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot2Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '11:00-14:00', slot2Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot2Booked) {
                                         handleTechnicienSlotClick(date, '11:00-14:00')
@@ -2332,7 +2313,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     }}
                                     style={{ cursor: (isTechnicien && slot2Booked) ? 'pointer' : (slot2Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
-                                    <span>11:00-14:00</span>
+                                    <span>{getSlotDisplayText(date, '11:00-14:00', isSlotBooked(date, '11:00-14:00'))}</span>
                                     {shouldShowInfoIcon(date, '11:00-14:00') && (
                                       <button
                                         className="calendar-info-button"
@@ -2344,7 +2325,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     )}
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot3Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot3Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot3Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot3Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '14:00-17:00', slot3Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot3Booked) {
                                         handleTechnicienSlotClick(date, '14:00-17:00')
@@ -2354,7 +2335,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     }}
                                     style={{ cursor: (isTechnicien && slot3Booked) ? 'pointer' : (slot3Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
-                                    <span>14:00-17:00</span>
+                                    <span>{getSlotDisplayText(date, '14:00-17:00', isSlotBooked(date, '14:00-17:00'))}</span>
                                     {shouldShowInfoIcon(date, '14:00-17:00') && (
                                       <button
                                         className="calendar-info-button"
@@ -2380,21 +2361,10 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                               const slot15_30Booked = isSlotBooked(date, '15:30')
                               const slot17_00Booked = isSlotBooked(date, '17:00')
                               
-                              // Helper to get display text for booked slots (SAV and Metré only)
-                              const getSlotDisplayText = (timeSlot: string, isBooked: boolean): string => {
-                                if (isBooked && (binId === 'calendar2' || binId === 'calendar3')) {
-                                  const booking = getBookingForSlot(date, timeSlot)
-                                  if (booking && booking.name) {
-                                    return `client: ${booking.name}`
-                                  }
-                                }
-                                return timeSlot
-                              }
-                              
                               return (
                                 <>
                                   <div 
-                                    className={`time-slot ${slot8_00Booked ? 'disabled' : ''} ${!slot8_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot8_00Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot8_00Booked ? 'disabled' : ''} ${!slot8_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot8_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '8:00', slot8_00Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot8_00Booked) {
                                         handleTechnicienSlotClick(date, '8:00')
@@ -2405,7 +2375,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot8_00Booked) ? 'pointer' : (slot8_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot8_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot8_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('8:00', slot8_00Booked)}
+                                      {getSlotDisplayText(date, '8:00', slot8_00Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '8:00') && (
@@ -2444,7 +2414,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot9_30Booked ? 'disabled' : ''} ${!slot9_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot9_30Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot9_30Booked ? 'disabled' : ''} ${!slot9_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot9_30Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '9:30', slot9_30Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot9_30Booked) {
                                         handleTechnicienSlotClick(date, '9:30')
@@ -2455,7 +2425,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot9_30Booked) ? 'pointer' : (slot9_30Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot9_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot9_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('9:30', slot9_30Booked)}
+                                      {getSlotDisplayText(date, '9:30', slot9_30Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '9:30') && (
@@ -2494,7 +2464,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot11_00Booked ? 'disabled' : ''} ${!slot11_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot11_00Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot11_00Booked ? 'disabled' : ''} ${!slot11_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot11_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '11:00', slot11_00Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot11_00Booked) {
                                         handleTechnicienSlotClick(date, '11:00')
@@ -2505,7 +2475,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot11_00Booked) ? 'pointer' : (slot11_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot11_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot11_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('11:00', slot11_00Booked)}
+                                      {getSlotDisplayText(date, '11:00', slot11_00Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '11:00') && (
@@ -2544,7 +2514,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot12_30Booked ? 'disabled' : ''} ${!slot12_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot12_30Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot12_30Booked ? 'disabled' : ''} ${!slot12_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot12_30Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '12:30', slot12_30Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot12_30Booked) {
                                         handleTechnicienSlotClick(date, '12:30')
@@ -2555,7 +2525,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot12_30Booked) ? 'pointer' : (slot12_30Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot12_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot12_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('12:30', slot12_30Booked)}
+                                      {getSlotDisplayText(date, '12:30', slot12_30Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '12:30') && (
@@ -2594,7 +2564,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot14_00Booked ? 'disabled' : ''} ${!slot14_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot14_00Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot14_00Booked ? 'disabled' : ''} ${!slot14_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot14_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '14:00', slot14_00Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot14_00Booked) {
                                         handleTechnicienSlotClick(date, '14:00')
@@ -2605,7 +2575,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot14_00Booked) ? 'pointer' : (slot14_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot14_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot14_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('14:00', slot14_00Booked)}
+                                      {getSlotDisplayText(date, '14:00', slot14_00Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '14:00') && (
@@ -2644,7 +2614,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot15_30Booked ? 'disabled' : ''} ${!slot15_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot15_30Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot15_30Booked ? 'disabled' : ''} ${!slot15_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot15_30Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '15:30', slot15_30Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot15_30Booked) {
                                         handleTechnicienSlotClick(date, '15:30')
@@ -2655,7 +2625,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot15_30Booked) ? 'pointer' : (slot15_30Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot15_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot15_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('15:30', slot15_30Booked)}
+                                      {getSlotDisplayText(date, '15:30', slot15_30Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '15:30') && (
@@ -2694,7 +2664,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot17_00Booked ? 'disabled' : ''} ${!slot17_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot17_00Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot17_00Booked ? 'disabled' : ''} ${!slot17_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot17_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '17:00', slot17_00Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot17_00Booked) {
                                         handleTechnicienSlotClick(date, '17:00')
@@ -2705,7 +2675,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot17_00Booked) ? 'pointer' : (slot17_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot17_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot17_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('17:00', slot17_00Booked)}
+                                      {getSlotDisplayText(date, '17:00', slot17_00Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '17:00') && (
@@ -2755,21 +2725,10 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                               const slot11_14Booked = isSlotBooked(date, '11:00-14:00')
                               const slot14_17Booked = isSlotBooked(date, '14:00-17:00')
                               
-                              // Helper to get display text for booked slots (SAV and Metré only)
-                              const getSlotDisplayText = (timeSlot: string, isBooked: boolean): string => {
-                                if (isBooked && (binId === 'calendar2' || binId === 'calendar3')) {
-                                  const booking = getBookingForSlot(date, timeSlot)
-                                  if (booking && booking.name) {
-                                    return `client: ${booking.name}`
-                                  }
-                                }
-                                return timeSlot
-                              }
-                              
                               return (
                                 <>
                                   <div 
-                                    className={`time-slot ${slot8_11Booked ? 'disabled' : ''} ${!slot8_11Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot8_11Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot8_11Booked ? 'disabled' : ''} ${!slot8_11Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot8_11Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '8:00-11:00', slot8_11Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot8_11Booked) {
                                         handleTechnicienSlotClick(date, '8:00-11:00')
@@ -2780,7 +2739,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot8_11Booked) ? 'pointer' : (slot8_11Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot8_11Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot8_11Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('8:00-11:00', slot8_11Booked)}
+                                      {getSlotDisplayText(date, '8:00-11:00', slot8_11Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '8:00-11:00') && (
@@ -2819,7 +2778,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot11_14Booked ? 'disabled' : ''} ${!slot11_14Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot11_14Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot11_14Booked ? 'disabled' : ''} ${!slot11_14Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot11_14Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '11:00-14:00', slot11_14Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot11_14Booked) {
                                         handleTechnicienSlotClick(date, '11:00-14:00')
@@ -2830,7 +2789,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot11_14Booked) ? 'pointer' : (slot11_14Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot11_14Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot11_14Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('11:00-14:00', slot11_14Booked)}
+                                      {getSlotDisplayText(date, '11:00-14:00', slot11_14Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '11:00-14:00') && (
@@ -2869,7 +2828,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot14_17Booked ? 'disabled' : ''} ${!slot14_17Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot14_17Booked ? 'technicien-clickable' : ''}`}
+                                    className={`time-slot ${slot14_17Booked ? 'disabled' : ''} ${!slot14_17Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot14_17Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '14:00-17:00', slot14_17Booked)}`}
                                     onClick={() => {
                                       if (isTechnicien && slot14_17Booked) {
                                         handleTechnicienSlotClick(date, '14:00-17:00')
@@ -2880,7 +2839,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     style={{ cursor: (isTechnicien && slot14_17Booked) ? 'pointer' : (slot14_17Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
                                   >
                                     <span style={{ fontWeight: slot14_17Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot14_17Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
-                                      {getSlotDisplayText('14:00-17:00', slot14_17Booked)}
+                                      {getSlotDisplayText(date, '14:00-17:00', slot14_17Booked)}
                                     </span>
                                     <div className="time-slot-actions">
                                       {shouldShowInfoIcon(date, '14:00-17:00') && (
