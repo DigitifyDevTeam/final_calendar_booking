@@ -5,6 +5,7 @@ import { getAllUsers, UserRecord } from '../services/userService'
 import AdminBookingModal, { AdminBookingFormData } from './AdminBookingModal'
 import TechnicienViewModal from './TechnicienViewModal'
 import TechnicienCompleteModal from './TechnicienCompleteModal'
+import CancelInterventionModal from './CancelInterventionModal'
 
 // Orange info icon component
 const InfoIcon: React.FC = () => (
@@ -71,6 +72,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   const [allBookingsData, setAllBookingsData] = useState<BookingRecord[]>([])
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [isConcepteur, setIsConcepteur] = useState<boolean>(false)
+  const [isReferent, setIsReferent] = useState<boolean>(false)
   const [isTechnicien, setIsTechnicien] = useState<boolean>(false)
   const [isRegularUser, setIsRegularUser] = useState<boolean>(false)
   const [userEmail, setUserEmail] = useState<string>('')
@@ -111,6 +113,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
       const userData = JSON.parse(user)
       setIsAdmin(userData.role === 'admin')
       setIsConcepteur(userData.role === 'concepteur')
+      setIsReferent(userData.role === 'concepteur' && Boolean(userData.is_referent))
       setIsTechnicien(userData.role === 'technicien')
       setIsRegularUser(userData.role !== 'admin' && userData.role !== 'concepteur' && userData.role !== 'technicien')
       setUserEmail(userData.email || '')
@@ -127,6 +130,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         name: userData.name,
         isAdmin: userData.role === 'admin',
         isConcepteur: userData.role === 'concepteur',
+        isReferent: userData.role === 'concepteur' && Boolean(userData.is_referent),
         isTechnicien: userData.role === 'technicien'
       })
     } else {
@@ -685,7 +689,13 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         return getBookingStatus(date).count > 0
       }
     } else if (isConcepteur) {
-      // Concepteur: only show info for their own bookings (never other concepteurs)
+      // Référent: consult all magasin bookings; others: own only
+      if (isReferent) {
+        if (timeSlot) {
+          return !!getBookingForSlot(date, timeSlot)
+        }
+        return getBookingsForDate(date).length > 0
+      }
       if (timeSlot) {
         const booking = getBookingForSlot(date, timeSlot)
         return booking ? isBookingByConcepteur(booking) : false
@@ -771,10 +781,13 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   }
 
   // Get bookings for a date that the current user is allowed to see
-  // Concepteur: only their own bookings (others are hidden by API + UI)
+  // Concepteur: own only — référent: all magasin bookings returned by API
   const isVisibleBookingForUser = (booking: BookingRecord): boolean => {
     if (isAdmin || isTechnicien) return true
-    if (isConcepteur) return isBookingByConcepteur(booking)
+    if (isConcepteur) {
+      if (isReferent) return true
+      return isBookingByConcepteur(booking)
+    }
     if (isRegularUser) return isBookingByUser(booking)
     return true
   }
@@ -1119,11 +1132,18 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   }
 
   const [adminCompleteBooking, setAdminCompleteBooking] = useState<BookingRecord | null>(null)
+  const [adminCancelBooking, setAdminCancelBooking] = useState<BookingRecord | null>(null)
 
   const handleTerminerSav = (bookingId: string) => {
     const booking = editingBooking || allBookingsData.find(b => String(b.id) === String(bookingId))
     if (!booking) return
     setAdminCompleteBooking(booking)
+  }
+
+  const handleAnnulerIntervention = (bookingId: string) => {
+    const booking = editingBooking || allBookingsData.find(b => String(b.id) === String(bookingId))
+    if (!booking) return
+    setAdminCancelBooking(booking)
   }
 
   // Check if date numbers should be clickable (only for calendar1, not for calendar2/3 with time slots)
@@ -3211,6 +3231,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           }}
           onSubmit={handleEditModalSubmit}
           onTerminer={isAdmin ? handleTerminerSav : undefined}
+          onAnnuler={isAdmin ? handleAnnulerIntervention : undefined}
           booking={{
             id: editingBooking.id,
             calendarId: editingBooking.calendar_id || binId,
@@ -3242,6 +3263,11 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         }}
         booking={technicienViewBooking}
         isDarkMode={isDarkMode}
+        onCancelled={async () => {
+          setIsTechnicienModalOpen(false)
+          setTechnicienViewBooking(null)
+          setInternalRefreshTrigger(prev => prev + 1)
+        }}
       />
 
       {adminCompleteBooking && (
@@ -3256,6 +3282,22 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           skipDateRestrictions
           onFinish={async () => {
             setAdminCompleteBooking(null)
+            setIsEditModalOpen(false)
+            setEditingBooking(null)
+            setInternalRefreshTrigger(prev => prev + 1)
+          }}
+        />
+      )}
+
+      {adminCancelBooking && (
+        <CancelInterventionModal
+          isOpen={!!adminCancelBooking}
+          onClose={() => setAdminCancelBooking(null)}
+          bookingId={String(adminCancelBooking.id)}
+          bookingStatus={(adminCancelBooking as any).status || 'en_attente'}
+          isDarkMode={isDarkMode}
+          onCancelled={async () => {
+            setAdminCancelBooking(null)
             setIsEditModalOpen(false)
             setEditingBooking(null)
             setInternalRefreshTrigger(prev => prev + 1)

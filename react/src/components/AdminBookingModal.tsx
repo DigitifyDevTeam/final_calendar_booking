@@ -14,6 +14,7 @@ interface AdminBookingModalProps {
   onClose: () => void
   onSubmit: (data: AdminBookingFormData) => void
   onTerminer?: (bookingId: string) => void
+  onAnnuler?: (bookingId: string) => void
   booking?: any // Existing booking for edit mode
   isDarkMode?: boolean
   users?: UserOption[] // List of users for designer selection (admin only)
@@ -39,6 +40,7 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
   onClose,
   onSubmit,
   onTerminer,
+  onAnnuler,
   booking,
   isDarkMode = true,
   users = [],
@@ -710,6 +712,44 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
             </>
           )}
 
+          {/* Intervention status (En attente / Terminé / Annulé) */}
+          {booking && (() => {
+            const bookingStatus = (booking as any).status || 'en_attente'
+            const statusText =
+              bookingStatus === 'termine'
+                ? 'Terminé'
+                : bookingStatus === 'annule'
+                  ? 'Annulé'
+                  : 'En attente'
+            const statusColor =
+              bookingStatus === 'termine'
+                ? '#10b981'
+                : bookingStatus === 'annule'
+                  ? '#ef4444'
+                  : '#284B73'
+            return (
+              <div className="form-group">
+                <label>Statut</label>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '8px 14px',
+                    borderRadius: '12px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    backgroundColor: `${statusColor}20`,
+                    color: statusColor,
+                    border: `1px solid ${statusColor}55`,
+                  }}
+                >
+                  {bookingStatus === 'annule' ? '✕ ' : bookingStatus === 'termine' ? '✓ ' : ''}
+                  {statusText}
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Billing status - only shown when editing, for Pose calendar, and admin only */}
           {booking && isAdmin && (() => {
             // Determine the current calendar ID
@@ -752,39 +792,85 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
                 cal === CALENDAR_CONFIGS['calendar2'] || cal === 'calendar2' || cal === '2' ||
                 cal === CALENDAR_CONFIGS['calendar3'] || cal === 'calendar3' || cal === '3'
               const isAlreadyFinished = (booking as any).status === 'termine'
+              const isAlreadyCancelled = (booking as any).status === 'annule'
               if (!isClosableCalendar) {
                 return (
                   <button type="button" className="cancel-button" onClick={onClose}>
-                    Annuler
+                    Fermer
                   </button>
                 )
               }
               return (
                 <>
                   <button type="button" className="cancel-button" onClick={onClose}>
-                    Annuler
+                    Fermer
                   </button>
+                  {onAnnuler && (
+                    <button
+                      type="button"
+                      className="cancel-button"
+                      style={isAlreadyFinished || isAlreadyCancelled ? {
+                        opacity: 0.5,
+                        cursor: 'not-allowed',
+                        background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+                        borderColor: '#dc2626',
+                        color: '#fff'
+                      } : {
+                        background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+                        borderColor: '#dc2626',
+                        color: '#fff'
+                      }}
+                      disabled={isAlreadyFinished || isAlreadyCancelled}
+                      title={
+                        isAlreadyCancelled
+                          ? 'Cette réservation a déjà été annulée'
+                          : isAlreadyFinished
+                            ? 'Cette réservation est terminée'
+                            : 'Annuler l\'intervention'
+                      }
+                      onClick={() => onAnnuler(booking.id)}
+                    >
+                      {isAlreadyCancelled ? '✕ Déjà annulé' : 'Annuler l\'intervention'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="cancel-button"
-                    style={isAlreadyFinished ? {
-                      opacity: 0.5,
-                      cursor: 'not-allowed',
-                      background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
-                      borderColor: '#10b981',
-                      color: '#0b1f16'
-                    } : {
-                      background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
-                      borderColor: '#10b981',
-                      color: '#0b1f16'
-                    }}
-                    disabled={isAlreadyFinished}
-                    title={isAlreadyFinished
-                      ? 'Cette réservation a déjà été terminée'
-                      : 'Clôturer sans contrainte de date (administrateur)'}
+                    style={
+                      isAlreadyCancelled
+                        ? {
+                            opacity: 0.95,
+                            cursor: 'not-allowed',
+                            background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+                            borderColor: '#dc2626',
+                            color: '#ffffff',
+                            fontWeight: 700,
+                          }
+                        : isAlreadyFinished
+                          ? {
+                              opacity: 0.5,
+                              cursor: 'not-allowed',
+                              background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+                              borderColor: '#10b981',
+                              color: '#0b1f16',
+                            }
+                          : {
+                              background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+                              borderColor: '#10b981',
+                              color: '#0b1f16',
+                            }
+                    }
+                    disabled={isAlreadyFinished || isAlreadyCancelled}
+                    title={
+                      isAlreadyCancelled
+                        ? 'Cette réservation a été annulée'
+                        : isAlreadyFinished
+                          ? 'Cette réservation a déjà été terminée'
+                          : 'Clôturer sans contrainte de date (administrateur)'
+                    }
                     onClick={() => onTerminer(booking.id)}
                   >
-                    {isAlreadyFinished ? '✓ Déjà terminé' : 'Terminer'}
+                    {isAlreadyCancelled ? '✕ Annulé' : isAlreadyFinished ? '✓ Déjà terminé' : 'Terminer'}
                   </button>
                 </>
               )

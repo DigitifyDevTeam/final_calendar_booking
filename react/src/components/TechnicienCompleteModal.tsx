@@ -8,7 +8,7 @@ interface TechnicienCompleteModalProps {
   bookingId: string
   bookingCalendarId?: string
   bookingDate?: string
-  bookingStatus?: 'en_attente' | 'termine' | null
+  bookingStatus?: 'en_attente' | 'termine' | 'annule' | null
   isDarkMode?: boolean
   /** Admin can close anytime without date constraints */
   skipDateRestrictions?: boolean
@@ -79,6 +79,8 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
   const showSavAPrevoirCheckbox = isSavCalendar || isPoseCalendar
   const showAscenseurEscaliersCheckbox = isMetreCalendar
   const isAlreadyFinished = bookingStatus === 'termine'
+  const isAlreadyCancelled = bookingStatus === 'annule'
+  const isLocked = isAlreadyFinished || isAlreadyCancelled
 
   // SAV and Metré: can only finish on the same day as the reservation
   // Pose: can only finish on the day of the reservation OR the next day (J or J+1)
@@ -127,7 +129,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
   const electromenagerAnswered = !showElectromenagerCheckbox || electromenagerFonctionnel !== null
   const savAnswered = !showSavAPrevoirCheckbox || savAPrevoir !== null
   const ascenseurRequired = !showAscenseurEscaliersCheckbox || ascenseurEscaliers
-  const isFinishButtonEnabled = canFinishByDate && menageRequired && cftSigne && electromenagerAnswered && savAnswered && ascenseurRequired && files.length > 0 && !isAlreadyFinished
+  const isFinishButtonEnabled = canFinishByDate && menageRequired && cftSigne && electromenagerAnswered && savAnswered && ascenseurRequired && files.length > 0 && !isLocked
 
   const addAttachments = (incoming: File[]) => {
     if (incoming.length === 0) return
@@ -160,9 +162,11 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
   }
 
   const handleFinish = async () => {
-    if (!isFinishButtonEnabled || isAlreadyFinished) {
+    if (!isFinishButtonEnabled || isLocked) {
       if (isAlreadyFinished) {
         alert('Cette réservation a déjà été terminée.')
+      } else if (isAlreadyCancelled) {
+        alert('Cette réservation a été annulée.')
       } else if (isSavOrMetre && !canFinishByDate) {
         alert('Vous ne pouvez terminer que le jour même de la réservation.')
       } else if (isPoseCalendar && !canFinishByDate) {
@@ -232,7 +236,22 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
               ✓ Cette réservation a déjà été terminée
             </div>
           )}
-          {isSavOrMetre && !isSameDayAsReservation && !isAlreadyFinished && !skipDateRestrictions && (
+          {isAlreadyCancelled && (
+            <div style={{
+              padding: '14px 16px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(239, 68, 68, 0.15)',
+              border: '2px solid #ef4444',
+              color: '#ef4444',
+              marginBottom: '16px',
+              fontWeight: 700,
+              textAlign: 'center',
+              fontSize: '15px',
+            }}>
+              ✕ Statut : Annulé
+            </div>
+          )}
+          {isSavOrMetre && !isSameDayAsReservation && !isLocked && !skipDateRestrictions && (
             <div style={{
               padding: '12px 16px',
               borderRadius: '8px',
@@ -246,7 +265,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
               Vous ne pouvez terminer que le jour même de la réservation.
             </div>
           )}
-          {isPoseCalendar && !isSameDayOrNextDay && !isAlreadyFinished && !skipDateRestrictions && (
+          {isPoseCalendar && !isSameDayOrNextDay && !isLocked && !skipDateRestrictions && (
             <div style={{
               padding: '12px 16px',
               borderRadius: '8px',
@@ -349,7 +368,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
               <button
                 type="button"
                 className="upload-action-button"
-                disabled={isAlreadyFinished || submitting}
+                disabled={isLocked || submitting}
                 onClick={() => imageInputRef.current?.click()}
               >
                 Ajouter des images
@@ -357,7 +376,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
               <button
                 type="button"
                 className="upload-action-button"
-                disabled={isAlreadyFinished || submitting}
+                disabled={isLocked || submitting}
                 onClick={() => pdfInputRef.current?.click()}
               >
                 Ajouter des PDF
@@ -419,7 +438,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Indiquez la cause, le détail de l'intervention ou toute information importante…"
               rows={4}
-              disabled={isAlreadyFinished || submitting}
+              disabled={isLocked || submitting}
             />
           </div>
         </div>
@@ -430,10 +449,22 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
           </button>
           <button
             className="finish-button"
-            disabled={submitting || !isFinishButtonEnabled || isAlreadyFinished || !canFinishByDate}
+            disabled={submitting || !isFinishButtonEnabled || isLocked || !canFinishByDate}
             onClick={handleFinish}
+            style={
+              isAlreadyCancelled
+                ? {
+                    background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+                    borderColor: '#dc2626',
+                    color: '#ffffff',
+                    opacity: 0.95,
+                    cursor: 'not-allowed',
+                    fontWeight: 700,
+                  }
+                : undefined
+            }
           >
-            {submitting ? 'En cours...' : isAlreadyFinished ? 'Déjà terminé' : 'Terminer'}
+            {submitting ? 'En cours...' : isAlreadyFinished ? 'Déjà terminé' : isAlreadyCancelled ? '✕ Annulé' : 'Terminer'}
           </button>
         </div>
       </div>

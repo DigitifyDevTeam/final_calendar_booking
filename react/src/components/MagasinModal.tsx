@@ -86,12 +86,36 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
     setFormData(prev => {
       const currentConcepteurs = prev.concepteurs || []
       const isSelected = currentConcepteurs.includes(concepteurId)
-      
+
+      if (isSelected) {
+        setErrors(e => ({ ...e, concepteurs: undefined }))
+        return {
+          ...prev,
+          concepteurs: currentConcepteurs.filter(id => id !== concepteurId)
+        }
+      }
+
+      const target = concepteurs.find(c => c.id === concepteurId)
+      if (target?.is_referent) {
+        const existingReferent = concepteurs.find(
+          c => currentConcepteurs.includes(c.id) && c.is_referent
+        )
+        if (existingReferent) {
+          setErrors(e => ({
+            ...e,
+            concepteurs:
+              `Un magasin ne peut avoir qu'un seul référent. ` +
+              `${existingReferent.name} est déjà référent. ` +
+              `Désactivez son statut dans Utilisateurs avant d'ajouter ${target.name}.`
+          }))
+          return prev
+        }
+      }
+
+      setErrors(e => ({ ...e, concepteurs: undefined }))
       return {
         ...prev,
-        concepteurs: isSelected
-          ? currentConcepteurs.filter(id => id !== concepteurId)
-          : [...currentConcepteurs, concepteurId]
+        concepteurs: [...currentConcepteurs, concepteurId]
       }
     })
   }
@@ -104,6 +128,15 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
     
     if (!formData.name.trim()) {
       newErrors.name = 'Le nom du magasin est requis'
+    }
+
+    const selectedReferents = concepteurs.filter(
+      c => formData.concepteurs.includes(c.id) && c.is_referent
+    )
+    if (selectedReferents.length > 1) {
+      newErrors.concepteurs =
+        'Un magasin ne peut avoir qu\'un seul concepteur référent. ' +
+        `Référents : ${selectedReferents.map(c => c.name).join(', ')}.`
     }
     
     if (Object.keys(newErrors).length > 0) {
@@ -377,9 +410,28 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
                           fontWeight: 600, 
                           color: textColor,
                           fontSize: '15px',
-                          marginBottom: '2px'
+                          marginBottom: '2px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          flexWrap: 'wrap'
                         }}>
                           {concepteur.name}
+                          {concepteur.is_referent && (
+                            <span style={{
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              letterSpacing: '0.04em',
+                              textTransform: 'uppercase',
+                              color: orangeColor,
+                              backgroundColor: `${orangeColor}22`,
+                              border: `1px solid ${orangeColor}55`,
+                              borderRadius: '999px',
+                              padding: '2px 8px'
+                            }}>
+                              Référent
+                            </span>
+                          )}
                         </div>
                         <div style={{ 
                           fontSize: '13px', 
@@ -396,6 +448,18 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
                 })
               )}
             </div>
+            {errors.concepteurs && (
+              <span style={{
+                color: '#f87171',
+                fontSize: '13px',
+                marginTop: '8px',
+                display: 'block',
+                fontWeight: 500,
+                lineHeight: 1.4
+              }}>
+                {errors.concepteurs}
+              </span>
+            )}
           </div>
 
           {/* Footer Actions */}

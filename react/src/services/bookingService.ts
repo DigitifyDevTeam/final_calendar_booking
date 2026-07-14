@@ -32,7 +32,7 @@ interface BookingApiResponse {
   livraison?: string | null
   raison?: string | null
   statut_facturation?: 'en_attente' | 'facture' | null
-  status?: 'en_attente' | 'termine' | null
+  status?: 'en_attente' | 'termine' | 'annule' | null
   created_at: string
 }
 
@@ -212,7 +212,7 @@ export interface BookingRecord {
   livraison?: string | null; // Delivery method for SAV calendar
   raison?: string | null; // Reason for SAV calendar
   statut_facturation?: 'en_attente' | 'facture' | null; // Billing status: 'en_attente' (awaiting) or 'facture' (invoiced)
-  status?: 'en_attente' | 'termine' | null; // Booking status: 'en_attente' (pending) or 'termine' (finished)
+  status?: 'en_attente' | 'termine' | 'annule' | null; // Booking status
 }
 
 export interface BookingData {
@@ -708,6 +708,61 @@ export const finishBooking = async (
     return result
   } catch (error) {
     console.error('Error finishing booking:', error)
+    throw error
+  }
+}
+
+// Cancel an intervention (admin or technician)
+export const cancelBooking = async (
+  bookingId: string,
+  data: {
+    motif: string
+    attachments: File[]
+  }
+): Promise<{
+  message: string
+  booking_id: number
+  uploaded_files: Array<{
+    original_name: string
+    saved_name: string
+    path: string
+  }>
+  cancellation_data: {
+    motif: string
+    cancelled_at: string | null
+    status: string
+  }
+}> => {
+  try {
+    const formData = new FormData()
+    formData.append('motif', data.motif.trim())
+    data.attachments.forEach((file) => {
+      formData.append('files', file, file.name)
+    })
+
+    const accessToken = sessionStorage.getItem('access_token')
+    if (!accessToken) {
+      throw new Error('No access token found')
+    }
+
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/cancel/`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }))
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    clearBookingsCache()
+    return result
+  } catch (error) {
+    console.error('Error cancelling booking:', error)
     throw error
   }
 }

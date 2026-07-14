@@ -663,6 +663,33 @@
   text-transform: uppercase;
 }
 
+.user-role-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.referent-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #284B73;
+  background: rgba(40, 75, 115, 0.12);
+  border: 1px solid rgba(40, 75, 115, 0.25);
+}
+
+.admin-page.dark-mode .referent-badge {
+  color: #d6e4f5;
+  background: rgba(40, 75, 115, 0.45);
+  border-color: rgba(214, 228, 245, 0.25);
+}
+
 .admin-page.dark-mode .calendar-badge {
   background: #284B73;
   color: white;

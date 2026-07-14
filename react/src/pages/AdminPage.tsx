@@ -5,6 +5,7 @@ import { getAllNotifications, NotificationItem, getTimeAgo as getNotificationTim
 import { getAllUsers, UserRecord } from '../services/userService'
 import AdminBookingModal, { AdminBookingFormData } from '../components/AdminBookingModal'
 import TechnicienCompleteModal from '../components/TechnicienCompleteModal'
+import CancelInterventionModal from '../components/CancelInterventionModal'
 import ExportBookingsModal from '../components/ExportBookingsModal'
 import {
   Calendar,
@@ -301,8 +302,10 @@ function AdminPage() {
   const filterBookings = () => {
     let filtered = [...bookings]
 
-    // For regular users, filter to show only their own bookings
-    if (!isAdmin && currentUser) {
+    // Regular concepteur: keep own only. Référent: API already returns magasin scope — do not re-filter.
+    const isReferent =
+      currentUser?.role === 'concepteur' && Boolean(currentUser?.is_referent)
+    if (!isAdmin && currentUser && !isReferent) {
       filtered = filtered.filter(booking => isBookingOwnedByUser(booking))
     }
 
@@ -577,11 +580,18 @@ function AdminPage() {
   }
 
   const [adminCompleteBooking, setAdminCompleteBooking] = useState<any | null>(null)
+  const [adminCancelBooking, setAdminCancelBooking] = useState<any | null>(null)
 
   const handleTerminerSav = (bookingId: string) => {
     const booking = editingBooking || bookings.find((b: any) => String(b.id) === String(bookingId))
     if (!booking) return
     setAdminCompleteBooking(booking)
+  }
+
+  const handleAnnulerIntervention = (bookingId: string) => {
+    const booking = editingBooking || bookings.find((b: any) => String(b.id) === String(bookingId))
+    if (!booking) return
+    setAdminCancelBooking(booking)
   }
 
   return (
@@ -1619,21 +1629,32 @@ function AdminPage() {
                       <td>
                         {(() => {
                           const bookingStatus = (booking as any).status || 'en_attente'
-                          const statusText = bookingStatus === 'termine' ? 'Terminé' : 'En attente'
-                          const statusColor = bookingStatus === 'termine' ? '#10b981' : '#284B73'
+                          const statusText =
+                            bookingStatus === 'termine'
+                              ? 'Terminé'
+                              : bookingStatus === 'annule'
+                                ? 'Annulé'
+                                : 'En attente'
+                          const statusColor =
+                            bookingStatus === 'termine'
+                              ? '#10b981'
+                              : bookingStatus === 'annule'
+                                ? '#ef4444'
+                                : '#284B73'
                           return (
                             <span
                               style={{
                                 padding: '4px 12px',
                                 borderRadius: '12px',
                                 fontSize: '12px',
-                                fontWeight: 600,
+                                fontWeight: 700,
                                 backgroundColor: `${statusColor}20`,
                                 color: statusColor,
-                                border: `1px solid ${statusColor}40`,
+                                border: `1px solid ${statusColor}55`,
                                 whiteSpace: 'nowrap'
                               }}
                             >
+                              {bookingStatus === 'annule' ? '✕ ' : bookingStatus === 'termine' ? '✓ ' : ''}
                               {statusText}
                             </span>
                           )
@@ -1681,6 +1702,7 @@ function AdminPage() {
         }}
         onSubmit={handleModalSubmit}
         onTerminer={isAdmin ? handleTerminerSav : undefined}
+        onAnnuler={isAdmin ? handleAnnulerIntervention : undefined}
         booking={editingBooking}
         isDarkMode={isDarkMode}
         users={isAdmin ? usersList : []}
@@ -1699,6 +1721,23 @@ function AdminPage() {
           skipDateRestrictions
           onFinish={async () => {
             setAdminCompleteBooking(null)
+            setIsModalOpen(false)
+            setEditingBooking(null)
+            await loadAllBookings()
+            loadNotifications()
+          }}
+        />
+      )}
+
+      {adminCancelBooking && (
+        <CancelInterventionModal
+          isOpen={!!adminCancelBooking}
+          onClose={() => setAdminCancelBooking(null)}
+          bookingId={String(adminCancelBooking.id)}
+          bookingStatus={adminCancelBooking.status || 'en_attente'}
+          isDarkMode={isDarkMode}
+          onCancelled={async () => {
+            setAdminCancelBooking(null)
             setIsModalOpen(false)
             setEditingBooking(null)
             await loadAllBookings()

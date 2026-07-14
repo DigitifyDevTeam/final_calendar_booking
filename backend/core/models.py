@@ -15,6 +15,11 @@ class User(models.Model):
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=50, blank=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='concepteur')
+    # Concepteur référent: can view all reservations of their magasin(s), edit only own
+    is_referent = models.BooleanField(
+        default=False,
+        help_text='Concepteur référent du magasin — consultation magasin, modification limitée aux siennes',
+    )
     password = models.CharField(max_length=255)  # Store hashed password
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -64,6 +69,7 @@ class Booking(models.Model):
     STATUS_CHOICES = [
         ('en_attente', 'En attente'),
         ('termine', 'Terminé'),
+        ('annule', 'Annulé'),
     ]
     
     LIVRAISON_CHOICES = [
@@ -97,6 +103,8 @@ class Booking(models.Model):
     sav_a_prevoir = models.BooleanField(null=True, blank=True, help_text='Un SAV à prévoir ? (SAV et Pose)')
     ascenseur_escaliers = models.BooleanField(null=True, blank=True, help_text="J'ai pris l'ascenseur et les escaliers (Metré only)")
     completed_at = models.DateTimeField(null=True, blank=True)
+    cancellation_motif = models.TextField(blank=True, help_text="Motif d'annulation de l'intervention")
+    cancelled_at = models.DateTimeField(null=True, blank=True)
     overdue_notified_at = models.DateTimeField(
         null=True,
         blank=True,

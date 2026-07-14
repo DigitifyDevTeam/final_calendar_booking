@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { getAllMagasins } from '../services/magasinService'
 import './UserModal.css'
 
 interface UserModalProps {
@@ -14,6 +15,7 @@ export interface UserFormData {
   email: string
   phone: string
   role: 'admin' | 'concepteur' | 'technicien'
+  is_referent?: boolean
   password: string
   confirm_password?: string
 }
@@ -30,10 +32,53 @@ const UserModal: React.FC<UserModalProps> = ({
     email: '',
     phone: '',
     role: 'concepteur',
+    is_referent: false,
     password: ''
   })
   const [confirmPassword, setConfirmPassword] = useState<string>('')
   const [errors, setErrors] = useState<Partial<Record<keyof UserFormData | 'confirmPassword', string>>>({})
+  const [referentBusy, setReferentBusy] = useState(false)
+
+  const toggleReferent = async () => {
+    if (formData.is_referent) {
+      setFormData((prev) => ({ ...prev, is_referent: false }))
+      setErrors((prev) => ({ ...prev, is_referent: undefined }))
+      return
+    }
+
+    // Enabling — ensure no other référent already exists in this user's magasin(s)
+    if (user?.id) {
+      setReferentBusy(true)
+      try {
+        const magasins = await getAllMagasins()
+        for (const magasin of magasins) {
+          const memberIds = magasin.concepteurs || []
+          if (!memberIds.includes(user.id)) continue
+
+          const otherReferent = (magasin.concepteurs_details || []).find(
+            (c) => c.is_referent && c.id !== user.id
+          )
+          if (otherReferent) {
+            setErrors((prev) => ({
+              ...prev,
+              is_referent:
+                `Le magasin « ${magasin.name} » a déjà un concepteur référent (${otherReferent.name}). ` +
+                `Désactivez d'abord son statut référent, puis réessayez.`,
+            }))
+            return
+          }
+        }
+      } catch (error) {
+        console.error('Error checking magasin référent:', error)
+        // Backend will still enforce on save
+      } finally {
+        setReferentBusy(false)
+      }
+    }
+
+    setFormData((prev) => ({ ...prev, is_referent: true }))
+    setErrors((prev) => ({ ...prev, is_referent: undefined }))
+  }
 
   useEffect(() => {
     if (user) {
@@ -43,6 +88,7 @@ const UserModal: React.FC<UserModalProps> = ({
         email: user.email || '',
         phone: user.phone || '',
         role: user.role || 'concepteur',
+        is_referent: Boolean(user.is_referent) && (user.role || '') === 'concepteur',
         password: '' // Don't populate password in edit mode
       })
       setConfirmPassword('')
@@ -53,6 +99,7 @@ const UserModal: React.FC<UserModalProps> = ({
         email: '',
         phone: '',
         role: 'concepteur',
+        is_referent: false,
         password: ''
       })
       setConfirmPassword('')
@@ -77,6 +124,13 @@ const UserModal: React.FC<UserModalProps> = ({
     if (name === 'phone') {
       const numericValue = value.replace(/\D/g, '')
       setFormData(prev => ({ ...prev, [name]: numericValue }))
+    } else if (name === 'role') {
+      const role = value as UserFormData['role']
+      setFormData(prev => ({
+        ...prev,
+        role,
+        is_referent: role === 'concepteur' ? prev.is_referent : false,
+      }))
     } else {
       setFormData(prev => ({ ...prev, [name]: value }))
     }
@@ -150,6 +204,7 @@ const UserModal: React.FC<UserModalProps> = ({
       // Include confirm_password in the form data for API validation
       onSubmit({
         ...formData,
+        is_referent: formData.role === 'concepteur' ? Boolean(formData.is_referent) : false,
         confirm_password: confirmPassword
       })
     }
@@ -230,6 +285,46 @@ const UserModal: React.FC<UserModalProps> = ({
             </select>
             {errors.role && <span className="error-message">{errors.role}</span>}
           </div>
+
+          {formData.role === 'concepteur' && (
+            <div className="form-group referent-switch-group">
+              <div className="referent-switch-row">
+                <div className="referent-switch-copy">
+                  <span className="referent-switch-title">Concepteur référent</span>
+                  <span className="referent-switch-desc">
+                    Un seul référent par magasin. Voit toutes les réservations du magasin ; peut modifier uniquement les siennes.
+                  </span>
+                </div>
+                <div
+                  className={`referent-yn-switch ${formData.is_referent ? 'is-yes' : 'is-no'} ${referentBusy ? 'is-busy' : ''}`}
+                  role="switch"
+                  aria-checked={Boolean(formData.is_referent)}
+                  aria-label="Concepteur référent"
+                  aria-disabled={referentBusy}
+                  tabIndex={referentBusy ? -1 : 0}
+                  onClick={() => {
+                    if (!referentBusy) void toggleReferent()
+                  }}
+                  onKeyDown={(e) => {
+                    if (referentBusy) return
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      void toggleReferent()
+                    }
+                  }}
+                >
+                  <span className={`referent-yn-option ${!formData.is_referent ? 'active' : ''}`}>Non</span>
+                  <span className={`referent-yn-option ${formData.is_referent ? 'active' : ''}`}>Oui</span>
+                  <span className="referent-yn-thumb" aria-hidden="true" />
+                </div>
+              </div>
+              {errors.is_referent && (
+                <span className="error-message" style={{ marginTop: '8px' }}>
+                  {errors.is_referent}
+                </span>
+              )}
+            </div>
+          )}
 
           <div className="form-group">
             <label htmlFor="password">

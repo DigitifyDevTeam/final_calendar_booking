@@ -256,6 +256,7 @@ function UtilisateursPage() {
           email: formData.email,
           phone: formData.phone,
           role: formData.role,
+          is_referent: formData.role === 'concepteur' ? Boolean(formData.is_referent) : false,
         }
         
         // Only include password if it was provided
@@ -1289,11 +1290,18 @@ function UtilisateursPage() {
                       <td>{user.email}</td>
                       <td>{user.phone || '-'}</td>
                       <td>
-                        <span className="calendar-badge" style={{
-                          backgroundColor: getRoleBadgeColor(user.role)
-                        }}>
-                          {getRoleLabel(user.role)}
-                        </span>
+                        <div className="user-role-cell">
+                          <span className="calendar-badge" style={{
+                            backgroundColor: getRoleBadgeColor(user.role)
+                          }}>
+                            {getRoleLabel(user.role)}
+                          </span>
+                          {user.role === 'concepteur' && user.is_referent && (
+                            <span className="referent-badge" title="Concepteur référent du magasin">
+                              Référent
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td>{formatDateTime(user.created_at)}</td>
                       <td className="actions-cell">

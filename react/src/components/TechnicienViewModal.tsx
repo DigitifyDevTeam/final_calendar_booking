@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import './TechnicienViewModal.css'
 import { BookingRecord } from '../services/bookingService'
 import TechnicienCompleteModal from './TechnicienCompleteModal'
+import CancelInterventionModal from './CancelInterventionModal'
 
 interface TechnicienViewModalProps {
   isOpen: boolean
@@ -18,6 +19,7 @@ interface TechnicienViewModalProps {
     message?: string
     attachments: File[]
   }) => void
+  onCancelled?: () => void | Promise<void>
 }
 
 const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
@@ -25,9 +27,11 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
   onClose,
   booking,
   isDarkMode = true,
-  onFinish
+  onFinish,
+  onCancelled,
 }) => {
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false)
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -45,6 +49,8 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
   const isSavCalendar = ['calendar2', '2'].includes(booking.calendar_id || '')
   const isMetreCalendar = ['calendar3', '3'].includes(booking.calendar_id || '')
   const isAlreadyFinished = (booking as any).status === 'termine'
+  const isAlreadyCancelled = (booking as any).status === 'annule'
+  const canCancel = !isAlreadyFinished && !isAlreadyCancelled
 
   // SAV and Metré: technicien can click "Terminer" only on the same day as the reservation date
   // Pose: technicien can click "Terminer" on the day of the reservation OR the next day (J or J+1) only
@@ -69,9 +75,9 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
       today.getMonth() === nextDay.getMonth() && today.getDate() === nextDay.getDate()
     return sameDay || nextDayMatch
   })()
-  const canFinish = (isPoseCalendar || isSavCalendar || isMetreCalendar) && !isAlreadyFinished &&
+  const canFinish = (isPoseCalendar || isSavCalendar || isMetreCalendar) && !isAlreadyFinished && !isAlreadyCancelled &&
     (isPoseCalendar ? isSameDayOrNextDay : isSameDayAsReservation)
-  const showFinishDisabled = !isAlreadyFinished && (
+  const showFinishDisabled = !isAlreadyFinished && !isAlreadyCancelled && (
     (isSavOrMetre && !isSameDayAsReservation) || (isPoseCalendar && !isSameDayOrNextDay)
   )
 
@@ -90,8 +96,8 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
   }
 
   return (
-    <div className={`technicien-modal-overlay ${isDarkMode ? 'dark-mode' : 'light-mode'}`} onClick={isCompleteModalOpen ? undefined : onClose}>
-      {!isCompleteModalOpen && (
+    <div className={`technicien-modal-overlay ${isDarkMode ? 'dark-mode' : 'light-mode'}`} onClick={(isCompleteModalOpen || isCancelModalOpen) ? undefined : onClose}>
+      {!isCompleteModalOpen && !isCancelModalOpen && (
         <div className="technicien-modal-wrapper">
           <div className="technicien-modal" onClick={(e) => e.stopPropagation()}>
             <div className="technicien-modal-header">
@@ -176,21 +182,33 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
                 </>
               )}
 
-              {isAlreadyFinished && (
-                <div className="info-group">
-                  <div className="info-label">Statut</div>
-                  <div className="info-value" style={{ 
-                    color: '#10b981', 
-                    fontWeight: 600,
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              <div className="info-group">
+                <div className="info-label">Statut</div>
+                <div
+                  className="info-value"
+                  style={{
+                    color: isAlreadyCancelled ? '#ef4444' : isAlreadyFinished ? '#10b981' : '#284B73',
+                    fontWeight: 700,
+                    backgroundColor: isAlreadyCancelled
+                      ? 'rgba(239, 68, 68, 0.12)'
+                      : isAlreadyFinished
+                        ? 'rgba(16, 185, 129, 0.1)'
+                        : 'rgba(40, 75, 115, 0.1)',
+                    border: `1px solid ${
+                      isAlreadyCancelled
+                        ? 'rgba(239, 68, 68, 0.45)'
+                        : isAlreadyFinished
+                          ? 'rgba(16, 185, 129, 0.35)'
+                          : 'rgba(40, 75, 115, 0.3)'
+                    }`,
                     padding: '8px 12px',
-                    borderRadius: '6px',
-                    display: 'inline-block'
-                  }}>
-                    ✓ Terminé
-                  </div>
+                    borderRadius: '8px',
+                    display: 'inline-block',
+                  }}
+                >
+                  {isAlreadyCancelled ? '✕ Annulé' : isAlreadyFinished ? '✓ Terminé' : 'En attente'}
                 </div>
-              )}
+              </div>
             </div>
 
             <div className="technicien-modal-footer">
@@ -211,6 +229,34 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
                     : 'Vous ne pouvez terminer que le jour même de la réservation'}
                 >
                   Terminer
+                </button>
+              )}
+              {canCancel && (
+                <button
+                  className="finish-action-button"
+                  style={{
+                    background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+                    borderColor: '#dc2626',
+                  }}
+                  onClick={() => setIsCancelModalOpen(true)}
+                >
+                  Annuler l&apos;intervention
+                </button>
+              )}
+              {isAlreadyCancelled && (
+                <button
+                  className="finish-action-button"
+                  disabled
+                  style={{
+                    background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+                    borderColor: '#dc2626',
+                    color: '#fff',
+                    opacity: 0.95,
+                    cursor: 'not-allowed',
+                    fontWeight: 700,
+                  }}
+                >
+                  ✕ Annulé
                 </button>
               )}
               <button className="close-action-button" onClick={onClose}>
@@ -235,6 +281,21 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
           }
           setIsCompleteModalOpen(false)
           onClose() // Close the parent modal after finishing
+        }}
+      />
+
+      <CancelInterventionModal
+        isOpen={isCancelModalOpen}
+        onClose={() => setIsCancelModalOpen(false)}
+        bookingId={booking.id}
+        bookingStatus={(booking as any).status || 'en_attente'}
+        isDarkMode={isDarkMode}
+        onCancelled={async () => {
+          if (onCancelled) {
+            await onCancelled()
+          }
+          setIsCancelModalOpen(false)
+          onClose()
         }}
       />
     </div>

@@ -1,7 +1,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 
-from .views import BookingListCreateView, BookingRetrieveUpdateDestroyView, BookingResetView, BookingDebugView, ContactEmailView, HolidayListCreateView, HolidayRetrieveUpdateDestroyView, UserListCreateView, UserRetrieveUpdateDestroyView, UserLoginView, PasswordResetRequestView, PasswordResetConfirmView, MagasinListCreateView, MagasinRetrieveUpdateDestroyView, BookingFinishView, ConcepteurMagasinView, BookingAvailabilityView
+from .views import BookingListCreateView, BookingRetrieveUpdateDestroyView, BookingResetView, BookingDebugView, ContactEmailView, HolidayListCreateView, HolidayRetrieveUpdateDestroyView, UserListCreateView, UserRetrieveUpdateDestroyView, UserLoginView, PasswordResetRequestView, PasswordResetConfirmView, MagasinListCreateView, MagasinRetrieveUpdateDestroyView, BookingFinishView, BookingCancelView, ConcepteurMagasinView, BookingAvailabilityView
 from .overdue_notifications import OverdueMissionsNotifyView
 
 urlpatterns = [
@@ -11,6 +11,7 @@ urlpatterns = [
     path('bookings/overdue-notify/', OverdueMissionsNotifyView.as_view(), name='bookings-overdue-notify'),
     path('bookings/<int:pk>/', BookingRetrieveUpdateDestroyView.as_view(), name='booking-detail'),
     path('bookings/<int:pk>/finish/', BookingFinishView.as_view(), name='booking-finish'),
+    path('bookings/<int:pk>/cancel/', BookingCancelView.as_view(), name='booking-cancel'),
     path('bookings/reset/', BookingResetView.as_view(), name='booking-reset'),
     path('bookings/debug/', BookingDebugView.as_view(), name='booking-debug'),
     path('holidays/', HolidayListCreateView.as_view(), name='holiday-list-create'),

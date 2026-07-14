@@ -83,7 +83,11 @@ const formatFacture = (booking: BookingRecord): string => {
 }
 
 const formatStatut = (booking: BookingRecord): string => {
-  return booking.status === 'termine' ? 'Terminé' : 'En attente'
+  return booking.status === 'termine'
+    ? 'Terminé'
+    : booking.status === 'annule'
+      ? 'Annulé'
+      : 'En attente'
 }
 
 const getFieldValue = (booking: BookingRecord, key: ExportFieldKey): string | number => {
