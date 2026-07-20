@@ -23,6 +23,12 @@ import sys
 import json
 from pathlib import Path
 
+# Load .env.local so local GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET are used
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from env_loader import load_env
+
+_loaded_env = load_env()
+
 try:
     from google_auth_oauthlib.flow import InstalledAppFlow
     from google.oauth2.credentials import Credentials
@@ -41,6 +47,9 @@ CREDENTIALS_FILE = None
 # Check for environment variables first (most secure)
 GMAIL_CLIENT_ID = os.environ.get('GMAIL_CLIENT_ID')
 GMAIL_CLIENT_SECRET = os.environ.get('GMAIL_CLIENT_SECRET')
+
+if _loaded_env:
+    print(f"Loaded env from: {_loaded_env}")
 
 # Find credentials file (fallback for local development)
 if len(sys.argv) > 1:
@@ -191,9 +200,14 @@ def main():
         print("SUCCESS! OAuth2 setup complete.")
         print("=" * 60)
         print(f"\nToken saved to: {TOKEN_FILE}")
-        print("\nYou can now use Gmail OAuth2 email backend.")
-        print("\nAlternative: Set GMAIL_TOKEN_JSON environment variable with:")
-        print(json.dumps(token_data))
+        print("\nFor LOCAL testing, ensure .env.local has:")
+        print("  DJANGO_ENV=local")
+        print(f"  GMAIL_TOKEN_FILE={TOKEN_FILE.as_posix()}")
+        print("  GMAIL_CLIENT_ID=...")
+        print("  GMAIL_CLIENT_SECRET=...")
+        print("\nThen verify with: python test_email.py")
+        print("\nAlternative: set GMAIL_TOKEN_JSON in .env.local (single-quoted JSON):")
+        print(f"GMAIL_TOKEN_JSON='{json.dumps(token_data)}'")
         print("\n" + "=" * 60)
         
     except KeyboardInterrupt:

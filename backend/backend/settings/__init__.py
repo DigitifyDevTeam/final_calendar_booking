@@ -1,22 +1,23 @@
 """
 Django settings with environment-based configuration.
 
+DJANGO_ENV selects the settings module (env file is loaded earlier by env_loader):
 
-Usage:
-- Local: DJANGO_ENV=local python manage.py runserver (default)
-- Production: DJANGO_ENV=production python manage.py runserver
-- Default: Uses 'local' if not specified
+- local / dev       → settings.local  + .env.local
+- production / prod → settings.production + .env.production (or .env)
+
+Default: local
 """
 import os
 
-# Determine environment (default to 'local')
-ENV = os.environ.get('DJANGO_ENV', 'dev').lower()
+_raw = os.environ.get('DJANGO_ENV', 'local').strip().lower()
 
-if ENV == 'production' or ENV == 'prod':
+if _raw in ('production', 'prod'):
+    ENV = 'production'
     from .production import *
-elif ENV == 'local' or ENV == 'dev':
+elif _raw in ('local', 'dev', 'development'):
+    ENV = 'local'
     from .local import *
 else:
-    # Default to local if unknown environment
+    ENV = 'local'
     from .local import *
-

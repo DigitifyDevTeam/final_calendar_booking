@@ -19,6 +19,11 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
 
+from env_loader import load_env
+
+# Load .env.local for local Gmail OAuth (never use production load_env.sh here)
+load_env(BASE_DIR)
+
 # Set Django settings module before importing Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
 

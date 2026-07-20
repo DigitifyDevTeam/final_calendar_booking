@@ -8,18 +8,18 @@ https://docs.djangoproject.com/en/4.2/howto/deployment/wsgi/
 """
 
 import os
+import sys
 from pathlib import Path
 
-# Load environment variables from .env file
-try:
-    from dotenv import load_dotenv
-    env_path = Path(__file__).resolve().parent.parent / '.env'
-    if env_path.exists():
-        load_dotenv(dotenv_path=env_path)
-except ImportError:
-    # dotenv not available, skip loading .env file
-    # Environment variables should be set manually or via system
-    pass
+# Ensure outer backend/ is on path so env_loader can be imported
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent
+if str(_BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_ROOT))
+
+from env_loader import load_env
+
+# Local: .env.local | Production: .env (server usually uses load_env.sh instead)
+load_env(_BACKEND_ROOT)
 
 from django.core.wsgi import get_wsgi_application
 

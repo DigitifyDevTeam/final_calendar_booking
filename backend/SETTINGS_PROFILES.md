@@ -1,108 +1,104 @@
-# Django Settings Profiles
+# Django Settings Profiles — local vs production
 
-This project uses environment-based settings profiles, similar to Spring Boot profiles. This allows you to easily switch between local development and production environments.
+`DJANGO_ENV` chooses **both** the settings module and the env file.
 
-## Structure
+| DJANGO_ENV | Settings file | Env file loaded |
+|------------|---------------|-----------------|
+| `local` (default) | `settings/local.py` | `.env.local` |
+| `production` | `settings/production.py` | `.env.production` or `.env` |
+
+On the Linux server, production usually uses `load_env.sh` + `start_production.sh`
+instead of a dotenv file.
+
+---
+
+## Switch commands
+
+### PowerShell (Windows)
+
+**→ Local**
+```powershell
+cd backend
+$env:DJANGO_ENV = "local"
+python check_env.py
+python manage.py runserver
+```
+
+**→ Production**
+```powershell
+cd backend
+# First time only: copy and fill prod secrets
+# cp .env.production.example .env.production
+
+$env:DJANGO_ENV = "production"
+python check_env.py
+python manage.py runserver
+```
+
+**Clear the switch (back to default local)**
+```powershell
+Remove-Item Env:DJANGO_ENV -ErrorAction SilentlyContinue
+python check_env.py
+```
+
+### Bash (Linux / macOS / Git Bash)
+
+**→ Local**
+```bash
+cd backend
+export DJANGO_ENV=local
+python check_env.py
+python manage.py runserver
+```
+
+**→ Production**
+```bash
+cd backend
+export DJANGO_ENV=production
+python check_env.py
+python manage.py runserver
+# Server deploy:
+# ./start_production.sh   # sets DJANGO_ENV=production and sources load_env.sh
+```
+
+**Clear the switch**
+```bash
+unset DJANGO_ENV
+python check_env.py
+```
+
+---
+
+## One-line checks
+
+```powershell
+# Which profile is active?
+$env:DJANGO_ENV = "local"; python check_env.py
+$env:DJANGO_ENV = "production"; python check_env.py
+```
+
+```bash
+DJANGO_ENV=local python check_env.py
+DJANGO_ENV=production python check_env.py
+```
+
+---
+
+## Files
 
 ```
 backend/
-├── backend/
-│   └── settings/
-│       ├── __init__.py    # Environment selector
-│       ├── base.py        # Shared settings
-│       ├── local.py       # Local development settings
-│       └── production.py  # Production settings
+├── .env.local                 # local secrets (gitignored)
+├── .env.local.example
+├── .env.production            # prod secrets for dotenv switch (gitignored)
+├── .env.production.example
+├── env_loader.py              # loads the matching file from DJANGO_ENV
+├── check_env.py               # prints active profile + file
+├── load_env.sh                # production on the server
+└── backend/settings/
+    ├── local.py
+    └── production.py
 ```
 
-## Usage
-
-### Local Development
-
-**Option 1: Using environment variable**
-```bash
-export DJANGO_ENV=local
-python manage.py runserver
-```
-
-**Option 2: Using .env.local file**
-```bash
-# Copy .env.local.example to .env.local and configure
-cp .env.local.example .env.local
-# Edit .env.local with your local settings
-python manage.py runserver
-```
-
-**Option 3: Default (automatically uses local)**
-```bash
-# If DJANGO_ENV is not set, defaults to 'local'
-python manage.py runserver
-```
-
-### Production
-
-**Option 1: Using environment variable**
-```bash
-export DJANGO_ENV=production
-gunicorn backend.wsgi:application
-```
-
-**Option 2: Using load_env.sh (already configured)**
-```bash
-# The start_production.sh script already sets DJANGO_ENV=production
-./start_production.sh
-```
-
-## Environment Files
-
-### Local Development (.env.local)
-- `DJANGO_ENV=local`
-- `DEBUG=True`
-- Relaxed security settings
-- Console email backend
-- Allows all CORS origins
-
-### Production (.env or load_env.sh)
-- `DJANGO_ENV=production`
-- `DEBUG=False`
-- Strict security settings
-- SMTP email backend
-- Specific CORS origins
-
-## Key Differences
-
-| Setting | Local | Production |
-|---------|-------|------------|
-| DEBUG | True | False |
-| SECRET_KEY | Optional (has default) | Required |
-| CORS | Allow all | Specific origins |
-| SSL Redirect | Disabled | Enabled (except localhost) |
-| Email | Console | SMTP |
-| Database | Local defaults | Environment required |
-
-## Switching Environments
-
-To switch between environments, simply set the `DJANGO_ENV` environment variable:
-
-```bash
-# Switch to local
-export DJANGO_ENV=local
-
-# Switch to production
-export DJANGO_ENV=production
-
-# Check current environment
-python manage.py shell -c "from django.conf import settings; print('DEBUG:', settings.DEBUG)"
-```
-
-## Production Deployment
-
-On your server, the `start_production.sh` script automatically sets `DJANGO_ENV=production`. Make sure your `load_env.sh` file has all the required production environment variables.
-
-## Benefits
-
-✅ **Easy switching**: Just change `DJANGO_ENV`  
-✅ **Type safety**: Production requires all necessary variables  
-✅ **Maintainable**: Shared base settings, environment-specific overrides  
-✅ **Secure**: Production settings enforce security best practices  
-✅ **Developer-friendly**: Local settings are relaxed for easier development
-
+Never copy production `GMAIL_*` values into `.env.local`.
+Never copy local OAuth into `.env.production` / `load_env.sh`.

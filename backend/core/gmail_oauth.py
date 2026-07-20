@@ -33,7 +33,9 @@ except ImportError as e:
 
 logger = logging.getLogger(__name__)
 
-# Gmail API scope for sending emails
+# Default Gmail API scope for sending emails.
+# Tokens from OAuth Playground often use https://mail.google.com/ instead —
+# always prefer scopes stored on the token to avoid invalid_scope on refresh.
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 
 
@@ -164,14 +166,40 @@ class GmailOAuth2Backend(BaseEmailBackend):
             logger.error(f"Failed to load credentials file: {e}")
             return None
     
+    def _inject_client_credentials(self, token_data):
+        """
+        Ensure token JSON has client_id/client_secret.
+        Local .env.local often stores those separately from GMAIL_TOKEN_JSON.
+        """
+        if not isinstance(token_data, dict):
+            return token_data
+        client_id = os.environ.get('GMAIL_CLIENT_ID')
+        client_secret = os.environ.get('GMAIL_CLIENT_SECRET')
+        if client_id and not token_data.get('client_id'):
+            token_data['client_id'] = client_id
+        if client_secret and not token_data.get('client_secret'):
+            token_data['client_secret'] = client_secret
+        return token_data
+
+    def _scopes_for_token(self, token_data):
+        """Use scopes from the token when present (avoids invalid_scope on refresh)."""
+        scopes = token_data.get('scopes') if isinstance(token_data, dict) else None
+        if isinstance(scopes, str):
+            scopes = [scopes]
+        if scopes:
+            return scopes
+        return SCOPES
+
     def _get_token(self):
         """Get OAuth2 token from environment variable or file."""
         # Priority 1: Environment variable
         token_json = os.environ.get('GMAIL_TOKEN_JSON')
         if token_json:
             try:
-                token_data = json.loads(token_json)
-                return Credentials.from_authorized_user_info(token_data, SCOPES)
+                token_data = self._inject_client_credentials(json.loads(token_json))
+                return Credentials.from_authorized_user_info(
+                    token_data, self._scopes_for_token(token_data)
+                )
             except Exception as e:
                 logger.warning(f"Failed to load token from GMAIL_TOKEN_JSON: {e}")
         
@@ -179,7 +207,11 @@ class GmailOAuth2Backend(BaseEmailBackend):
         token_file = self._get_token_file_path()
         if token_file and os.path.exists(token_file):
             try:
-                return Credentials.from_authorized_user_file(token_file, SCOPES)
+                with open(token_file, 'r', encoding='utf-8') as f:
+                    token_data = self._inject_client_credentials(json.load(f))
+                return Credentials.from_authorized_user_info(
+                    token_data, self._scopes_for_token(token_data)
+                )
             except Exception as e:
                 logger.warning(f"Failed to load token from file {token_file}: {e}")
         

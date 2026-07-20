@@ -39,20 +39,18 @@ SECURE_BROWSER_XSS_FILTER = False
 SECURE_CONTENT_TYPE_NOSNIFF = False
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-# Email - Gmail OAuth2 backend
+# Email - Gmail OAuth2 backend (LOCAL credentials from .env.local — not production)
 EMAIL_BACKEND = 'core.gmail_oauth.GmailOAuth2Backend'
 
-# OAuth2 Credentials (for local development)
-# Can use environment variables (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET) or credentials file
+# OAuth2 credentials: set GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET in .env.local
+# Optional fallback: client_secret_*.json via GMAIL_CREDENTIALS_FILE
 GMAIL_CREDENTIALS_FILE = os.environ.get('GMAIL_CREDENTIALS_FILE')
 
-# Token storage (for local development)
-# Can use environment variable (GMAIL_TOKEN_JSON) or token file
+# Token: prefer GMAIL_TOKEN_FILE=backend/gmail_token.json after setup_gmail_oauth.py
+# Or set GMAIL_TOKEN_JSON in .env.local (single-quoted JSON string)
 GMAIL_TOKEN_FILE = os.environ.get('GMAIL_TOKEN_FILE')
 
-# Email addresses
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'contact@woodagency.fr')
-# Recipient email for booking notifications
-# Can be overridden with CONTACT_EMAIL_RECIPIENTS environment variable
-CONTACT_EMAIL_RECIPIENTS = os.environ.get('CONTACT_EMAIL_RECIPIENTS', 'contact@woodagency.fr')
+# Email addresses (local test account — override via .env.local)
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'backendsmtp7@gmail.com')
+CONTACT_EMAIL_RECIPIENTS = os.environ.get('CONTACT_EMAIL_RECIPIENTS', 'backendsmtp7@gmail.com')
 

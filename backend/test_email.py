@@ -1,13 +1,20 @@
 #!/usr/bin/env python
 """
 Quick test script to verify Gmail OAuth2 email sending is working.
+
+Uses .env.local for local OAuth credentials (not production load_env.sh).
 """
 import os
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from env_loader import load_env
+
+load_env()
+
 import django
 
-# Setup Django
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
 django.setup()
 
