@@ -105,11 +105,6 @@ class Booking(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
     cancellation_motif = models.TextField(blank=True, help_text="Motif d'annulation de l'intervention")
     cancelled_at = models.DateTimeField(null=True, blank=True)
-    overdue_notified_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="Date d'envoi de la notification admin pour dépassement de la date de fin (SAV/Métré)"
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
