@@ -320,30 +320,6 @@ export const getAllBookings = async (
   return requestPromise
 }
 
-export interface BookingAvailability {
-  calendar_id: string
-  occupied_slots: Array<{ date: string; time: string }>
-  daily_counts: Record<string, number>
-}
-
-/** Occupancy without personal details (for concepteur reserved-slot display). */
-export const getBookingAvailability = async (
-  binId?: string,
-  options?: { startDate?: string; endDate?: string }
-): Promise<BookingAvailability> => {
-  const targetBinId = resolveBinId(binId)
-  const params = new URLSearchParams({ calendar_id: targetBinId })
-  if (options?.startDate) params.append('start_date', options.startDate)
-  if (options?.endDate) params.append('end_date', options.endDate)
-
-  try {
-    return await apiRequest<BookingAvailability>(`/bookings/availability/?${params.toString()}`)
-  } catch (error) {
-    console.warn('[getBookingAvailability] Failed:', error)
-    return { calendar_id: targetBinId, occupied_slots: [], daily_counts: {} }
-  }
-}
-
 // Get max bookings per day for a calendar (default: 4, calendar1: 4)
 const MAX_BOOKINGS_PER_DAY_BY_BIN: { [key: string]: number } = {
   [CALENDAR_CONFIGS['calendar1']]: 4, // Pose calendar (per-day bookings)
@@ -376,9 +352,8 @@ export const isDateFullyBooked = async (date: string, binId?: string, maxBooking
       return false
     }
 
-    // Use anonymous occupancy so concepteurs see global capacity (not only their own bookings)
-    const availability = await getBookingAvailability(binId, { startDate: date, endDate: date })
-    const count = availability.daily_counts?.[date] ?? 0
+    const bookings = await getAllBookings(binId, { startDate: date, endDate: date })
+    const count = bookings.filter((b) => b.date === date).length
     const limit = maxBookings ?? getMaxBookingsPerDay(binId)
     
     return count >= limit;
@@ -398,13 +373,7 @@ export const addBooking = async (bookingData: BookingData, binId?: string, maxBo
       throw new Error('Cette date est un jour férié ou un jour non disponible. Les réservations ne sont pas autorisées pour cette date.')
     }
     
-    // Get existing bookings first (may be scoped for concepteur)
     const existingBookings = await getAllBookings(targetBinId)
-    // Global occupancy without personal details (needed when own list is filtered)
-    const availability = await getBookingAvailability(targetBinId, {
-      startDate: bookingData.date,
-      endDate: bookingData.date,
-    })
 
     // For calendar2 and calendar3, check if the specific time slot is already booked
     if (usesTimeSlots(targetBinId) && bookingData.timeSlot) {
@@ -420,7 +389,7 @@ export const addBooking = async (bookingData: BookingData, binId?: string, maxBo
         const normalizeTime = (time: string) => time.trim().toLowerCase()
         const normalizedTimeSlot = normalizeTime(bookingData.timeSlot)
         
-        const isSlotBookedVisible = existingBookings.some(
+        const isSlotBooked = existingBookings.some(
           booking => {
             // Only check bookings for future dates
             const existingBookingDate = new Date(booking.date + 'T00:00:00')
@@ -434,19 +403,7 @@ export const addBooking = async (bookingData: BookingData, binId?: string, maxBo
             return booking.date === bookingData.date && normalizedBookingTime === normalizedTimeSlot
           }
         )
-        const isSlotBookedGlobal = (availability.occupied_slots || []).some((slot) => {
-          if (slot.date !== bookingData.date) return false
-          let slotTime = normalizeTime(slot.time || '')
-          if (targetBinId === CALENDAR_CONFIGS['calendar3'] && slotTime.includes('-')) {
-            // Match either full range or start time depending on what user selected
-            if (normalizedTimeSlot.includes('-')) {
-              return slotTime === normalizedTimeSlot
-            }
-            return slotTime.split('-')[0].trim() === normalizedTimeSlot
-          }
-          return slotTime === normalizedTimeSlot
-        })
-        if (isSlotBookedVisible || isSlotBookedGlobal) {
+        if (isSlotBooked) {
           throw new Error(`Ce créneau (${bookingData.timeSlot}) est déjà réservé pour cette date. Veuillez choisir un autre créneau.`)
         }
       }
@@ -708,61 +665,6 @@ export const finishBooking = async (
     return result
   } catch (error) {
     console.error('Error finishing booking:', error)
-    throw error
-  }
-}
-
-// Cancel an intervention (admin or technician)
-export const cancelBooking = async (
-  bookingId: string,
-  data: {
-    motif: string
-    attachments: File[]
-  }
-): Promise<{
-  message: string
-  booking_id: number
-  uploaded_files: Array<{
-    original_name: string
-    saved_name: string
-    path: string
-  }>
-  cancellation_data: {
-    motif: string
-    cancelled_at: string | null
-    status: string
-  }
-}> => {
-  try {
-    const formData = new FormData()
-    formData.append('motif', data.motif.trim())
-    data.attachments.forEach((file) => {
-      formData.append('files', file, file.name)
-    })
-
-    const accessToken = sessionStorage.getItem('access_token')
-    if (!accessToken) {
-      throw new Error('No access token found')
-    }
-
-    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/cancel/`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: formData,
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }))
-      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
-    }
-
-    const result = await response.json()
-    clearBookingsCache()
-    return result
-  } catch (error) {
-    console.error('Error cancelling booking:', error)
     throw error
   }
 }

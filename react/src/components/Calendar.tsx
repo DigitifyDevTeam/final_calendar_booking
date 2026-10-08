@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
 import './Calendar.css'
-import { getAllBookings, getBookingAvailability, BookingRecord, getMaxBookingsPerDay, usesTimeSlots, getAllHolidays, HolidayRecord, updateBooking, deleteBooking, CALENDAR_CONFIGS } from '../services/bookingService'
+import { getAllBookings, BookingRecord, getMaxBookingsPerDay, usesTimeSlots, getAllHolidays, HolidayRecord, updateBooking, deleteBooking, CALENDAR_CONFIGS } from '../services/bookingService'
 import { getAllUsers, UserRecord } from '../services/userService'
 import AdminBookingModal, { AdminBookingFormData } from './AdminBookingModal'
 import TechnicienViewModal from './TechnicienViewModal'
-import TechnicienCompleteModal from './TechnicienCompleteModal'
-import CancelInterventionModal from './CancelInterventionModal'
+import { isWithinTechnicianFinishCalendarWindow } from '../utils/finishWindow'
 
 // Orange info icon component
 const InfoIcon: React.FC = () => (
@@ -72,7 +71,6 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   const [allBookingsData, setAllBookingsData] = useState<BookingRecord[]>([])
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [isConcepteur, setIsConcepteur] = useState<boolean>(false)
-  const [isReferent, setIsReferent] = useState<boolean>(false)
   const [isTechnicien, setIsTechnicien] = useState<boolean>(false)
   const [isRegularUser, setIsRegularUser] = useState<boolean>(false)
   const [userEmail, setUserEmail] = useState<string>('')
@@ -113,7 +111,6 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
       const userData = JSON.parse(user)
       setIsAdmin(userData.role === 'admin')
       setIsConcepteur(userData.role === 'concepteur')
-      setIsReferent(userData.role === 'concepteur' && Boolean(userData.is_referent))
       setIsTechnicien(userData.role === 'technicien')
       setIsRegularUser(userData.role !== 'admin' && userData.role !== 'concepteur' && userData.role !== 'technicien')
       setUserEmail(userData.email || '')
@@ -130,7 +127,6 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         name: userData.name,
         isAdmin: userData.role === 'admin',
         isConcepteur: userData.role === 'concepteur',
-        isReferent: userData.role === 'concepteur' && Boolean(userData.is_referent),
         isTechnicien: userData.role === 'technicien'
       })
     } else {
@@ -258,17 +254,6 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     return date < today
   }
 
-  // Check if date is yesterday (day before today) - used for Pose technicien: allow yesterday so they can finish J+1
-  const isYesterday = (date: Date): boolean => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    const checkDate = new Date(date)
-    checkDate.setHours(0, 0, 0, 0)
-    return checkDate.getTime() === yesterday.getTime()
-  }
-
   // Check if a date is Sunday (day 0 in JavaScript)
   const isSunday = (date: Date): boolean => {
     return date.getDay() === 0
@@ -307,9 +292,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   }
 
   // Check if a date should be disabled (past date, Sunday, holiday, or today/tomorrow for non-admin)
-  // Exception: technicien on Pose (calendar1) can click yesterday (last past day) to finish reservations (J+1 rule)
+  // Exception: technicien can open recent past days (up to 48h finish window)
   const isDisabledDate = (date: Date): boolean => {
-    const pastCountsAsDisabled = isPastDate(date) && !(isTechnicien && binId === 'calendar1' && isYesterday(date))
+    const pastCountsAsDisabled = isPastDate(date) && !(isTechnicien && isWithinTechnicianFinishCalendarWindow(date))
     const baseDisabled = pastCountsAsDisabled || isSunday(date) || isHolidayDate(date)
     // Non-admin users cannot book today or tomorrow
     return baseDisabled || isTodayOrTomorrowDisabledForUser(date)
@@ -374,19 +359,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
 
     const loadBookingCounts = async () => {
       try {
-        // Own visible bookings (scoped by API for concepteur)
         let allBookings = await getAllBookings(binId)
-
-        // Anonymous occupancy so concepteurs still see reserved créneaux without details
-        let availabilityCounts: Record<string, number> = {}
-        let availabilitySlots: Array<{ date: string; time: string }> = []
-        if (isConcepteur) {
-          const availability = await getBookingAvailability(binId)
-          availabilityCounts = availability.daily_counts || {}
-          availabilitySlots = availability.occupied_slots || []
-        }
         
-        // Filter by client name search if provided (only affects visible own bookings)
+        // Filter by client name search if provided
         if (clientSearch && clientSearch.trim()) {
           const searchTerm = clientSearch.trim().toLowerCase()
           allBookings = allBookings.filter((booking: BookingRecord) => {
@@ -398,9 +373,6 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         // Get today's date (without time) for comparison
         const today = new Date()
         today.setHours(0, 0, 0, 0)
-        const yesterday = new Date(today)
-        yesterday.setDate(yesterday.getDate() - 1)
-        const isBookingYesterday = (d: Date) => d.getTime() === yesterday.getTime()
         
         const counts: {[key: string]: number} = {}
         const slots: {[key: string]: boolean} = {}
@@ -414,9 +386,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           
           const isPastDate = bookingDate < today
           const isAdminOnSavMetre = isAdmin && usesTimeSlots(binId) && (binId === 'calendar2' || binId === 'calendar3')
-          const isTechnicienPoseYesterday = isTechnicien && binId === 'calendar1' && isPastDate && isBookingYesterday(bookingDate)
+          const isTechnicienFinishWindow = isTechnicien && isWithinTechnicianFinishCalendarWindow(bookingDate)
           
-          if (bookingDate >= today || (isPastDate && isAdminOnSavMetre) || isTechnicienPoseYesterday) {
+          if (bookingDate >= today || (isPastDate && isAdminOnSavMetre) || isTechnicienFinishWindow) {
             if (usesTimeSlots(binId)) {
               if (booking.time && booking.time.trim() && booking.time !== '21h00') {
                 const normalizedTime = booking.time.trim().toLowerCase()
@@ -433,7 +405,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                 filteredTimeSlotCount++
               }
             } else {
-              if (!isPastDate || isTechnicienPoseYesterday) {
+              if (!isPastDate || isTechnicienFinishWindow) {
                 counts[booking.date] = (counts[booking.date] || 0) + 1
               }
             }
@@ -442,37 +414,6 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           }
         })
 
-        // Merge anonymous occupancy for concepteur (no personal details)
-        if (isConcepteur) {
-          availabilitySlots.forEach((slot) => {
-            const bookingDate = new Date(slot.date + 'T00:00:00')
-            bookingDate.setHours(0, 0, 0, 0)
-            if (bookingDate < today) return
-
-            const time = (slot.time || '').trim()
-            if (!time || time === '21h00') return
-
-            let slotTime = time.toLowerCase()
-            if (binId === 'calendar3' && timeSlotType === 'sav' && slotTime.includes('-')) {
-              slotTime = slotTime.split('-')[0].trim()
-            }
-            const slotKey = `${slot.date}|${slotTime}`
-            slots[slotKey] = true
-            // Do NOT put foreign bookings into details — keeps privacy
-          })
-
-          // Pose daily capacity must reflect global occupancy
-          if (!usesTimeSlots(binId)) {
-            Object.entries(availabilityCounts).forEach(([dateStr, count]) => {
-              const bookingDate = new Date(dateStr + 'T00:00:00')
-              bookingDate.setHours(0, 0, 0, 0)
-              if (bookingDate >= today) {
-                counts[dateStr] = Math.max(counts[dateStr] || 0, count)
-              }
-            })
-          }
-        }
-        
         setBookingCounts(counts)
         setBookedTimeSlots(slots)
         setBookingDetails(details)
@@ -509,7 +450,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         bookingsLoadingRef.current = null
       }
     }
-  }, [refreshTrigger, binId, internalRefreshTrigger, isAdmin, isConcepteur, clientSearch]) // Include clientSearch to reload when search changes; isConcepteur for occupancy merge
+  }, [refreshTrigger, binId, internalRefreshTrigger, isAdmin, clientSearch])
 
   // Get booking status for a date
   const getBookingStatus = (date: Date) => {
@@ -599,25 +540,17 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     return bookingDetails[slotKey] || null
   }
 
-  /** Occupied by someone else — show as reserved, never leak details */
-  const isAnonymouslyReserved = (date: Date, timeSlot: string, isBooked: boolean): boolean => {
-    return Boolean(isBooked && !getBookingForSlot(date, timeSlot))
-  }
-
   const getSlotDisplayText = (date: Date, timeSlot: string, isBooked: boolean): string => {
     if (!isBooked) return timeSlot
     const booking = getBookingForSlot(date, timeSlot)
     if (booking && booking.name && (binId === 'calendar2' || binId === 'calendar3')) {
       return `client: ${booking.name}`
     }
-    if (!booking) {
-      return 'Réservé'
-    }
     return timeSlot
   }
 
-  const reservedSlotClass = (date: Date, timeSlot: string, isBooked: boolean): string => {
-    return isAnonymouslyReserved(date, timeSlot, isBooked) ? 'is-reserved' : (isBooked ? 'is-booked' : '')
+  const reservedSlotClass = (_date: Date, _timeSlot: string, isBooked: boolean): string => {
+    return isBooked ? 'is-booked' : ''
   }
 
   const getNamesForDate = (date: Date, timeSlot?: string): string[] => {
@@ -673,7 +606,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
       return false
     }
     
-    // Technicien: show info icon when there is at least one booking (incl. yesterday on Pose for J+1 finish)
+    // Technicien: show info icon when there is at least one booking (incl. recent past within 48h window)
     if (isTechnicien) {
       if (timeSlot) {
         return isSlotBooked(date, timeSlot)
@@ -689,25 +622,10 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         return getBookingStatus(date).count > 0
       }
     } else if (isConcepteur) {
-      // Référent: consult all magasin bookings; others: own only
-      if (isReferent) {
-        if (timeSlot) {
-          return !!getBookingForSlot(date, timeSlot)
-        }
-        return getBookingsForDate(date).length > 0
-      }
       if (timeSlot) {
-        const booking = getBookingForSlot(date, timeSlot)
-        return booking ? isBookingByConcepteur(booking) : false
-      } else {
-        const year = date.getFullYear()
-        const month = String(date.getMonth() + 1).padStart(2, '0')
-        const day = String(date.getDate()).padStart(2, '0')
-        const dateString = `${year}-${month}-${day}`
-        return allBookingsData.some(
-          (booking: BookingRecord) => booking.date === dateString && isBookingByConcepteur(booking)
-        )
+        return isSlotBooked(date, timeSlot)
       }
+      return getBookingsForDate(date).length > 0
     } else {
       // Regular users see all bookings
       if (timeSlot) {
@@ -774,20 +692,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     }
   }, [bookingSelectPopup])
 
-  // Check if a booking belongs to the current Concepteur user
-  const isBookingByConcepteur = (booking: BookingRecord): boolean => {
-    if (!isConcepteur || !userName) return false
-    return (booking.designer || '').toLowerCase().trim() === userName.toLowerCase().trim()
-  }
-
-  // Get bookings for a date that the current user is allowed to see
-  // Concepteur: own only — référent: all magasin bookings returned by API
   const isVisibleBookingForUser = (booking: BookingRecord): boolean => {
-    if (isAdmin || isTechnicien) return true
-    if (isConcepteur) {
-      if (isReferent) return true
-      return isBookingByConcepteur(booking)
-    }
+    if (isAdmin || isTechnicien || isConcepteur) return true
     if (isRegularUser) return isBookingByUser(booking)
     return true
   }
@@ -815,10 +721,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
       const booking = getBookingForSlot(date, timeSlot)
       if (!booking) return null
       
-      // Admin can edit any booking
-      if (isAdmin) return booking
-      // Concepteur can edit their own bookings
-      if (isConcepteur && isBookingByConcepteur(booking)) return booking
+      // Admin and concepteur can edit any booking
+      if (isAdmin || isConcepteur) return booking
       // Regular users can edit their own bookings
       if (isRegularUser && isBookingByUser(booking)) return booking
       return null
@@ -829,18 +733,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
       const day = String(date.getDate()).padStart(2, '0')
       const dateString = `${year}-${month}-${day}`
       
-      // Admin can edit any booking
-      if (isAdmin) {
+      // Admin and concepteur can edit any booking
+      if (isAdmin || isConcepteur) {
         return allBookingsData.find(b => b.date === dateString) || null
-      }
-      
-      // Concepteur can edit their own bookings
-      if (isConcepteur) {
-        return allBookingsData.find(b => {
-          const matchesDate = b.date === dateString
-          const matchesConcepteur = isBookingByConcepteur(b)
-          return matchesDate && matchesConcepteur
-        }) || null
       }
       
       // Regular users can edit their own bookings
@@ -919,10 +814,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     
     return allBookingsData.filter(b => {
       if (b.date !== dateString) return false
-      // Admin can edit all bookings
-      if (isAdmin) return true
-      // Concepteur can edit their own bookings
-      if (isConcepteur) return isBookingByConcepteur(b)
+      // Admin and concepteur can edit all bookings
+      if (isAdmin || isConcepteur) return true
       // Regular users can edit their own bookings
       if (isRegularUser) return isBookingByUser(b)
       return false
@@ -1069,12 +962,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
       alert('❌ Les techniciens ne peuvent pas modifier les réservations')
       return
     }
-    if (!isAdmin) {
+    if (!isAdmin && !isConcepteur) {
       if (isRegularUser && !isBookingByUser(editingBooking)) {
-        alert('❌ Vous ne pouvez modifier que vos propres réservations')
-        return
-      }
-      if (isConcepteur && !isBookingByConcepteur(editingBooking)) {
         alert('❌ Vous ne pouvez modifier que vos propres réservations')
         return
       }
@@ -1129,21 +1018,6 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
       const errorMessage = error?.message || 'Erreur lors de la modification de la réservation'
       alert(`❌ ${errorMessage}`)
     }
-  }
-
-  const [adminCompleteBooking, setAdminCompleteBooking] = useState<BookingRecord | null>(null)
-  const [adminCancelBooking, setAdminCancelBooking] = useState<BookingRecord | null>(null)
-
-  const handleTerminerSav = (bookingId: string) => {
-    const booking = editingBooking || allBookingsData.find(b => String(b.id) === String(bookingId))
-    if (!booking) return
-    setAdminCompleteBooking(booking)
-  }
-
-  const handleAnnulerIntervention = (bookingId: string) => {
-    const booking = editingBooking || allBookingsData.find(b => String(b.id) === String(bookingId))
-    if (!booking) return
-    setAdminCancelBooking(booking)
   }
 
   // Check if date numbers should be clickable (only for calendar1, not for calendar2/3 with time slots)
@@ -3223,15 +3097,13 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
 
       {/* Edit Modal - Use AdminBookingModal for consistent interface */}
       {isEditModalOpen && editingBooking && (
-        <        AdminBookingModal
+        <AdminBookingModal
           isOpen={isEditModalOpen}
           onClose={() => {
             setIsEditModalOpen(false)
             setEditingBooking(null)
           }}
           onSubmit={handleEditModalSubmit}
-          onTerminer={isAdmin ? handleTerminerSav : undefined}
-          onAnnuler={isAdmin ? handleAnnulerIntervention : undefined}
           booking={{
             id: editingBooking.id,
             calendarId: editingBooking.calendar_id || binId,
@@ -3263,47 +3135,12 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         }}
         booking={technicienViewBooking}
         isDarkMode={isDarkMode}
-        onCancelled={async () => {
+        onFinish={async () => {
           setIsTechnicienModalOpen(false)
           setTechnicienViewBooking(null)
           setInternalRefreshTrigger(prev => prev + 1)
         }}
       />
-
-      {adminCompleteBooking && (
-        <TechnicienCompleteModal
-          isOpen={!!adminCompleteBooking}
-          onClose={() => setAdminCompleteBooking(null)}
-          bookingId={String(adminCompleteBooking.id)}
-          bookingCalendarId={adminCompleteBooking.calendar_id || binId}
-          bookingDate={adminCompleteBooking.date}
-          bookingStatus={(adminCompleteBooking as any).status || 'en_attente'}
-          isDarkMode={isDarkMode}
-          skipDateRestrictions
-          onFinish={async () => {
-            setAdminCompleteBooking(null)
-            setIsEditModalOpen(false)
-            setEditingBooking(null)
-            setInternalRefreshTrigger(prev => prev + 1)
-          }}
-        />
-      )}
-
-      {adminCancelBooking && (
-        <CancelInterventionModal
-          isOpen={!!adminCancelBooking}
-          onClose={() => setAdminCancelBooking(null)}
-          bookingId={String(adminCancelBooking.id)}
-          bookingStatus={(adminCancelBooking as any).status || 'en_attente'}
-          isDarkMode={isDarkMode}
-          onCancelled={async () => {
-            setAdminCancelBooking(null)
-            setIsEditModalOpen(false)
-            setEditingBooking(null)
-            setInternalRefreshTrigger(prev => prev + 1)
-          }}
-        />
-      )}
     </div>
   )
 }

@@ -8,7 +8,6 @@ export interface UserRecord {
   email: string
   phone: string
   role: 'admin' | 'concepteur' | 'technicien'
-  is_referent?: boolean
   created_at: string
   updated_at: string
 }
@@ -18,7 +17,6 @@ export interface UserFormData {
   email: string
   phone: string
   role: 'admin' | 'concepteur' | 'technicien'
-  is_referent?: boolean
   password: string
   confirm_password?: string
 }
@@ -29,7 +27,6 @@ interface UserApiResponse {
   email: string
   phone: string
   role: string
-  is_referent?: boolean
   created_at: string
   updated_at: string
 }
@@ -154,7 +151,6 @@ const toUserRecord = (data: UserApiResponse): UserRecord => {
     email: data.email,
     phone: data.phone || '',
     role: data.role as 'admin' | 'concepteur' | 'technicien',
-    is_referent: Boolean(data.is_referent) && data.role === 'concepteur',
     created_at: data.created_at,
     updated_at: data.updated_at,
   }

@@ -1,5 +1,6 @@
-from datetime import date, timedelta
+from datetime import date, datetime, time as dt_time, timedelta
 import logging
+import re
 import secrets
 import os
 from django.conf import settings
@@ -13,7 +14,6 @@ from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser, B
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle
-from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Booking, ContactMessage, Holiday, User, PasswordResetToken, Magasin
@@ -378,137 +378,6 @@ class ContactEmailView(generics.ListCreateAPIView):
 
 
 
-def _is_concepteur(user) -> bool:
-    return bool(user and getattr(user, 'role', None) == 'concepteur')
-
-
-def _is_concepteur_referent(user) -> bool:
-    return _is_concepteur(user) and bool(getattr(user, 'is_referent', False))
-
-
-def _magasin_concepteur_names(user):
-    """
-    Names of concepteurs belonging to the same magasin(s) as this user.
-    Used so a référent can list all store reservations.
-    """
-    magasins = user.magasins.prefetch_related('concepteurs').all()
-    names = set()
-    for magasin in magasins:
-        for concepteur in magasin.concepteurs.all():
-            name = (concepteur.name or '').strip()
-            if name:
-                names.add(name)
-    # Always include self even if not yet linked to a magasin
-    own = (getattr(user, 'name', None) or '').strip()
-    if own:
-        names.add(own)
-    return names
-
-
-def _is_own_booking_for_concepteur(booking, user) -> bool:
-    designer = (getattr(booking, 'designer_name', None) or '').strip().lower()
-    name = (getattr(user, 'name', None) or '').strip().lower()
-    return bool(name) and designer == name
-
-
-def _scope_bookings_queryset_for_user(queryset, user):
-    """
-    Concepteurs: own bookings only (designer_name).
-    Concepteur référent: all bookings of concepteurs in their magasin(s).
-    Admin and technicien keep full visibility.
-    """
-    if not _is_concepteur(user):
-        return queryset
-
-    name = (getattr(user, 'name', None) or '').strip()
-    if not name:
-        return queryset.none()
-
-    if _is_concepteur_referent(user):
-        colleague_names = _magasin_concepteur_names(user)
-        if not colleague_names:
-            return queryset.filter(designer_name__iexact=name)
-        q = Q()
-        for n in colleague_names:
-            q |= Q(designer_name__iexact=n)
-        return queryset.filter(q)
-
-    return queryset.filter(designer_name__iexact=name)
-
-
-
-class BookingAvailabilityView(APIView):
-    """
-    Occupancy without personal details.
-    Used by concepteurs so reserved créneaux stay visible (as 'Réservé')
-    without revealing other concepteurs' clients.
-    """
-    permission_classes = [IsAuthenticatedCustom]
-
-    def get(self, request):
-        calendar_id = request.query_params.get('calendar_id')
-        if not calendar_id:
-            return Response(
-                {'detail': 'calendar_id est requis.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        calendar_ids = [calendar_id]
-        if calendar_id == 'calendar1':
-            calendar_ids.append('1')
-        elif calendar_id == 'calendar2':
-            calendar_ids.append('2')
-        elif calendar_id == 'calendar3':
-            calendar_ids.append('3')
-        elif calendar_id == '1':
-            calendar_ids.append('calendar1')
-        elif calendar_id == '2':
-            calendar_ids.append('calendar2')
-        elif calendar_id == '3':
-            calendar_ids.append('calendar3')
-
-        queryset = Booking.objects.filter(calendar_id__in=calendar_ids)
-        start_date = request.query_params.get('start_date')
-        end_date = request.query_params.get('end_date')
-        if start_date:
-            queryset = queryset.filter(booking_date__gte=start_date)
-        if end_date:
-            queryset = queryset.filter(booking_date__lte=end_date)
-
-        occupied_slots = []
-        daily_counts = {}
-        seen_slots = set()
-
-        for booking in queryset.only('booking_date', 'booking_time', 'calendar_id'):
-            date_str = booking.booking_date.isoformat()
-            daily_counts[date_str] = daily_counts.get(date_str, 0) + 1
-
-            time_str = (booking.booking_time or '').strip()
-            if not time_str or time_str == '21h00':
-                continue
-
-            # Normalize range start for Métré-style matching when needed
-            slot_time = time_str
-            if '-' in time_str and calendar_id in ('calendar3', '3'):
-                # Keep full range for SAV-style; for point slots extract start only if needed by client
-                pass
-
-            key = f"{date_str}|{slot_time.lower()}"
-            if key in seen_slots:
-                continue
-            seen_slots.add(key)
-            occupied_slots.append({
-                'date': date_str,
-                'time': slot_time,
-            })
-
-        return Response({
-            'calendar_id': calendar_id,
-            'occupied_slots': occupied_slots,
-            'daily_counts': daily_counts,
-        })
-
-
 class BookingListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticatedCustom]
     serializer_class = BookingSerializer
@@ -544,15 +413,10 @@ class BookingListCreateView(generics.ListCreateAPIView):
         if end_date:
             queryset = queryset.filter(booking_date__lte=end_date)
 
-        queryset = _scope_bookings_queryset_for_user(queryset, self.request.user)
         return queryset.order_by('booking_date', 'booking_time', 'id')
 
     def perform_create(self, serializer):
-        # Concepteur: always assign their own name as designer (cannot impersonate)
-        if _is_concepteur(self.request.user):
-            serializer.save(designer_name=self.request.user.name)
-        else:
-            serializer.save()
+        serializer.save()
         booking = serializer.instance
         booking.refresh_from_db()
         _notify_booking(booking)
@@ -564,28 +428,15 @@ class BookingRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Booking.objects.all()
 
     def get_queryset(self):
-        return _scope_bookings_queryset_for_user(super().get_queryset(), self.request.user)
+        return super().get_queryset()
 
     def perform_update(self, serializer):
-        # Concepteur (incl. référent): may only edit own reservations
-        if _is_concepteur(self.request.user):
-            if not _is_own_booking_for_concepteur(self.get_object(), self.request.user):
-                raise PermissionDenied(
-                    'Vous ne pouvez modifier que vos propres réservations.'
-                )
-            serializer.save(designer_name=self.request.user.name)
-        else:
-            serializer.save()
+        serializer.save()
         booking = serializer.instance
         booking.refresh_from_db()
         _notify_booking(booking, is_update=True)
     
     def perform_destroy(self, instance):
-        if _is_concepteur(self.request.user):
-            if not _is_own_booking_for_concepteur(instance, self.request.user):
-                raise PermissionDenied(
-                    'Vous ne pouvez supprimer que vos propres réservations.'
-                )
         # Store booking info before deletion for notification
         booking_info = {
             'calendar_id': instance.calendar_id,
@@ -860,7 +711,6 @@ class UserLoginView(APIView):
                     'email': user.email,
                     'phone': user.phone,
                     'role': user.role,
-                    'is_referent': bool(user.is_referent) if user.role == 'concepteur' else False,
                     'access': str(refresh.access_token),
                     'refresh': str(refresh),
                     'message': 'Connexion réussie'
@@ -1206,27 +1056,25 @@ class ConcepteurMagasinView(APIView):
             )
         
         # Return the first magasin (a concepteur should typically belong to one magasin)
-        magasin = magasins.first()
-        # Hide colleague concepteurs from this endpoint (visibility restriction)
+        magasin = magasins.prefetch_related('concepteurs').first()
+        concepteurs = list(magasin.concepteurs.all())
         return Response({
             'id': magasin.id,
             'name': magasin.name,
-            'concepteurs': [user.id],
+            'concepteurs': [c.id for c in concepteurs],
             'concepteurs_details': [{
-                'id': user.id,
-                'name': user.name,
-                'email': user.email,
-                'phone': getattr(user, 'phone', '') or '',
-            }],
+                'id': c.id,
+                'name': c.name,
+                'email': c.email,
+                'phone': getattr(c, 'phone', '') or '',
+            } for c in concepteurs],
             'created_at': magasin.created_at.isoformat() if magasin.created_at else None,
             'updated_at': magasin.updated_at.isoformat() if magasin.updated_at else None,
         })
 
 
-def _collect_completion_recipients(booking: Booking, is_admin_finish: bool = False, admin_user=None):
-    """Build recipient list for completion emails.
-    Technician and admin finish: concepteur (designer) only.
-    """
+def _collect_completion_recipients(booking: Booking):
+    """Build recipient list for completion emails (concepteur / designer only)."""
     recipients = []
     seen = set()
 
@@ -1248,26 +1096,19 @@ def _collect_completion_recipients(booking: Booking, is_admin_finish: bool = Fal
     return recipients
 
 
-def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_files: list, is_admin_finish: bool = False, admin_user=None):
-    """Send email notification when a booking is finished.
-    Same template for tech/admin; only the actor label changes (Technicien / Admin).
-    Recipients: concepteur only.
-    """
+def _notify_booking_completion(booking: Booking, technicien_name: str, uploaded_files: list):
+    """Send email notification when a booking is finished (concepteur recipients only)."""
     try:
-        recipients = _collect_completion_recipients(booking, is_admin_finish=is_admin_finish, admin_user=admin_user)
+        recipients = _collect_completion_recipients(booking)
         if not recipients:
             logger.warning(f"No completion email recipients for booking #{booking.id} (designer={booking.designer_name})")
             return
 
         calendar_label = CALENDAR_LABELS.get(booking.calendar_id, booking.calendar_id)
         subject = f"✅ Intervention terminée - {booking.client_name} - {calendar_label}"
-        actor_label = "Admin" if is_admin_finish else "Technicien"
-        actor_emoji = "👔" if is_admin_finish else "👷"
-        header_subtitle = (
-            "L'administrateur a finalisé l'intervention"
-            if is_admin_finish
-            else "Le technicien a finalisé l'intervention"
-        )
+        actor_label = "Technicien"
+        actor_emoji = "👷"
+        header_subtitle = "Le technicien a finalisé l'intervention"
         
         # Format date
         from django.utils import timezone as dj_timezone
@@ -1450,7 +1291,7 @@ Notification automatique du système de réservation
         # Get email settings
         default_from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com')
         
-        logger.info(f"Sending completion notification to {recipients} for booking #{booking.id} (admin_finish={is_admin_finish})")
+        logger.info(f"Sending completion notification to {recipients} for booking #{booking.id}")
         
         email_message = EmailMessage(
             subject=subject,
@@ -1516,6 +1357,51 @@ Notification automatique du système de réservation
         logger.error(f"Failed to send completion notification for booking #{booking.id}: {e}", exc_info=True)
 
 
+def _parse_booking_appointment_start(booking: Booking):
+    """
+    Build the appointment datetime used for the 48h finalization window.
+    Pose placeholder time '21h00' is treated as start of day.
+    """
+    hour, minute = 0, 0
+    raw = (booking.booking_time or '').strip().lower()
+    if raw and raw != '21h00':
+        # Ranges like "8:00-11:00" → use start; also support "8h00" / "08:00"
+        start_part = raw.split('-', 1)[0].strip()
+        match = re.match(r'^(\d{1,2})[h:](\d{2})?$', start_part)
+        if match:
+            hour = int(match.group(1))
+            minute = int(match.group(2) or 0)
+            if hour > 23:
+                hour, minute = 0, 0
+
+    naive = datetime.combine(booking.booking_date, dt_time(hour=hour, minute=minute))
+    if timezone.is_naive(naive):
+        return timezone.make_aware(naive, timezone.get_current_timezone())
+    return naive
+
+
+def _technician_can_finish_booking(booking: Booking):
+    """
+    Technicien may finalize Pose / SAV / Métré from the appointment day
+    until 48 hours after the scheduled appointment start.
+    """
+    now = timezone.now()
+    day_start = timezone.make_aware(
+        datetime.combine(booking.booking_date, dt_time.min),
+        timezone.get_current_timezone(),
+    )
+    deadline = _parse_booking_appointment_start(booking) + timedelta(hours=48)
+    if now < day_start:
+        return False, (
+            'La finalisation n\'est possible qu\'à partir de la date du rendez-vous.'
+        )
+    if now > deadline:
+        return False, (
+            'Le délai de finalisation de 48 heures après le rendez-vous est dépassé.'
+        )
+    return True, None
+
+
 class BookingFinishView(APIView):
     """View to handle technician finishing a booking with completion data and file uploads"""
     permission_classes = [IsAuthenticatedCustom]
@@ -1551,36 +1437,22 @@ class BookingFinishView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Determine who is finishing: admin or technician
-            is_admin_user = getattr(request.user, 'role', None) == 'admin'
-            technicien_name = request.user.name if hasattr(request.user, 'name') else ('Admin' if is_admin_user else 'Technicien')
+            user_role = getattr(request.user, 'role', None)
+            if user_role != 'technicien':
+                return Response(
+                    {'detail': 'Seuls les techniciens peuvent finaliser une intervention.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
-            # Date constraints apply to technicians only — admins can close anytime
-            if not is_admin_user:
-                today = timezone.now().date()
+            technicien_name = request.user.name if hasattr(request.user, 'name') else 'Technicien'
 
-                # For SAV and Metré: technicien can only finish on the day of the reservation
-                is_sav_or_metre = booking.calendar_id in ['calendar2', '2', 'calendar3', '3']
-                if is_sav_or_metre:
-                    if booking.booking_date != today:
-                        return Response(
-                            {
-                                'detail': 'Pour les réservations SAV et Metré, la finalisation n\'est possible que le jour même de la réservation.'
-                            },
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
-
-                # For Pose: technicien can finish on the reservation day or the next day at most
-                is_pose = booking.calendar_id in ['calendar1', '1']
-                if is_pose:
-                    deadline = booking.booking_date + timedelta(days=1)
-                    if today < booking.booking_date or today > deadline:
-                        return Response(
-                            {
-                                'detail': 'Pour les réservations Pose, la finalisation n\'est possible que le jour de la réservation ou le lendemain au plus tard.'
-                            },
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
+            # Pose / SAV / Métré: finalize until 48h after the scheduled appointment
+            can_finish, finish_error = _technician_can_finish_booking(booking)
+            if not can_finish:
+                return Response(
+                    {'detail': finish_error},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             
             # Helper function to convert string boolean to actual boolean
             def str_to_bool(value):
@@ -1702,14 +1574,7 @@ class BookingFinishView(APIView):
             
             logger.info(f"Booking {booking.id} completed by technician {technicien_name}. Files uploaded: {len(uploaded_files)}")
             
-            # Send completion emails (concepteur only; template actor = tech or admin)
-            _notify_booking_completion(
-                booking,
-                technicien_name,
-                uploaded_files,
-                is_admin_finish=is_admin_user,
-                admin_user=request.user if is_admin_user else None,
-            )
+            _notify_booking_completion(booking, technicien_name, uploaded_files)
             
             return Response({
                 'message': 'Réservation finalisée avec succès.',
@@ -1732,340 +1597,3 @@ class BookingFinishView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-
-
-def _notify_booking_cancellation(booking: Booking, actor_name: str, motif: str, uploaded_files: list, is_admin_cancel: bool = False):
-    """Send cancellation email to concepteur with motif + attachments."""
-    try:
-        recipients = _collect_completion_recipients(booking)
-        if not recipients:
-            logger.warning(
-                f"No cancellation email recipients for booking #{booking.id} "
-                f"(designer={booking.designer_name})"
-            )
-            return
-
-        calendar_label = CALENDAR_LABELS.get(booking.calendar_id, booking.calendar_id)
-        actor_label = "Admin" if is_admin_cancel else "Technicien"
-        actor_emoji = "👔" if is_admin_cancel else "👷"
-        subject = f"❌ Intervention annulée - {booking.client_name} - {calendar_label}"
-
-        from django.utils import timezone as dj_timezone
-        cancelled_at = booking.cancelled_at
-        if cancelled_at and dj_timezone.is_aware(cancelled_at):
-            cancelled_at = dj_timezone.localtime(cancelled_at)
-        formatted_cancelled = cancelled_at.strftime('%d/%m/%Y à %H:%M') if cancelled_at else 'Non spécifiée'
-
-        time_display = ""
-        if booking.calendar_id in ['calendar2', 'calendar3', '2', '3']:
-            if booking.booking_time and booking.booking_time.strip():
-                time_display = booking.booking_time.strip()
-        elif booking.booking_time and booking.booking_time.strip() and booking.booking_time.strip() != '21h00':
-            time_display = booking.booking_time.strip()
-
-        files_html = ""
-        if uploaded_files:
-            files_list = "".join([
-                f"<li style='margin: 5px 0;'>📎 {f['original_name']}</li>"
-                for f in uploaded_files
-            ])
-            files_html = f"""
-            <div style="margin: 20px 0; padding: 15px; background-color: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
-                <h3 style="margin: 0 0 15px 0; color: #856404;">📁 Pièces jointes ({len(uploaded_files)})</h3>
-                <ul style="margin: 0; padding-left: 20px;">
-                    {files_list}
-                </ul>
-            </div>
-            """
-
-        safe_motif = (motif or '').replace('<', '&lt;').replace('>', '&gt;')
-
-        html_body = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5;">
-    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: white; padding: 30px; text-align: center;">
-            <h1 style="margin: 0; font-size: 24px;">❌ Intervention annulée</h1>
-            <p style="margin: 10px 0 0 0; opacity: 0.9;">L'intervention a été annulée</p>
-        </div>
-
-        <div style="padding: 30px;">
-            <div style="background-color: #fef2f2; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #dc2626;">
-                <p style="margin: 0; font-size: 16px;">
-                    <strong>{actor_emoji} {actor_label} :</strong> {actor_name}
-                </p>
-                <p style="margin: 5px 0 0 0; font-size: 14px; color: #666;">
-                    Annulé le {formatted_cancelled}
-                </p>
-            </div>
-
-            <div style="background-color: #fff7ed; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #f97316;">
-                <h3 style="margin: 0 0 10px 0; color: #c2410c;">📝 Motif d'annulation</h3>
-                <p style="margin: 0; white-space: pre-wrap; color: #1f2937; line-height: 1.5;">{safe_motif}</p>
-            </div>
-
-            <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #2196f3;">
-                <h3 style="margin: 0 0 15px 0; color: #1976d2;">📋 Détails de la réservation</h3>
-                <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                        <td style="padding: 8px 0; color: #666;">📅 Calendrier:</td>
-                        <td style="padding: 8px 0; font-weight: bold;">{calendar_label}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px 0; color: #666;">📆 Date:</td>
-                        <td style="padding: 8px 0; font-weight: bold;">{booking.booking_date}</td>
-                    </tr>
-                    {"<tr><td style='padding: 8px 0; color: #666;'>🕐 Heure:</td><td style='padding: 8px 0; font-weight: bold;'>" + time_display + "</td></tr>" if time_display else ""}
-                    <tr>
-                        <td style="padding: 8px 0; color: #666;">👤 Client:</td>
-                        <td style="padding: 8px 0; font-weight: bold;">{booking.client_name}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px 0; color: #666;">📞 Téléphone:</td>
-                        <td style="padding: 8px 0;"><a href="tel:{booking.client_phone}" style="color: #2196f3;">{booking.client_phone}</a></td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px 0; color: #666;">🎨 Concepteur:</td>
-                        <td style="padding: 8px 0; font-weight: bold;">{booking.designer_name}</td>
-                    </tr>
-                </table>
-            </div>
-
-            {files_html}
-        </div>
-
-        <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e9ecef;">
-            <p style="margin: 0; color: #6c757d; font-size: 12px;">
-                Notification automatique du système de réservation
-            </p>
-            <p style="margin: 5px 0 0 0; color: #6c757d; font-size: 12px;">
-                Réservation #{booking.id}
-            </p>
-        </div>
-    </div>
-</body>
-</html>
-        """
-
-        files_text = ""
-        if uploaded_files:
-            files_text = "\nPièces jointes:\n" + "\n".join([f"- {f['original_name']}" for f in uploaded_files])
-
-        text_body = f"""
-Intervention annulée - {calendar_label}
-
-{actor_label}: {actor_name}
-Annulé le: {formatted_cancelled}
-
---- Motif d'annulation ---
-{motif}
-
---- Détails de la réservation ---
-Calendrier: {calendar_label}
-Date: {booking.booking_date}
-{f'Heure: {time_display}' if time_display else ''}
-Client: {booking.client_name}
-Téléphone: {booking.client_phone}
-Concepteur: {booking.designer_name}
-{files_text}
-
----
-Réservation #{booking.id}
-Notification automatique du système de réservation
-        """.strip()
-
-        default_from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com')
-        logger.info(
-            f"Sending cancellation notification to {recipients} for booking #{booking.id} "
-            f"(admin_cancel={is_admin_cancel})"
-        )
-
-        email_message = EmailMessage(
-            subject=subject,
-            body=text_body,
-            from_email=default_from_email,
-            to=recipients,
-        )
-        email_message.content_subtype = "html"
-        email_message.body = html_body
-
-        if uploaded_files:
-            import mimetypes
-            media_root = getattr(settings, 'MEDIA_ROOT', os.path.join(settings.BASE_DIR, 'media'))
-            for file_info in uploaded_files:
-                try:
-                    file_path = os.path.join(media_root, file_info['path'])
-                    if os.path.exists(file_path):
-                        original_name = file_info['original_name']
-                        mime_type, _ = mimetypes.guess_type(original_name)
-                        if not mime_type:
-                            ext = os.path.splitext(original_name)[1].lower()
-                            mime_map = {
-                                '.jpg': 'image/jpeg',
-                                '.jpeg': 'image/jpeg',
-                                '.png': 'image/png',
-                                '.gif': 'image/gif',
-                                '.pdf': 'application/pdf',
-                                '.webp': 'image/webp',
-                            }
-                            mime_type = mime_map.get(ext, 'application/octet-stream')
-                        with open(file_path, 'rb') as f:
-                            file_content = f.read()
-                        email_message.attach(original_name, file_content, mime_type)
-                except Exception as attach_err:
-                    logger.warning(f"Could not attach {file_info.get('original_name')}: {attach_err}")
-
-        email_message.send(fail_silently=False)
-        logger.info(
-            f"Cancellation notification sent to {recipients} for booking #{booking.id} "
-            f"with {len(uploaded_files)} attached files"
-        )
-    except Exception as e:
-        logger.error(f"Failed to send cancellation notification for booking #{booking.id}: {e}", exc_info=True)
-
-
-class BookingCancelView(APIView):
-    """Cancel an intervention (admin or technicien) with required motif + optional attachments."""
-    permission_classes = [IsAuthenticatedCustom]
-
-    def post(self, request, pk):
-        try:
-            try:
-                booking = Booking.objects.get(pk=pk)
-            except Booking.DoesNotExist:
-                return Response(
-                    {'detail': 'Réservation introuvable.'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            user_role = getattr(request.user, 'role', None)
-            if user_role not in ('admin', 'technicien'):
-                return Response(
-                    {'detail': 'Seuls les administrateurs et techniciens peuvent annuler une intervention.'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-
-            if booking.status == 'annule':
-                return Response(
-                    {'detail': 'Cette réservation a déjà été annulée.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            if booking.status == 'termine':
-                return Response(
-                    {'detail': 'Cette réservation est déjà terminée et ne peut plus être annulée.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            motif = str(request.data.get('motif') or '').strip()
-            if not motif:
-                return Response(
-                    {'detail': 'Le motif d\'annulation est obligatoire.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            is_admin_user = user_role == 'admin'
-            actor_name = getattr(request.user, 'name', None) or ('Admin' if is_admin_user else 'Technicien')
-
-            booking.cancellation_motif = motif
-            booking.cancelled_at = timezone.now()
-            booking.status = 'annule'
-            existing = (booking.message or '').strip()
-            cancel_note = f"--- Annulation ---\nMotif: {motif}"
-            booking.message = f"{existing}\n\n{cancel_note}" if existing else cancel_note
-            booking.save()
-
-            uploaded_files = []
-            files_list = request.FILES.getlist('files')
-            if not files_list:
-                for key in request.FILES:
-                    files_list.extend(request.FILES.getlist(key))
-
-            if files_list:
-                allowed_extensions = {
-                    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif', '.bmp', '.pdf'
-                }
-                allowed_content_types = {
-                    'application/pdf',
-                    'image/jpeg',
-                    'image/png',
-                    'image/gif',
-                    'image/webp',
-                    'image/heic',
-                    'image/heif',
-                    'image/bmp',
-                    'image/jpg',
-                }
-
-                client_name_safe = "".join(
-                    c for c in booking.client_name if c.isalnum() or c in (' ', '-', '_')
-                ).strip().replace(' ', '_')
-                folder_name = f"{client_name_safe}_{booking.booking_date}_{booking.id}_cancel"
-                media_root = getattr(settings, 'MEDIA_ROOT', os.path.join(settings.BASE_DIR, 'media'))
-                booking_folder = os.path.join(media_root, 'bookings', folder_name)
-                os.makedirs(booking_folder, exist_ok=True)
-
-                from datetime import datetime
-                for index, file in enumerate(files_list):
-                    original_filename = file.name or f'attachment_{index}'
-                    file_extension = os.path.splitext(original_filename)[1].lower()
-                    content_type = (getattr(file, 'content_type', None) or '').lower()
-                    is_allowed = (
-                        file_extension in allowed_extensions
-                        or content_type in allowed_content_types
-                        or content_type.startswith('image/')
-                    )
-                    if not is_allowed:
-                        continue
-
-                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-                    safe_original = "".join(
-                        c for c in original_filename if c.isalnum() or c in (' ', '-', '_', '.')
-                    ).strip() or f'file{file_extension}'
-                    safe_filename = f"{timestamp}_{index}_{safe_original}"
-                    file_path = os.path.join(booking_folder, safe_filename)
-                    with open(file_path, 'wb+') as destination:
-                        for chunk in file.chunks():
-                            destination.write(chunk)
-
-                    relative_path = f"bookings/{folder_name}/{safe_filename}"
-                    uploaded_files.append({
-                        'original_name': original_filename,
-                        'saved_name': safe_filename,
-                        'path': relative_path,
-                    })
-
-            logger.info(
-                f"Booking {booking.id} cancelled by {actor_name}. "
-                f"Files uploaded: {len(uploaded_files)}"
-            )
-
-            _notify_booking_cancellation(
-                booking,
-                actor_name,
-                motif,
-                uploaded_files,
-                is_admin_cancel=is_admin_user,
-            )
-
-            return Response({
-                'message': 'Intervention annulée avec succès.',
-                'booking_id': booking.id,
-                'uploaded_files': uploaded_files,
-                'cancellation_data': {
-                    'motif': booking.cancellation_motif,
-                    'cancelled_at': booking.cancelled_at.isoformat() if booking.cancelled_at else None,
-                    'status': booking.status,
-                }
-            }, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            logger.error(f"Error cancelling booking {pk}: {e}", exc_info=True)
-            return Response(
-                {'detail': f'Une erreur s\'est produite lors de l\'annulation: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )

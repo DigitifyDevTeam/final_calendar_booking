@@ -4,9 +4,6 @@ import { getAllBookings, BookingRecord, getCalendarName, CALENDAR_CONFIGS, updat
 import { getAllNotifications, NotificationItem, getTimeAgo as getNotificationTimeAgo } from '../services/notificationService'
 import { getAllUsers, UserRecord } from '../services/userService'
 import AdminBookingModal, { AdminBookingFormData } from '../components/AdminBookingModal'
-import TechnicienCompleteModal from '../components/TechnicienCompleteModal'
-import CancelInterventionModal from '../components/CancelInterventionModal'
-import ExportBookingsModal from '../components/ExportBookingsModal'
 import {
   Calendar,
   CalendarCheck,
@@ -22,8 +19,7 @@ import {
   RefreshCw,
   Menu,
   X,
-  Store,
-  Download
+  Store
 } from 'lucide-react'
 import './AdminPage.css'
 
@@ -62,7 +58,6 @@ function AdminPage() {
   type SortColumnKey = 'client' | 'facture' | 'statut' | 'date' | 'pose_wood' | 'creé_le'
   const [sortColumn, setSortColumn] = useState<SortColumnKey | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
 
   const handleSort = (column: SortColumnKey) => {
     if (sortColumn === column) {
@@ -273,19 +268,14 @@ function AdminPage() {
     }
   }
 
-  // Check if a booking belongs to the current user (concepteur / regular)
+  // Check if a booking belongs to the current user (regular users only;
+  // admin/concepteur can manage all bookings)
   const isBookingOwnedByUser = (booking: any): boolean => {
     if (!currentUser) return false
-    if (isAdmin) return true
+    if (isAdmin || currentUser.role === 'concepteur') return true
 
     const userName = currentUser.name?.toLowerCase().trim() || ''
     const designer = (booking.designer || '').toLowerCase().trim()
-
-    // Concepteur: only bookings where they are the designer
-    if (currentUser.role === 'concepteur') {
-      return !!userName && designer === userName
-    }
-
     const userEmail = currentUser.email?.toLowerCase().trim() || ''
     const userPhone = currentUser.phone?.trim() || ''
     const clientNameMatch = userName && booking.name?.toLowerCase().trim() === userName
@@ -301,13 +291,6 @@ function AdminPage() {
 
   const filterBookings = () => {
     let filtered = [...bookings]
-
-    // Regular concepteur: keep own only. Référent: API already returns magasin scope — do not re-filter.
-    const isReferent =
-      currentUser?.role === 'concepteur' && Boolean(currentUser?.is_referent)
-    if (!isAdmin && currentUser && !isReferent) {
-      filtered = filtered.filter(booking => isBookingOwnedByUser(booking))
-    }
 
     // Filter by calendar
     if (selectedCalendar !== 'all') {
@@ -577,21 +560,6 @@ function AdminPage() {
       const errorMessage = error?.message || 'Erreur lors de l\'enregistrement de la réservation'
       alert(`❌ ${errorMessage}`)
     }
-  }
-
-  const [adminCompleteBooking, setAdminCompleteBooking] = useState<any | null>(null)
-  const [adminCancelBooking, setAdminCancelBooking] = useState<any | null>(null)
-
-  const handleTerminerSav = (bookingId: string) => {
-    const booking = editingBooking || bookings.find((b: any) => String(b.id) === String(bookingId))
-    if (!booking) return
-    setAdminCompleteBooking(booking)
-  }
-
-  const handleAnnulerIntervention = (bookingId: string) => {
-    const booking = editingBooking || bookings.find((b: any) => String(b.id) === String(bookingId))
-    if (!booking) return
-    setAdminCancelBooking(booking)
   }
 
   return (
@@ -1531,17 +1499,6 @@ function AdminPage() {
           <RefreshCw className="refresh-icon" />
           Actualiser
         </button>
-        {isAdmin && (
-          <button
-            className="export-button"
-            type="button"
-            onClick={() => setIsExportModalOpen(true)}
-            title="Exporter les réservations filtrées vers Excel"
-          >
-            <Download className="refresh-icon" />
-            Extraire
-          </button>
-        )}
       </div>
 
       <main className="admin-main">
@@ -1701,59 +1658,11 @@ function AdminPage() {
           setEditingBooking(null)
         }}
         onSubmit={handleModalSubmit}
-        onTerminer={isAdmin ? handleTerminerSav : undefined}
-        onAnnuler={isAdmin ? handleAnnulerIntervention : undefined}
         booking={editingBooking}
         isDarkMode={isDarkMode}
         users={isAdmin ? usersList : []}
         isAdmin={isAdmin}
       />
-
-      {adminCompleteBooking && (
-        <TechnicienCompleteModal
-          isOpen={!!adminCompleteBooking}
-          onClose={() => setAdminCompleteBooking(null)}
-          bookingId={String(adminCompleteBooking.id)}
-          bookingCalendarId={adminCompleteBooking.calendarId || adminCompleteBooking.calendar_id}
-          bookingDate={adminCompleteBooking.date}
-          bookingStatus={adminCompleteBooking.status || 'en_attente'}
-          isDarkMode={isDarkMode}
-          skipDateRestrictions
-          onFinish={async () => {
-            setAdminCompleteBooking(null)
-            setIsModalOpen(false)
-            setEditingBooking(null)
-            await loadAllBookings()
-            loadNotifications()
-          }}
-        />
-      )}
-
-      {adminCancelBooking && (
-        <CancelInterventionModal
-          isOpen={!!adminCancelBooking}
-          onClose={() => setAdminCancelBooking(null)}
-          bookingId={String(adminCancelBooking.id)}
-          bookingStatus={adminCancelBooking.status || 'en_attente'}
-          isDarkMode={isDarkMode}
-          onCancelled={async () => {
-            setAdminCancelBooking(null)
-            setIsModalOpen(false)
-            setEditingBooking(null)
-            await loadAllBookings()
-            loadNotifications()
-          }}
-        />
-      )}
-
-      {isAdmin && (
-        <ExportBookingsModal
-          isOpen={isExportModalOpen}
-          onClose={() => setIsExportModalOpen(false)}
-          bookings={filteredBookings}
-          isDarkMode={isDarkMode}
-        />
-      )}
 
       {/* Info Modal */}
       {infoBooking && (

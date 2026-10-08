@@ -95,23 +95,6 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
         }
       }
 
-      const target = concepteurs.find(c => c.id === concepteurId)
-      if (target?.is_referent) {
-        const existingReferent = concepteurs.find(
-          c => currentConcepteurs.includes(c.id) && c.is_referent
-        )
-        if (existingReferent) {
-          setErrors(e => ({
-            ...e,
-            concepteurs:
-              `Un magasin ne peut avoir qu'un seul référent. ` +
-              `${existingReferent.name} est déjà référent. ` +
-              `Désactivez son statut dans Utilisateurs avant d'ajouter ${target.name}.`
-          }))
-          return prev
-        }
-      }
-
       setErrors(e => ({ ...e, concepteurs: undefined }))
       return {
         ...prev,
@@ -130,15 +113,6 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
       newErrors.name = 'Le nom du magasin est requis'
     }
 
-    const selectedReferents = concepteurs.filter(
-      c => formData.concepteurs.includes(c.id) && c.is_referent
-    )
-    if (selectedReferents.length > 1) {
-      newErrors.concepteurs =
-        'Un magasin ne peut avoir qu\'un seul concepteur référent. ' +
-        `Référents : ${selectedReferents.map(c => c.name).join(', ')}.`
-    }
-    
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       return
@@ -417,21 +391,6 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
                           flexWrap: 'wrap'
                         }}>
                           {concepteur.name}
-                          {concepteur.is_referent && (
-                            <span style={{
-                              fontSize: '10px',
-                              fontWeight: 700,
-                              letterSpacing: '0.04em',
-                              textTransform: 'uppercase',
-                              color: orangeColor,
-                              backgroundColor: `${orangeColor}22`,
-                              border: `1px solid ${orangeColor}55`,
-                              borderRadius: '999px',
-                              padding: '2px 8px'
-                            }}>
-                              Référent
-                            </span>
-                          )}
                         </div>
                         <div style={{ 
                           fontSize: '13px', 

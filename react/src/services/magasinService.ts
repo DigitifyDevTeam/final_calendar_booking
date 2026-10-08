@@ -11,7 +11,6 @@ export interface MagasinRecord {
     name: string
     email: string
     phone: string
-    is_referent?: boolean
   }[]
   created_at: string
   updated_at: string
@@ -31,7 +30,6 @@ interface MagasinApiResponse {
     name: string
     email: string
     phone: string
-    is_referent?: boolean
   }[]
   created_at: string
   updated_at: string

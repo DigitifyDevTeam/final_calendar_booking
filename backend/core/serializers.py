@@ -22,7 +22,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'name', 'email', 'phone', 'role', 'is_referent',
+            'id', 'name', 'email', 'phone', 'role',
             'password', 'confirm_password', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -61,44 +61,7 @@ class UserSerializer(serializers.ModelSerializer):
         # Remove confirm_password from attrs as it's not a model field
         attrs.pop('confirm_password', None)
 
-        # Référent only applies to concepteurs
-        role = attrs.get('role', getattr(self.instance, 'role', None))
-        if role != 'concepteur':
-            attrs['is_referent'] = False
-        else:
-            will_be_referent = attrs.get(
-                'is_referent',
-                bool(getattr(self.instance, 'is_referent', False)) if self.instance else False,
-            )
-            if will_be_referent:
-                self._ensure_unique_referent_per_magasin()
-
         return attrs
-
-    def _ensure_unique_referent_per_magasin(self):
-        """
-        Each magasin may have at most one concepteur référent.
-        Activating référent fails if another référent already exists in any shared magasin.
-        """
-        if not self.instance:
-            # New user is not linked to a magasin yet — conflict checked on magasin assignment
-            return
-
-        for magasin in self.instance.magasins.all():
-            other = (
-                magasin.concepteurs
-                .filter(role='concepteur', is_referent=True)
-                .exclude(pk=self.instance.pk)
-                .first()
-            )
-            if other:
-                raise serializers.ValidationError({
-                    'is_referent': (
-                        f'Le magasin « {magasin.name} » a déjà un concepteur référent '
-                        f'({other.name}). Désactivez d\'abord son statut référent, '
-                        f'puis réessayez.'
-                    )
-                })
     
     def create(self, validated_data):
         password = validated_data.pop('password')
@@ -212,7 +175,6 @@ class MagasinSerializer(serializers.ModelSerializer):
                 'name': c.name,
                 'email': c.email,
                 'phone': c.phone,
-                'is_referent': bool(c.is_referent),
             }
             for c in concepteurs
         ]
@@ -224,23 +186,12 @@ class MagasinSerializer(serializers.ModelSerializer):
         return value.strip()
     
     def validate_concepteurs(self, value):
-        """Validate concepteurs role + at most one référent per magasin"""
+        """Validate concepteurs role"""
         if value:
-            # Check that all IDs are valid concepteurs
             concepteur_ids = [c.id for c in value]
             valid_concepteurs = User.objects.filter(id__in=concepteur_ids, role='concepteur')
             if valid_concepteurs.count() != len(concepteur_ids):
                 raise serializers.ValidationError('Un ou plusieurs concepteurs sont invalides.')
-
-            referents = [c for c in value if getattr(c, 'is_referent', False)]
-            if len(referents) > 1:
-                names = ', '.join(c.name for c in referents)
-                raise serializers.ValidationError(
-                    'Un magasin ne peut avoir qu\'un seul concepteur référent. '
-                    f'Référents sélectionnés : {names}. '
-                    'Désactivez le statut référent sur le compte en trop (menu Utilisateurs), '
-                    'puis réessayez.'
-                )
         return value
     
     def create(self, validated_data):
@@ -323,16 +274,8 @@ class BookingSerializer(serializers.ModelSerializer):
             request and getattr(request, 'user', None)
             and getattr(request.user, 'role', None) == 'admin'
         )
-        is_concepteur = bool(
-            request and getattr(request, 'user', None)
-            and getattr(request.user, 'role', None) == 'concepteur'
-        )
         if not is_admin and 'statut_facturation' in attrs:
             attrs.pop('statut_facturation', None)
-
-        # Concepteur: force own designer_name; cannot create/edit under another name
-        if is_concepteur:
-            attrs['designer_name'] = request.user.name
 
         # For updates, use instance's calendar_id if not provided in attrs
         calendar_id = attrs.get('calendar_id')

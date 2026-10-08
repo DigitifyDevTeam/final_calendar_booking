@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { CALENDAR_CONFIGS, getAllBookings, getBookingAvailability, BookingRecord } from '../services/bookingService'
+import { CALENDAR_CONFIGS, getAllBookings, BookingRecord } from '../services/bookingService'
 import './AdminBookingModal.css'
 
 interface UserOption {
@@ -13,8 +13,6 @@ interface AdminBookingModalProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (data: AdminBookingFormData) => void
-  onTerminer?: (bookingId: string) => void
-  onAnnuler?: (bookingId: string) => void
   booking?: any // Existing booking for edit mode
   isDarkMode?: boolean
   users?: UserOption[] // List of users for designer selection (admin only)
@@ -39,8 +37,6 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
-  onTerminer,
-  onAnnuler,
   booking,
   isDarkMode = true,
   users = [],
@@ -66,7 +62,6 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
   
   // Track bookings for the selected date to filter available time slots
   const [bookingsForSelectedDate, setBookingsForSelectedDate] = useState<BookingRecord[]>([])
-  const [occupiedSlotsForSelectedDate, setOccupiedSlotsForSelectedDate] = useState<string[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
 
   // Helper function to format date to YYYY-MM-DD for date input
@@ -334,12 +329,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
       })
       .map((b: BookingRecord) => b.time)
     
-    // Normalize time strings for comparison (own list + anonymous occupancy)
     const normalizeTime = (time: string) => time.trim().toLowerCase()
-    const normalizedBookedSlots = [
-      ...bookedSlots.map(normalizeTime),
-      ...occupiedSlotsForSelectedDate.map(normalizeTime),
-    ]
+    const normalizedBookedSlots = bookedSlots.map(normalizeTime)
     
     // Get current booking's time slot
     const currentBookingTimeSlot = booking?.time
@@ -366,13 +357,12 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
     })
     
     return availableSlots
-  }, [formData.booking_date, formData.calendar_id, bookingsForSelectedDate, occupiedSlotsForSelectedDate, booking])
+  }, [formData.booking_date, formData.calendar_id, bookingsForSelectedDate, booking])
 
   // Fetch bookings when date changes
   useEffect(() => {
     if (!formData.booking_date) {
       setBookingsForSelectedDate([])
-      setOccupiedSlotsForSelectedDate([])
       return
     }
     
@@ -387,33 +377,20 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
     // Only fetch for time-slot calendars (SAV and Metré)
     if (calendarId !== CALENDAR_CONFIGS['calendar2'] && calendarId !== CALENDAR_CONFIGS['calendar3']) {
       setBookingsForSelectedDate([])
-      setOccupiedSlotsForSelectedDate([])
       return
     }
     
     const fetchBookings = async () => {
       setLoadingBookings(true)
       try {
-        const [bookings, availability] = await Promise.all([
-          getAllBookings(calendarId, {
-            startDate: formData.booking_date,
-            endDate: formData.booking_date
-          }),
-          getBookingAvailability(calendarId, {
-            startDate: formData.booking_date,
-            endDate: formData.booking_date
-          }),
-        ])
+        const bookings = await getAllBookings(calendarId, {
+          startDate: formData.booking_date,
+          endDate: formData.booking_date
+        })
         setBookingsForSelectedDate(bookings)
-        setOccupiedSlotsForSelectedDate(
-          (availability.occupied_slots || [])
-            .filter((s) => s.date === formData.booking_date)
-            .map((s) => s.time)
-        )
       } catch (error) {
         console.error('Error fetching bookings for date:', error)
         setBookingsForSelectedDate([])
-        setOccupiedSlotsForSelectedDate([])
       } finally {
         setLoadingBookings(false)
       }
@@ -428,26 +405,14 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
       const fetchBookings = async () => {
         setLoadingBookings(true)
         try {
-          const [bookings, availability] = await Promise.all([
-            getAllBookings(formData.calendar_id, {
-              startDate: formData.booking_date,
-              endDate: formData.booking_date
-            }),
-            getBookingAvailability(formData.calendar_id, {
-              startDate: formData.booking_date,
-              endDate: formData.booking_date
-            }),
-          ])
+          const bookings = await getAllBookings(formData.calendar_id, {
+            startDate: formData.booking_date,
+            endDate: formData.booking_date
+          })
           setBookingsForSelectedDate(bookings)
-          setOccupiedSlotsForSelectedDate(
-            (availability.occupied_slots || [])
-              .filter((s) => s.date === formData.booking_date)
-              .map((s) => s.time)
-          )
         } catch (error) {
           console.error('Error fetching bookings for date:', error)
           setBookingsForSelectedDate([])
-          setOccupiedSlotsForSelectedDate([])
         } finally {
           setLoadingBookings(false)
         }
@@ -785,102 +750,7 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
           })()}
 
           <div className="form-actions">
-            {booking && isAdmin && onTerminer && (() => {
-              const cal = (booking as any).calendarId || (booking as any).calendar_id || formData.calendar_id
-              const isClosableCalendar =
-                cal === CALENDAR_CONFIGS['calendar1'] || cal === 'calendar1' || cal === '1' ||
-                cal === CALENDAR_CONFIGS['calendar2'] || cal === 'calendar2' || cal === '2' ||
-                cal === CALENDAR_CONFIGS['calendar3'] || cal === 'calendar3' || cal === '3'
-              const isAlreadyFinished = (booking as any).status === 'termine'
-              const isAlreadyCancelled = (booking as any).status === 'annule'
-              if (!isClosableCalendar) {
-                return (
-                  <button type="button" className="cancel-button" onClick={onClose}>
-                    Fermer
-                  </button>
-                )
-              }
-              return (
-                <>
-                  <button type="button" className="cancel-button" onClick={onClose}>
-                    Fermer
-                  </button>
-                  {onAnnuler && (
-                    <button
-                      type="button"
-                      className="cancel-button"
-                      style={isAlreadyFinished || isAlreadyCancelled ? {
-                        opacity: 0.5,
-                        cursor: 'not-allowed',
-                        background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
-                        borderColor: '#dc2626',
-                        color: '#fff'
-                      } : {
-                        background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
-                        borderColor: '#dc2626',
-                        color: '#fff'
-                      }}
-                      disabled={isAlreadyFinished || isAlreadyCancelled}
-                      title={
-                        isAlreadyCancelled
-                          ? 'Cette réservation a déjà été annulée'
-                          : isAlreadyFinished
-                            ? 'Cette réservation est terminée'
-                            : 'Annuler l\'intervention'
-                      }
-                      onClick={() => onAnnuler(booking.id)}
-                    >
-                      {isAlreadyCancelled ? '✕ Déjà annulé' : 'Annuler l\'intervention'}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="cancel-button"
-                    style={
-                      isAlreadyCancelled
-                        ? {
-                            opacity: 0.95,
-                            cursor: 'not-allowed',
-                            background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
-                            borderColor: '#dc2626',
-                            color: '#ffffff',
-                            fontWeight: 700,
-                          }
-                        : isAlreadyFinished
-                          ? {
-                              opacity: 0.5,
-                              cursor: 'not-allowed',
-                              background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
-                              borderColor: '#10b981',
-                              color: '#0b1f16',
-                            }
-                          : {
-                              background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
-                              borderColor: '#10b981',
-                              color: '#0b1f16',
-                            }
-                    }
-                    disabled={isAlreadyFinished || isAlreadyCancelled}
-                    title={
-                      isAlreadyCancelled
-                        ? 'Cette réservation a été annulée'
-                        : isAlreadyFinished
-                          ? 'Cette réservation a déjà été terminée'
-                          : 'Clôturer sans contrainte de date (administrateur)'
-                    }
-                    onClick={() => onTerminer(booking.id)}
-                  >
-                    {isAlreadyCancelled ? '✕ Annulé' : isAlreadyFinished ? '✓ Déjà terminé' : 'Terminer'}
-                  </button>
-                </>
-              )
-            })()}
-            {booking && isAdmin && !onTerminer && (
-              <button type="button" className="cancel-button" onClick={onClose}>
-                Annuler
-              </button>
-            )}
-            {booking && !isAdmin && (
+            {booking && (
               <button type="button" className="cancel-button" onClick={onClose}>
                 Annuler
               </button>

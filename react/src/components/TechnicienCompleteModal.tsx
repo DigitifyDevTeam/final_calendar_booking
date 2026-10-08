@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import './TechnicienCompleteModal.css'
 import { finishBooking } from '../services/bookingService'
+import { canTechnicianFinishByDate } from '../utils/finishWindow'
 
 interface TechnicienCompleteModalProps {
   isOpen: boolean
@@ -8,10 +9,9 @@ interface TechnicienCompleteModalProps {
   bookingId: string
   bookingCalendarId?: string
   bookingDate?: string
+  bookingTime?: string
   bookingStatus?: 'en_attente' | 'termine' | 'annule' | null
   isDarkMode?: boolean
-  /** Admin can close anytime without date constraints */
-  skipDateRestrictions?: boolean
   onFinish?: (payload: {
     bookingId: string
     menageFait?: boolean
@@ -53,9 +53,9 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
   bookingId,
   bookingCalendarId,
   bookingDate,
+  bookingTime,
   bookingStatus = 'en_attente',
   isDarkMode = true,
-  skipDateRestrictions = false,
   onFinish
 }) => {
   const [menageFait, setMenageFait] = useState(false)
@@ -73,7 +73,6 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
   const isSavCalendar = ['calendar2', '2'].includes(bookingCalendarId || '')
   const isMetreCalendar = ['calendar3', '3'].includes(bookingCalendarId || '')
   const isPoseCalendar = ['calendar1', '1'].includes(bookingCalendarId || '')
-  const isSavOrMetre = isSavCalendar || isMetreCalendar
   const showMenageCheckbox = !isMetreCalendar
   const showElectromenagerCheckbox = isSavCalendar || isPoseCalendar
   const showSavAPrevoirCheckbox = isSavCalendar || isPoseCalendar
@@ -82,29 +81,8 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
   const isAlreadyCancelled = bookingStatus === 'annule'
   const isLocked = isAlreadyFinished || isAlreadyCancelled
 
-  // SAV and Metré: can only finish on the same day as the reservation
-  // Pose: can only finish on the day of the reservation OR the next day (J or J+1)
-  const isSameDayAsReservation = !bookingDate ? true : (() => {
-    const today = new Date()
-    const resDate = new Date(bookingDate + 'T00:00:00')
-    return today.getFullYear() === resDate.getFullYear() &&
-           today.getMonth() === resDate.getMonth() &&
-           today.getDate() === resDate.getDate()
-  })()
-  const isSameDayOrNextDay = !bookingDate ? true : (() => {
-    const today = new Date()
-    const resDate = new Date(bookingDate + 'T00:00:00')
-    const nextDay = new Date(resDate)
-    nextDay.setDate(nextDay.getDate() + 1)
-    const sameDay = today.getFullYear() === resDate.getFullYear() &&
-      today.getMonth() === resDate.getMonth() && today.getDate() === resDate.getDate()
-    const nextDayMatch = today.getFullYear() === nextDay.getFullYear() &&
-      today.getMonth() === nextDay.getMonth() && today.getDate() === nextDay.getDate()
-    return sameDay || nextDayMatch
-  })()
-  const canFinishByDate = skipDateRestrictions
-    ? true
-    : (isPoseCalendar ? isSameDayOrNextDay : (!isSavOrMetre || isSameDayAsReservation))
+  // Pose / SAV / Métré: finalize until 48h after the scheduled appointment
+  const canFinishByDate = canTechnicianFinishByDate(bookingDate, bookingTime)
 
   useEffect(() => {
     if (isOpen) {
@@ -167,10 +145,8 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
         alert('Cette réservation a déjà été terminée.')
       } else if (isAlreadyCancelled) {
         alert('Cette réservation a été annulée.')
-      } else if (isSavOrMetre && !canFinishByDate) {
-        alert('Vous ne pouvez terminer que le jour même de la réservation.')
-      } else if (isPoseCalendar && !canFinishByDate) {
-        alert('Vous ne pouvez terminer que le jour de la réservation ou le lendemain (J ou J+1).')
+      } else if (!canFinishByDate) {
+        alert('La finalisation n\'est possible que jusqu\'à 48 heures après le rendez-vous.')
       }
       return
     }
@@ -251,7 +227,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
               ✕ Statut : Annulé
             </div>
           )}
-          {isSavOrMetre && !isSameDayAsReservation && !isLocked && !skipDateRestrictions && (
+          {!canFinishByDate && !isLocked && (
             <div style={{
               padding: '12px 16px',
               borderRadius: '8px',
@@ -262,21 +238,7 @@ const TechnicienCompleteModal: React.FC<TechnicienCompleteModalProps> = ({
               fontWeight: 600,
               textAlign: 'center'
             }}>
-              Vous ne pouvez terminer que le jour même de la réservation.
-            </div>
-          )}
-          {isPoseCalendar && !isSameDayOrNextDay && !isLocked && !skipDateRestrictions && (
-            <div style={{
-              padding: '12px 16px',
-              borderRadius: '8px',
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#ef4444',
-              marginBottom: '16px',
-              fontWeight: 600,
-              textAlign: 'center'
-            }}>
-              Vous ne pouvez terminer que le jour de la réservation ou le lendemain (J ou J+1).
+              La finalisation n&apos;est possible que jusqu&apos;à 48 heures après le rendez-vous.
             </div>
           )}
           <div className="checkbox-row">

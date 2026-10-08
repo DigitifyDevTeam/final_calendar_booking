@@ -261,7 +261,6 @@ function LoginPage() {
           email: data.email,
           phone: data.phone,
           role: data.role,
-          is_referent: Boolean(data.is_referent) && data.role === 'concepteur',
           isAuthenticated: true,
         }))
         

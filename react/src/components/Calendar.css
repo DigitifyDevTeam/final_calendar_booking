@@ -497,45 +497,6 @@
   opacity: 1 !important; /* keep reserved text readable in light mode */
 }
 
-/* Occupied créneau without personal details (other concepteur) */
-.time-slot.is-reserved {
-  opacity: 1 !important;
-  cursor: not-allowed !important;
-  background: linear-gradient(145deg, rgba(186, 78, 142, 0.12) 0%, rgba(40, 75, 115, 0.08) 100%) !important;
-  color: #7a3d62 !important;
-  border: 1px dashed rgba(186, 78, 142, 0.5) !important;
-  box-shadow: none !important;
-  transform: none !important;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-size: 0.75rem;
-}
-
-.calendar.dark-mode .time-slot.is-reserved {
-  background: linear-gradient(145deg, rgba(186, 78, 142, 0.22) 0%, rgba(40, 75, 115, 0.28) 100%) !important;
-  color: #f3d5e6 !important;
-  border-color: rgba(186, 78, 142, 0.65) !important;
-}
-
-.calendar.light-mode .time-slot.is-reserved {
-  background: linear-gradient(145deg, rgba(186, 78, 142, 0.1) 0%, rgba(186, 78, 142, 0.05) 100%) !important;
-  color: #7a3d62 !important;
-  border-color: rgba(186, 78, 142, 0.45) !important;
-}
-
-.time-slot.is-reserved:hover {
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-@media (max-width: 768px) {
-  .time-slot.is-reserved {
-    font-size: 0.62rem;
-    letter-spacing: 0.02em;
-  }
-}
-
 .day-name {
   font-size: 0.85rem;
   text-transform: uppercase;

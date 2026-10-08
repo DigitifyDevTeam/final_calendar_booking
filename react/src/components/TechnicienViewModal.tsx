@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import './TechnicienViewModal.css'
 import { BookingRecord } from '../services/bookingService'
 import TechnicienCompleteModal from './TechnicienCompleteModal'
-import CancelInterventionModal from './CancelInterventionModal'
+import { canTechnicianFinishByDate } from '../utils/finishWindow'
 
 interface TechnicienViewModalProps {
   isOpen: boolean
@@ -19,7 +19,6 @@ interface TechnicienViewModalProps {
     message?: string
     attachments: File[]
   }) => void
-  onCancelled?: () => void | Promise<void>
 }
 
 const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
@@ -28,10 +27,8 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
   booking,
   isDarkMode = true,
   onFinish,
-  onCancelled,
 }) => {
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false)
-  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -50,36 +47,17 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
   const isMetreCalendar = ['calendar3', '3'].includes(booking.calendar_id || '')
   const isAlreadyFinished = (booking as any).status === 'termine'
   const isAlreadyCancelled = (booking as any).status === 'annule'
-  const canCancel = !isAlreadyFinished && !isAlreadyCancelled
 
-  // SAV and Metré: technicien can click "Terminer" only on the same day as the reservation date
-  // Pose: technicien can click "Terminer" on the day of the reservation OR the next day (J or J+1) only
-  const isSavOrMetre = isSavCalendar || isMetreCalendar
-  const isSameDayAsReservation = (() => {
-    if (!booking.date) return false
-    const today = new Date()
-    const resDate = new Date(booking.date + 'T00:00:00')
-    return today.getFullYear() === resDate.getFullYear() &&
-           today.getMonth() === resDate.getMonth() &&
-           today.getDate() === resDate.getDate()
-  })()
-  const isSameDayOrNextDay = (() => {
-    if (!booking.date) return false
-    const today = new Date()
-    const resDate = new Date(booking.date + 'T00:00:00')
-    const nextDay = new Date(resDate)
-    nextDay.setDate(nextDay.getDate() + 1)
-    const sameDay = today.getFullYear() === resDate.getFullYear() &&
-      today.getMonth() === resDate.getMonth() && today.getDate() === resDate.getDate()
-    const nextDayMatch = today.getFullYear() === nextDay.getFullYear() &&
-      today.getMonth() === nextDay.getMonth() && today.getDate() === nextDay.getDate()
-    return sameDay || nextDayMatch
-  })()
-  const canFinish = (isPoseCalendar || isSavCalendar || isMetreCalendar) && !isAlreadyFinished && !isAlreadyCancelled &&
-    (isPoseCalendar ? isSameDayOrNextDay : isSameDayAsReservation)
-  const showFinishDisabled = !isAlreadyFinished && !isAlreadyCancelled && (
-    (isSavOrMetre && !isSameDayAsReservation) || (isPoseCalendar && !isSameDayOrNextDay)
-  )
+  // Pose / SAV / Métré: finalize until 48h after the scheduled appointment
+  const withinFinishWindow = canTechnicianFinishByDate(booking.date, booking.time)
+  const canFinish = (isPoseCalendar || isSavCalendar || isMetreCalendar) &&
+    !isAlreadyFinished &&
+    !isAlreadyCancelled &&
+    withinFinishWindow
+  const showFinishDisabled = (isPoseCalendar || isSavCalendar || isMetreCalendar) &&
+    !isAlreadyFinished &&
+    !isAlreadyCancelled &&
+    !withinFinishWindow
 
   const formatDate = (dateStr: string): string => {
     try {
@@ -96,8 +74,8 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
   }
 
   return (
-    <div className={`technicien-modal-overlay ${isDarkMode ? 'dark-mode' : 'light-mode'}`} onClick={(isCompleteModalOpen || isCancelModalOpen) ? undefined : onClose}>
-      {!isCompleteModalOpen && !isCancelModalOpen && (
+    <div className={`technicien-modal-overlay ${isDarkMode ? 'dark-mode' : 'light-mode'}`} onClick={isCompleteModalOpen ? undefined : onClose}>
+      {!isCompleteModalOpen && (
         <div className="technicien-modal-wrapper">
           <div className="technicien-modal" onClick={(e) => e.stopPropagation()}>
             <div className="technicien-modal-header">
@@ -224,23 +202,9 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
                 <button
                   className="finish-action-button"
                   disabled
-                  title={isPoseCalendar
-                    ? 'Vous ne pouvez terminer que le jour de la réservation ou le lendemain (J ou J+1)'
-                    : 'Vous ne pouvez terminer que le jour même de la réservation'}
+                  title="La finalisation n'est possible que jusqu'à 48 heures après le rendez-vous"
                 >
                   Terminer
-                </button>
-              )}
-              {canCancel && (
-                <button
-                  className="finish-action-button"
-                  style={{
-                    background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
-                    borderColor: '#dc2626',
-                  }}
-                  onClick={() => setIsCancelModalOpen(true)}
-                >
-                  Annuler l&apos;intervention
                 </button>
               )}
               {isAlreadyCancelled && (
@@ -273,6 +237,7 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
         bookingId={booking.id}
         bookingCalendarId={booking.calendar_id}
         bookingDate={booking.date}
+        bookingTime={booking.time}
         bookingStatus={(booking as any).status || 'en_attente'}
         isDarkMode={isDarkMode}
         onFinish={async (payload) => {
@@ -281,21 +246,6 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
           }
           setIsCompleteModalOpen(false)
           onClose() // Close the parent modal after finishing
-        }}
-      />
-
-      <CancelInterventionModal
-        isOpen={isCancelModalOpen}
-        onClose={() => setIsCancelModalOpen(false)}
-        bookingId={booking.id}
-        bookingStatus={(booking as any).status || 'en_attente'}
-        isDarkMode={isDarkMode}
-        onCancelled={async () => {
-          if (onCancelled) {
-            await onCancelled()
-          }
-          setIsCancelModalOpen(false)
-          onClose()
         }}
       />
     </div>
