@@ -965,6 +965,7 @@ function MagasinsPage() {
                     <thead>
                       <tr>
                         <th>Nom</th>
+                        <th>E-mail responsable</th>
                         <th>Concepteurs</th>
                         <th>Créé le</th>
                         <th>Actions</th>
@@ -974,6 +975,15 @@ function MagasinsPage() {
                       {filteredMagasins.map((magasin) => (
                         <tr key={magasin.id}>
                           <td style={{ fontWeight: 600 }}>{magasin.name}</td>
+                          <td>
+                            {magasin.responsable_email ? (
+                              <a href={`mailto:${magasin.responsable_email}`} style={{ color: '#284B73' }}>
+                                {magasin.responsable_email}
+                              </a>
+                            ) : (
+                              <span style={{ color: textSecondary }}>—</span>
+                            )}
+                          </td>
                           <td>
                             {magasin.concepteurs_details && magasin.concepteurs_details.length > 0 ? (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>

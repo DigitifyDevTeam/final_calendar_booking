@@ -3,7 +3,7 @@ Load environment variables for local vs production.
 
 Switch with DJANGO_ENV before starting Django:
 
-  Local:      DJANGO_ENV=local       → loads .env.local
+  Local:      DJANGO_ENV=local       → loads .env.local (fallback: .env)
   Production: DJANGO_ENV=production  → loads .env.production (or .env)
 
 Only one file is loaded per process. Managed keys are cleared first so
@@ -34,6 +34,11 @@ _MANAGED_KEYS = (
     'TIME_ZONE',
     'DEFAULT_FROM_EMAIL',
     'CONTACT_EMAIL_RECIPIENTS',
+    'EMAIL_HOST',
+    'EMAIL_PORT',
+    'EMAIL_USE_TLS',
+    'EMAIL_HOST_USER',
+    'EMAIL_HOST_PASSWORD',
     'GMAIL_CLIENT_ID',
     'GMAIL_CLIENT_SECRET',
     'GMAIL_TOKEN_JSON',
@@ -88,12 +93,13 @@ def load_env(base_dir: Path | None = None) -> Path | None:
                 return path
         return None
 
-    local_env = root / '.env.local'
-    if local_env.exists():
-        load_dotenv(dotenv_path=local_env, override=True)
-        # Keep profile local even if file mistakenly sets DJANGO_ENV=production
-        os.environ['DJANGO_ENV'] = 'local'
-        return local_env
+    # Prefer .env.local; fall back to .env for local SMTP / shared local secrets
+    for path in (root / '.env.local', root / '.env'):
+        if path.exists():
+            load_dotenv(dotenv_path=path, override=True)
+            # Keep profile local even if file mistakenly sets DJANGO_ENV=production
+            os.environ['DJANGO_ENV'] = 'local'
+            return path
 
     return None
 
@@ -107,7 +113,7 @@ def describe_env(base_dir: Path | None = None) -> str:
             if path.exists():
                 return f'profile=production file={path.name}'
         return 'profile=production file=MISSING (.env.production or .env)'
-    local_env = root / '.env.local'
-    if local_env.exists():
-        return f'profile=local file={local_env.name}'
-    return 'profile=local file=MISSING (.env.local)'
+    for path in (root / '.env.local', root / '.env'):
+        if path.exists():
+            return f'profile=local file={path.name}'
+    return 'profile=local file=MISSING (.env.local or .env)'

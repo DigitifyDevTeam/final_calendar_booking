@@ -1,13 +1,14 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 
-from .views import BookingListCreateView, BookingRetrieveUpdateDestroyView, BookingResetView, BookingDebugView, ContactEmailView, HolidayListCreateView, HolidayRetrieveUpdateDestroyView, UserListCreateView, UserRetrieveUpdateDestroyView, UserLoginView, PasswordResetRequestView, PasswordResetConfirmView, MagasinListCreateView, MagasinRetrieveUpdateDestroyView, BookingFinishView, ConcepteurMagasinView
+from .views import BookingListCreateView, BookingRetrieveUpdateDestroyView, BookingResetView, BookingDebugView, ContactEmailView, HolidayListCreateView, HolidayRetrieveUpdateDestroyView, UserListCreateView, UserRetrieveUpdateDestroyView, UserLoginView, PasswordResetRequestView, PasswordResetConfirmView, MagasinListCreateView, MagasinRetrieveUpdateDestroyView, BookingFinishView, BookingCancelView, ConcepteurMagasinView
 
 urlpatterns = [
     path('contact-email/', ContactEmailView.as_view(), name='contact-email'),
     path('bookings/', BookingListCreateView.as_view(), name='booking-list-create'),
     path('bookings/<int:pk>/', BookingRetrieveUpdateDestroyView.as_view(), name='booking-detail'),
     path('bookings/<int:pk>/finish/', BookingFinishView.as_view(), name='booking-finish'),
+    path('bookings/<int:pk>/cancel/', BookingCancelView.as_view(), name='booking-cancel'),
     path('bookings/reset/', BookingResetView.as_view(), name='booking-reset'),
     path('bookings/debug/', BookingDebugView.as_view(), name='booking-debug'),
     path('holidays/', HolidayListCreateView.as_view(), name='holiday-list-create'),

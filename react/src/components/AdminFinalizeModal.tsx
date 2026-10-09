@@ -1,0 +1,208 @@
+import React, { useEffect, useRef, useState } from 'react'
+import './CancelInterventionModal.css'
+import { finishBooking } from '../services/bookingService'
+
+interface AdminFinalizeModalProps {
+  isOpen: boolean
+  onClose: () => void
+  bookingId: string
+  bookingStatus?: string | null
+  isDarkMode?: boolean
+  onFinalized?: () => void | Promise<void>
+}
+
+const AdminFinalizeModal: React.FC<AdminFinalizeModalProps> = ({
+  isOpen,
+  onClose,
+  bookingId,
+  bookingStatus,
+  isDarkMode = true,
+  onFinalized,
+}) => {
+  const [motif, setMotif] = useState('')
+  const [attachments, setAttachments] = useState<File[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const isAlreadyCancelled = bookingStatus === 'annule'
+  const isAlreadyFinished = bookingStatus === 'termine'
+  const isLocked = isAlreadyCancelled || isAlreadyFinished
+  const canSubmit = !isLocked && !submitting && !!motif.trim() && attachments.length > 0
+
+  useEffect(() => {
+    if (isOpen) {
+      setMotif('')
+      setAttachments([])
+      setError(null)
+      setSubmitting(false)
+    }
+  }, [isOpen, bookingId])
+
+  if (!isOpen) return null
+
+  const addFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    const next: File[] = []
+    Array.from(files).forEach((file) => {
+      const lower = file.name.toLowerCase()
+      const isPdf = file.type === 'application/pdf' || lower.endsWith('.pdf')
+      const isImage =
+        file.type.startsWith('image/') ||
+        /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(lower)
+      if (isPdf || isImage) next.push(file)
+    })
+    if (next.length === 0) {
+      setError('Seuls les fichiers images et PDF sont autorisés.')
+      return
+    }
+    setError(null)
+    setAttachments((prev) => [...prev, ...next])
+  }
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (isLocked || submitting) return
+
+    const trimmed = motif.trim()
+    if (!trimmed) {
+      setError('Le motif / commentaire de finalisation est obligatoire.')
+      return
+    }
+    if (attachments.length === 0) {
+      setError('Au moins une pièce jointe justificative (photo ou PDF) est obligatoire.')
+      return
+    }
+
+    setSubmitting(true)
+    setError(null)
+    try {
+      await finishBooking(bookingId, {
+        motif: trimmed,
+        message: trimmed,
+        attachments,
+      })
+      if (onFinalized) {
+        await onFinalized()
+      }
+      onClose()
+    } catch (err: any) {
+      setError(err?.message || 'Erreur lors de la finalisation')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div
+      className={`cancel-intervention-overlay ${isDarkMode ? 'dark-mode' : 'light-mode'}`}
+      onClick={onClose}
+    >
+      <div className="cancel-intervention-wrapper" onClick={(e) => e.stopPropagation()}>
+        <form className="cancel-intervention-modal" onSubmit={handleSubmit}>
+          <div className="cancel-intervention-header">
+            <div>
+              <h2>Finaliser l&apos;intervention</h2>
+              <p>
+                En tant qu&apos;administrateur, vous pouvez finaliser sans limite de temps.
+                Motif et pièce jointe obligatoires (même procédure que pour une annulation).
+              </p>
+            </div>
+            <button type="button" className="close-button" onClick={onClose} aria-label="Fermer">
+              ×
+            </button>
+          </div>
+
+          <div className="cancel-intervention-body">
+            {isAlreadyCancelled && (
+              <div className="cancel-status-banner is-cancelled">
+                Cette intervention est annulée et ne peut plus être finalisée.
+              </div>
+            )}
+            {isAlreadyFinished && (
+              <div className="cancel-status-banner is-finished">
+                Cette intervention est déjà terminée.
+              </div>
+            )}
+
+            <label className="cancel-field-label" htmlFor="admin-finalize-motif">
+              Motif / commentaire <span className="required">*</span>
+            </label>
+            <textarea
+              id="admin-finalize-motif"
+              className="cancel-motif-input"
+              value={motif}
+              onChange={(e) => setMotif(e.target.value)}
+              placeholder="Expliquez la raison de la finalisation..."
+              rows={4}
+              disabled={isLocked || submitting}
+              required
+            />
+
+            <div className="cancel-upload-block">
+              <p className="cancel-field-label">
+                Pièce jointe justificative (photo ou PDF) <span className="required">*</span>
+              </p>
+              <div className="cancel-upload-actions">
+                <button
+                  type="button"
+                  className="cancel-upload-btn"
+                  disabled={isLocked || submitting}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Ajouter photo / PDF
+                </button>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,application/pdf,.pdf"
+                multiple
+                hidden
+                onChange={(e) => {
+                  addFiles(e.target.files)
+                  e.target.value = ''
+                }}
+              />
+
+              {attachments.length > 0 && (
+                <ul className="cancel-attachment-list">
+                  {attachments.map((file, index) => (
+                    <li key={`${file.name}-${index}`}>
+                      <span>{file.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(index)}
+                        disabled={submitting}
+                        aria-label="Retirer"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {error && <div className="cancel-error">{error}</div>}
+          </div>
+
+          <div className="cancel-intervention-footer">
+            <button type="button" className="cancel-secondary-btn" onClick={onClose} disabled={submitting}>
+              Fermer
+            </button>
+            <button type="submit" className="cancel-primary-btn" disabled={!canSubmit}>
+              {submitting ? 'Finalisation...' : 'Confirmer la finalisation'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+export default AdminFinalizeModal

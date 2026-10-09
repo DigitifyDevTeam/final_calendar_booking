@@ -14,8 +14,11 @@ interface MagasinModalProps {
 
 export interface MagasinFormData {
   name: string
+  responsable_email: string
   concepteurs: number[]
 }
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const MagasinModal: React.FC<MagasinModalProps> = ({
   isOpen,
@@ -26,6 +29,7 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<MagasinFormData>({
     name: '',
+    responsable_email: '',
     concepteurs: []
   })
   const [errors, setErrors] = useState<Partial<Record<keyof MagasinFormData, string>>>({})
@@ -54,12 +58,14 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
       
       setFormData({
         name: magasin.name || '',
+        responsable_email: magasin.responsable_email || '',
         concepteurs: concepteurIds
       })
     } else {
       // Create mode - reset form
       setFormData({
         name: '',
+        responsable_email: '',
         concepteurs: []
       })
     }
@@ -113,6 +119,13 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
       newErrors.name = 'Le nom du magasin est requis'
     }
 
+    const responsableEmail = formData.responsable_email.trim()
+    if (!responsableEmail) {
+      newErrors.responsable_email = "L'adresse e-mail du responsable du magasin est requise"
+    } else if (!EMAIL_REGEX.test(responsableEmail)) {
+      newErrors.responsable_email = 'Veuillez saisir une adresse e-mail valide'
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       return
@@ -120,7 +133,11 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
     
     setIsSubmitting(true)
     try {
-      await onSubmit(formData)
+      await onSubmit({
+        ...formData,
+        name: formData.name.trim(),
+        responsable_email: responsableEmail,
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -265,6 +282,63 @@ const MagasinModal: React.FC<MagasinModalProps> = ({
                 fontWeight: 500
               }}>
                 {errors.name}
+              </span>
+            )}
+          </div>
+
+          {/* Responsable email Field */}
+          <div className="magasin-form-group">
+            <label htmlFor="responsable_email" style={{
+              color: textColor,
+              fontSize: '14px',
+              fontWeight: 600,
+              marginBottom: '8px',
+              display: 'block'
+            }}>
+              E-mail du responsable du magasin <span style={{ color: '#284B73' }}>*</span>
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="email"
+                id="responsable_email"
+                name="responsable_email"
+                value={formData.responsable_email}
+                onChange={handleChange}
+                className={errors.responsable_email ? 'magasin-input-error' : 'magasin-input'}
+                style={{
+                  backgroundColor: inputBg,
+                  color: textColor,
+                  borderColor: errors.responsable_email ? '#284B73' : borderColor,
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  border: `2px solid ${errors.responsable_email ? '#284B73' : borderColor}`,
+                  fontSize: '15px',
+                  fontWeight: 400,
+                  transition: 'all 0.2s',
+                  outline: 'none'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = errors.responsable_email ? '#284B73' : orangeColor
+                  e.currentTarget.style.boxShadow = `0 0 0 3px ${orangeColor}15`
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = errors.responsable_email ? '#284B73' : borderColor
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+                placeholder="responsable@exemple.com"
+                autoComplete="email"
+              />
+            </div>
+            {errors.responsable_email && (
+              <span style={{
+                color: '#284B73',
+                fontSize: '13px',
+                marginTop: '6px',
+                display: 'block',
+                fontWeight: 500
+              }}>
+                {errors.responsable_email}
               </span>
             )}
           </div>

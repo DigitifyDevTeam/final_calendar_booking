@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import './TechnicienViewModal.css'
 import { BookingRecord } from '../services/bookingService'
 import TechnicienCompleteModal from './TechnicienCompleteModal'
+import CancelInterventionModal from './CancelInterventionModal'
 import { canTechnicianFinishByDate } from '../utils/finishWindow'
 
 interface TechnicienViewModalProps {
@@ -19,6 +20,7 @@ interface TechnicienViewModalProps {
     message?: string
     attachments: File[]
   }) => void
+  onCancelled?: () => void | Promise<void>
 }
 
 const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
@@ -27,8 +29,10 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
   booking,
   isDarkMode = true,
   onFinish,
+  onCancelled,
 }) => {
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false)
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -58,6 +62,9 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
     !isAlreadyFinished &&
     !isAlreadyCancelled &&
     !withinFinishWindow
+  const canCancel = (isPoseCalendar || isSavCalendar || isMetreCalendar) &&
+    !isAlreadyFinished &&
+    !isAlreadyCancelled
 
   const formatDate = (dateStr: string): string => {
     try {
@@ -74,8 +81,11 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
   }
 
   return (
-    <div className={`technicien-modal-overlay ${isDarkMode ? 'dark-mode' : 'light-mode'}`} onClick={isCompleteModalOpen ? undefined : onClose}>
-      {!isCompleteModalOpen && (
+    <div
+      className={`technicien-modal-overlay ${isDarkMode ? 'dark-mode' : 'light-mode'}`}
+      onClick={isCompleteModalOpen || isCancelModalOpen ? undefined : onClose}
+    >
+      {!isCompleteModalOpen && !isCancelModalOpen && (
         <div className="technicien-modal-wrapper">
           <div className="technicien-modal" onClick={(e) => e.stopPropagation()}>
             <div className="technicien-modal-header">
@@ -207,6 +217,20 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
                   Terminer
                 </button>
               )}
+              {canCancel && (
+                <button
+                  className="finish-action-button"
+                  onClick={() => setIsCancelModalOpen(true)}
+                  style={{
+                    background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+                    borderColor: '#dc2626',
+                    color: '#fff',
+                    fontWeight: 700,
+                  }}
+                >
+                  Annuler l&apos;intervention
+                </button>
+              )}
               {isAlreadyCancelled && (
                 <button
                   className="finish-action-button"
@@ -246,6 +270,21 @@ const TechnicienViewModal: React.FC<TechnicienViewModalProps> = ({
           }
           setIsCompleteModalOpen(false)
           onClose() // Close the parent modal after finishing
+        }}
+      />
+
+      <CancelInterventionModal
+        isOpen={isCancelModalOpen}
+        onClose={() => setIsCancelModalOpen(false)}
+        bookingId={booking.id}
+        bookingStatus={(booking as any).status || 'en_attente'}
+        isDarkMode={isDarkMode}
+        onCancelled={async () => {
+          if (onCancelled) {
+            await onCancelled()
+          }
+          setIsCancelModalOpen(false)
+          onClose()
         }}
       />
     </div>

@@ -39,18 +39,15 @@ SECURE_BROWSER_XSS_FILTER = False
 SECURE_CONTENT_TYPE_NOSNIFF = False
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-# Email - Gmail OAuth2 backend (LOCAL credentials from .env.local — not production)
-EMAIL_BACKEND = 'core.gmail_oauth.GmailOAuth2Backend'
+# Email - Gmail SMTP App Password from .env / .env.local (local only)
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('1', 'true', 'yes')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'backendsmtp7@gmail.com')
+# Gmail app passwords may be stored with spaces — SMTP expects the 16 chars without them
+EMAIL_HOST_PASSWORD = (os.environ.get('EMAIL_HOST_PASSWORD') or '').replace(' ', '')
 
-# OAuth2 credentials: set GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET in .env.local
-# Optional fallback: client_secret_*.json via GMAIL_CREDENTIALS_FILE
-GMAIL_CREDENTIALS_FILE = os.environ.get('GMAIL_CREDENTIALS_FILE')
-
-# Token: prefer GMAIL_TOKEN_FILE=backend/gmail_token.json after setup_gmail_oauth.py
-# Or set GMAIL_TOKEN_JSON in .env.local (single-quoted JSON string)
-GMAIL_TOKEN_FILE = os.environ.get('GMAIL_TOKEN_FILE')
-
-# Email addresses (local test account — override via .env.local)
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'backendsmtp7@gmail.com')
-CONTACT_EMAIL_RECIPIENTS = os.environ.get('CONTACT_EMAIL_RECIPIENTS', 'backendsmtp7@gmail.com')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+CONTACT_EMAIL_RECIPIENTS = os.environ.get('CONTACT_EMAIL_RECIPIENTS', EMAIL_HOST_USER)
 

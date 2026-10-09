@@ -163,7 +163,15 @@ class MagasinSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Magasin
-        fields = ['id', 'name', 'concepteurs', 'concepteurs_details', 'created_at', 'updated_at']
+        fields = [
+            'id',
+            'name',
+            'responsable_email',
+            'concepteurs',
+            'concepteurs_details',
+            'created_at',
+            'updated_at',
+        ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'concepteurs_details']
     
     def get_concepteurs_details(self, obj):
@@ -184,6 +192,15 @@ class MagasinSerializer(serializers.ModelSerializer):
         if not value or not value.strip():
             raise serializers.ValidationError('Le nom du magasin est requis.')
         return value.strip()
+
+    def validate_responsable_email(self, value):
+        """Require and normalize the store manager email."""
+        email = (value or '').strip()
+        if not email:
+            raise serializers.ValidationError(
+                "L'adresse e-mail du responsable du magasin est requise."
+            )
+        return email.lower()
     
     def validate_concepteurs(self, value):
         """Validate concepteurs role"""
@@ -423,10 +440,12 @@ class BookingSerializer(serializers.ModelSerializer):
         # Filter bookings for this calendar and date
         # Check all possible calendar_id formats
         # Only check future/present dates (skip validation for past dates)
+        # Cancelled ('annule') bookings must NOT occupy the slot: they are kept
+        # as historical records but free the slot for a new reservation.
         queryset = Booking.objects.filter(
             calendar_id__in=calendar_ids_to_query,
             booking_date=booking_date
-        )
+        ).exclude(status='annule')
         
         # Exclude the current booking instance when updating
         if self.instance:
@@ -484,7 +503,10 @@ class BookingSerializer(serializers.ModelSerializer):
                     booking_date=booking_date,
                     booking_time__iexact=normalized_booking_time
                 )
-            
+
+            # Cancelled ('annule') bookings free the slot (kept as history only)
+            slot_qs = slot_qs.exclude(status='annule')
+
             # Exclude the current booking instance when updating
             if self.instance:
                 slot_qs = slot_qs.exclude(pk=self.instance.pk)

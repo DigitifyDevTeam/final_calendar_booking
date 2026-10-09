@@ -381,6 +381,13 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         let filteredPastCount = 0
         let filteredTimeSlotCount = 0
         allBookings.forEach((booking: BookingRecord) => {
+          // Cancelled bookings free the slot: they stay in allBookingsData as
+          // historical records (shown with red status) but must NOT occupy the
+          // slot/count so the same date/time can be booked again.
+          if ((booking as any).status === 'annule') {
+            return
+          }
+
           const bookingDate = new Date(booking.date + 'T00:00:00')
           bookingDate.setHours(0, 0, 0, 0)
           
@@ -3123,6 +3130,16 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           isDarkMode={isDarkMode}
           users={isAdmin ? usersList : []}
           isAdmin={isAdmin}
+          onFinalized={async () => {
+            setIsEditModalOpen(false)
+            setEditingBooking(null)
+            setInternalRefreshTrigger(prev => prev + 1)
+          }}
+          onCancelled={async () => {
+            setIsEditModalOpen(false)
+            setEditingBooking(null)
+            setInternalRefreshTrigger(prev => prev + 1)
+          }}
         />
       )}
 
@@ -3136,6 +3153,11 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         booking={technicienViewBooking}
         isDarkMode={isDarkMode}
         onFinish={async () => {
+          setIsTechnicienModalOpen(false)
+          setTechnicienViewBooking(null)
+          setInternalRefreshTrigger(prev => prev + 1)
+        }}
+        onCancelled={async () => {
           setIsTechnicienModalOpen(false)
           setTechnicienViewBooking(null)
           setInternalRefreshTrigger(prev => prev + 1)

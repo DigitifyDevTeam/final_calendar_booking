@@ -229,6 +229,8 @@
 }
 
 .cancel-button,
+.cancel-intervention-button,
+.finalize-button,
 .submit-button {
   padding: 12px 24px;
   border: none;
@@ -255,6 +257,28 @@
 
 .admin-booking-modal-overlay.dark-mode .cancel-button:hover {
   background: #3a3a3a;
+}
+
+.cancel-intervention-button {
+  background: #dc2626 !important;
+  color: white !important;
+}
+
+.cancel-intervention-button:hover {
+  background: #b91c1c !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.finalize-button {
+  background: #059669 !important;
+  color: white !important;
+}
+
+.finalize-button:hover {
+  background: #047857 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
 }
 
 .submit-button {
@@ -321,6 +345,8 @@
   }
 
   .cancel-button,
+  .cancel-intervention-button,
+  .finalize-button,
   .submit-button {
     width: 100%;
     padding: 14px 20px;

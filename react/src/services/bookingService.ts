@@ -353,7 +353,8 @@ export const isDateFullyBooked = async (date: string, binId?: string, maxBooking
     }
 
     const bookings = await getAllBookings(binId, { startDate: date, endDate: date })
-    const count = bookings.filter((b) => b.date === date).length
+    // Cancelled bookings free the slot — count only active ones
+    const count = bookings.filter((b) => b.date === date && b.status !== 'annule').length
     const limit = maxBookings ?? getMaxBookingsPerDay(binId)
     
     return count >= limit;
@@ -391,6 +392,11 @@ export const addBooking = async (bookingData: BookingData, binId?: string, maxBo
         
         const isSlotBooked = existingBookings.some(
           booking => {
+            // Cancelled bookings free the slot (kept as history only)
+            if (booking.status === 'annule') {
+              return false
+            }
+
             // Only check bookings for future dates
             const existingBookingDate = new Date(booking.date + 'T00:00:00')
             existingBookingDate.setHours(0, 0, 0, 0)
@@ -582,16 +588,17 @@ export const deleteBooking = async (bookingId: string, calendarId?: string): Pro
   }
 }
 
-// Finish a booking (technician completion)
+// Finish a booking (technician checklist, or admin finalize with motif + attachments)
 export const finishBooking = async (
   bookingId: string,
   data: {
     menageFait?: boolean
-    cftSigne: boolean
+    cftSigne?: boolean
     electromenagerFonctionnel?: boolean
     savAPrevoir?: boolean
     ascenseurEscaliers?: boolean
     message?: string
+    motif?: string
     attachments: File[]
   }
 ): Promise<{
@@ -617,7 +624,9 @@ export const finishBooking = async (
     if (data.menageFait !== undefined) {
       formData.append('menage_fait', String(data.menageFait))
     }
-    formData.append('cft_signe', String(data.cftSigne))
+    if (data.cftSigne !== undefined) {
+      formData.append('cft_signe', String(data.cftSigne))
+    }
     
     if (data.electromenagerFonctionnel !== undefined) {
       formData.append('electromenager_fonctionnel', String(data.electromenagerFonctionnel))
@@ -627,6 +636,9 @@ export const finishBooking = async (
     }
     if (data.ascenseurEscaliers !== undefined) {
       formData.append('ascenseur_escaliers', String(data.ascenseurEscaliers))
+    }
+    if (data.motif !== undefined && data.motif.trim()) {
+      formData.append('motif', data.motif.trim())
     }
     if (data.message !== undefined && data.message.trim()) {
       formData.append('message', data.message.trim())
@@ -665,6 +677,56 @@ export const finishBooking = async (
     return result
   } catch (error) {
     console.error('Error finishing booking:', error)
+    throw error
+  }
+}
+
+export const cancelBooking = async (
+  bookingId: string,
+  data: {
+    motif: string
+    attachments: File[]
+  }
+): Promise<{
+  message: string
+  booking_id: number
+  uploaded_files: Array<{ original_name: string; saved_name: string; path: string }>
+  cancellation_data: {
+    motif: string
+    cancelled_at: string | null
+    status: string
+  }
+}> => {
+  try {
+    const formData = new FormData()
+    formData.append('motif', data.motif.trim())
+    data.attachments.forEach((file) => {
+      formData.append('files', file, file.name)
+    })
+
+    const accessToken = sessionStorage.getItem('access_token')
+    if (!accessToken) {
+      throw new Error('No access token found')
+    }
+
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/cancel/`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }))
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    clearBookingsCache()
+    return result
+  } catch (error) {
+    console.error('Error cancelling booking:', error)
     throw error
   }
 }

@@ -189,10 +189,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
       return { canFitDuration2: true, canFitDuration3: true }
     }
 
-    // Count bookings for a specific date
+    // Count bookings for a specific date (cancelled bookings free the slot)
     const getBookingCountForDate = (date: Date): number => {
       const dateStr = formatDateString(date)
-      return existingBookings.filter(b => b.date === dateStr).length
+      return existingBookings.filter(
+        b => b.date === dateStr && (b as any).status !== 'annule'
+      ).length
     }
 
     // Check if a date is a holiday
@@ -351,6 +353,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
     const currentBookingTimeSlot = initialData?.timeSlot
     const bookedSlots = bookingsForSelectedDate
       .filter((b: BookingRecord) => {
+        // Cancelled bookings free the slot (kept only as history)
+        if ((b as any).status === 'annule') {
+          return false
+        }
         // Exclude the current booking's time slot if we're editing
         if (currentBookingTimeSlot && b.time && b.time.trim().toLowerCase() === currentBookingTimeSlot.trim().toLowerCase()) {
           return false

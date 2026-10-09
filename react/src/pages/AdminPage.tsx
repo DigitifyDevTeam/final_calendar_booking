@@ -1662,6 +1662,18 @@ function AdminPage() {
         isDarkMode={isDarkMode}
         users={isAdmin ? usersList : []}
         isAdmin={isAdmin}
+        onFinalized={async () => {
+          setIsModalOpen(false)
+          setEditingBooking(null)
+          await loadAllBookings()
+          loadNotifications()
+        }}
+        onCancelled={async () => {
+          setIsModalOpen(false)
+          setEditingBooking(null)
+          await loadAllBookings()
+          loadNotifications()
+        }}
       />
 
       {/* Info Modal */}

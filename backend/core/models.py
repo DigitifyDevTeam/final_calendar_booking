@@ -103,7 +103,7 @@ class Booking(models.Model):
     sav_a_prevoir = models.BooleanField(null=True, blank=True, help_text='Un SAV à prévoir ? (SAV et Pose)')
     ascenseur_escaliers = models.BooleanField(null=True, blank=True, help_text="J'ai pris l'ascenseur et les escaliers (Metré only)")
     completed_at = models.DateTimeField(null=True, blank=True)
-    cancellation_motif = models.TextField(blank=True, help_text="Motif d'annulation de l'intervention")
+    cancellation_motif = models.TextField(blank=True, default='', help_text="Motif d'annulation de l'intervention")
     cancelled_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
@@ -182,6 +182,12 @@ class PasswordResetToken(models.Model):
 class Magasin(models.Model):
     """Model to store magasins (stores) with associated concepteurs"""
     name = models.CharField(max_length=255, unique=True)
+    responsable_email = models.EmailField(
+        max_length=254,
+        blank=True,
+        default='',
+        help_text="Adresse e-mail du responsable du magasin",
+    )
     concepteurs = models.ManyToManyField(User, related_name='magasins', limit_choices_to={'role': 'concepteur'}, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

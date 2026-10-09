@@ -5,6 +5,7 @@ const API_BASE_URL =
 export interface MagasinRecord {
   id: number
   name: string
+  responsable_email: string
   concepteurs: number[]
   concepteurs_details?: {
     id: number
@@ -18,12 +19,14 @@ export interface MagasinRecord {
 
 export interface MagasinFormData {
   name: string
+  responsable_email: string
   concepteurs: number[]
 }
 
 interface MagasinApiResponse {
   id: number
   name: string
+  responsable_email?: string
   concepteurs: number[]
   concepteurs_details?: {
     id: number
@@ -150,6 +153,7 @@ const toMagasinRecord = (data: MagasinApiResponse): MagasinRecord => {
   return {
     id: data.id,
     name: data.name,
+    responsable_email: data.responsable_email || '',
     concepteurs: data.concepteurs || [],
     concepteurs_details: data.concepteurs_details || [],
     created_at: data.created_at,

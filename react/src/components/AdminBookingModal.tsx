@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { CALENDAR_CONFIGS, getAllBookings, BookingRecord } from '../services/bookingService'
+import AdminFinalizeModal from './AdminFinalizeModal'
+import CancelInterventionModal from './CancelInterventionModal'
 import './AdminBookingModal.css'
 
 interface UserOption {
@@ -17,6 +19,8 @@ interface AdminBookingModalProps {
   isDarkMode?: boolean
   users?: UserOption[] // List of users for designer selection (admin only)
   isAdmin?: boolean // Only admin can edit statut de facturation
+  onFinalized?: () => void | Promise<void>
+  onCancelled?: () => void | Promise<void>
 }
 
 export interface AdminBookingFormData {
@@ -40,10 +44,14 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
   booking,
   isDarkMode = true,
   users = [],
-  isAdmin = false
+  isAdmin = false,
+  onFinalized,
+  onCancelled,
 }) => {
   // Track original value to detect changes when editing
   const [originalPoseValue, setOriginalPoseValue] = useState<boolean | null | undefined>(null)
+  const [isFinalizeOpen, setIsFinalizeOpen] = useState(false)
+  const [isCancelOpen, setIsCancelOpen] = useState(false)
   
   const [formData, setFormData] = useState<AdminBookingFormData>({
     calendar_id: CALENDAR_CONFIGS['calendar1'],
@@ -321,6 +329,10 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
     // Get booked time slots for the selected date
     const bookedSlots = bookingsForSelectedDate
       .filter((b: BookingRecord) => {
+        // Cancelled bookings free the slot (kept only as history)
+        if ((b as any).status === 'annule') {
+          return false
+        }
         // Exclude the current booking being edited (only if date hasn't changed)
         if (booking && b.id === booking.id && !dateHasChanged) {
           return false
@@ -750,22 +762,71 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
           })()}
 
           <div className="form-actions">
-            {booking && (
-              <button type="button" className="cancel-button" onClick={onClose}>
-                Annuler
-              </button>
-            )}
-            {!booking && (
-              <button type="button" className="cancel-button" onClick={onClose}>
-                Annuler
-              </button>
-            )}
+            <button type="button" className="cancel-button" onClick={onClose}>
+              Fermer
+            </button>
+            {booking && isAdmin && (() => {
+              const bookingStatus = (booking as any).status || 'en_attente'
+              const canAct = bookingStatus !== 'termine' && bookingStatus !== 'annule'
+              if (!canAct) return null
+              return (
+                <>
+                  <button
+                    type="button"
+                    className="cancel-intervention-button"
+                    onClick={() => setIsCancelOpen(true)}
+                  >
+                    Annuler l&apos;intervention
+                  </button>
+                  <button
+                    type="button"
+                    className="finalize-button"
+                    onClick={() => setIsFinalizeOpen(true)}
+                  >
+                    Finaliser
+                  </button>
+                </>
+              )
+            })()}
             <button type="submit" className="submit-button">
               {booking ? 'Modifier' : 'Créer'}
             </button>
           </div>
         </form>
       </div>
+
+      {booking && isAdmin && (
+        <>
+          <AdminFinalizeModal
+            isOpen={isFinalizeOpen}
+            onClose={() => setIsFinalizeOpen(false)}
+            bookingId={String((booking as any).id)}
+            bookingStatus={(booking as any).status}
+            isDarkMode={isDarkMode}
+            onFinalized={async () => {
+              setIsFinalizeOpen(false)
+              if (onFinalized) {
+                await onFinalized()
+              }
+              onClose()
+            }}
+          />
+          <CancelInterventionModal
+            isOpen={isCancelOpen}
+            onClose={() => setIsCancelOpen(false)}
+            bookingId={String((booking as any).id)}
+            bookingStatus={(booking as any).status}
+            isDarkMode={isDarkMode}
+            onCancelled={async () => {
+              setIsCancelOpen(false)
+              if (onCancelled) {
+                await onCancelled()
+              }
+              onClose()
+            }}
+          />
+        </>
+      )}
     </div>
   )
 }
