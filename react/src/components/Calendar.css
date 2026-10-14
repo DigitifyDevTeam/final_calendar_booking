@@ -948,14 +948,21 @@
 }
 
 /* Technicien clickable slots - special styling for view-only mode */
-.time-slot.technicien-clickable {
+.time-slot.technicien-clickable,
+.time-slot.concepteur-viewable {
   cursor: pointer !important;
   position: relative;
 }
 
-.time-slot.technicien-clickable:hover {
+.time-slot.technicien-clickable:hover,
+.time-slot.concepteur-viewable:hover {
   background: rgba(250, 84, 28, 0.15) !important;
   border-color: #284B73 !important;
+}
+
+.time-slot.concepteur-viewable span {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .time-slot.technicien-clickable::after {
@@ -1558,10 +1565,11 @@
 }
 
   /* Technicien clickable slots - enhanced mobile */
-  .time-slot.technicien-clickable {
+  .time-slot.technicien-clickable,
+  .time-slot.concepteur-viewable {
     border-color: rgba(250, 84, 28, 0.5) !important;
   }
-  
+
   .time-slot.technicien-clickable::after {
     font-size: 14px;
     right: 6px;

@@ -622,8 +622,10 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
       return getBookingsForDate(date).length > 0
     }
 
-    // Concepteur: "i" only for bookings that are NOT theirs (read-only peek at others)
+    // Concepteur: Pose only — "i" for bookings that are NOT theirs.
+    // SAV / Métré: no "i"; click the client name on the slot instead.
     if (isConcepteur) {
+      if (binId === 'calendar2' || binId === 'calendar3') return false
       const others = getBookingsForDate(date, timeSlot).filter(
         (b) => !isBookingDesignedBy(b.designer, userName)
       )
@@ -738,6 +740,47 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     setIsEditModalReadOnly(!canModifyBooking(booking))
     setIsEditModalOpen(true)
     setInfoPopup(null)
+  }
+
+  const isSavOrMetreCalendar = binId === 'calendar2' || binId === 'calendar3'
+
+  // SAV / Métré: open booking details by clicking the client name on the slot
+  // - admin: any booked slot
+  // - concepteur: only slots that are NOT theirs (read-only)
+  const canOpenBookingFromSlotClick = (date: Date, timeSlot: string): boolean => {
+    if (!isSavOrMetreCalendar) return false
+    const booking = getBookingForSlot(date, timeSlot)
+    if (!booking) return false
+    if (isAdmin) return true
+    if (isConcepteur) return !isBookingDesignedBy(booking.designer, userName)
+    return false
+  }
+
+  const handleTimeSlotClick = (date: Date, timeSlot: string, isBooked: boolean, dateDisabled: boolean) => {
+    if (isTechnicien && isBooked) {
+      handleTechnicienSlotClick(date, timeSlot)
+      return
+    }
+    if (canOpenBookingFromSlotClick(date, timeSlot)) {
+      const booking = getBookingForSlot(date, timeSlot)
+      if (booking) openBookingDetails(booking)
+      return
+    }
+    if (!isBooked && !dateDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
+      handleDateClick(date, timeSlot)
+    }
+  }
+
+  const getTimeSlotCursor = (date: Date, timeSlot: string, isBooked: boolean, dateDisabled: boolean): string => {
+    if ((isTechnicien && isBooked) || canOpenBookingFromSlotClick(date, timeSlot)) return 'pointer'
+    if (isBooked || dateDisabled || isTodayOrTomorrowDisabledForUser(date)) return 'not-allowed'
+    return 'pointer'
+  }
+
+  const getTimeSlotClickableClass = (date: Date, timeSlot: string, isBooked: boolean): string => {
+    if (isTechnicien && isBooked) return 'technicien-clickable'
+    if (canOpenBookingFromSlotClick(date, timeSlot)) return 'concepteur-viewable'
+    return ''
   }
 
   // Get booking for a specific date and time slot that the current user can edit
@@ -1145,15 +1188,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                               return (
                                 <>
                                   <div 
-                                    className={`time-slot ${slot1Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot1Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '8:00-11:00', slot1Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot1Booked) {
-                                        handleTechnicienSlotClick(date, '8:00-11:00')
-                                      } else if (!slot1Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '8:00-11:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot1Booked) ? 'pointer' : (slot1Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot1Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '8:00-11:00', slot1Booked)} ${reservedSlotClass(date, '8:00-11:00', slot1Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '8:00-11:00', slot1Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '8:00-11:00', slot1Booked, isDisabled) }}
                                   >
                                     <span>{getSlotDisplayText(date, '8:00-11:00', isSlotBooked(date, '8:00-11:00'))}</span>
                                     {shouldShowInfoIcon(date, '8:00-11:00') && (
@@ -1167,15 +1204,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     )}
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot2Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot2Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '11:00-14:00', slot2Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot2Booked) {
-                                        handleTechnicienSlotClick(date, '11:00-14:00')
-                                      } else if (!slot2Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '11:00-14:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot2Booked) ? 'pointer' : (slot2Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot2Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '11:00-14:00', slot2Booked)} ${reservedSlotClass(date, '11:00-14:00', slot2Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '11:00-14:00', slot2Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '11:00-14:00', slot2Booked, isDisabled) }}
                                   >
                                     <span>{getSlotDisplayText(date, '11:00-14:00', isSlotBooked(date, '11:00-14:00'))}</span>
                                     {shouldShowInfoIcon(date, '11:00-14:00') && (
@@ -1189,15 +1220,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     )}
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot3Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot3Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '14:00-17:00', slot3Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot3Booked) {
-                                        handleTechnicienSlotClick(date, '14:00-17:00')
-                                      } else if (!slot3Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '14:00-17:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot3Booked) ? 'pointer' : (slot3Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot3Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '14:00-17:00', slot3Booked)} ${reservedSlotClass(date, '14:00-17:00', slot3Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '14:00-17:00', slot3Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '14:00-17:00', slot3Booked, isDisabled) }}
                                   >
                                     <span>{getSlotDisplayText(date, '14:00-17:00', isSlotBooked(date, '14:00-17:00'))}</span>
                                     {shouldShowInfoIcon(date, '14:00-17:00') && (
@@ -1228,15 +1253,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                               return (
                                 <>
                                   <div 
-                                    className={`time-slot ${slot8_00Booked ? 'disabled' : ''} ${!slot8_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot8_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '8:00', slot8_00Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot8_00Booked) {
-                                        handleTechnicienSlotClick(date, '8:00')
-                                      } else if (!slot8_00Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '8:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot8_00Booked) ? 'pointer' : (slot8_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot8_00Booked ? 'disabled' : ''} ${!slot8_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '8:00', slot8_00Booked)} ${reservedSlotClass(date, '8:00', slot8_00Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '8:00', slot8_00Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '8:00', slot8_00Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot8_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot8_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '8:00', slot8_00Booked)}
@@ -1278,15 +1297,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot9_30Booked ? 'disabled' : ''} ${!slot9_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot9_30Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '9:30', slot9_30Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot9_30Booked) {
-                                        handleTechnicienSlotClick(date, '9:30')
-                                      } else if (!slot9_30Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '9:30')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot9_30Booked) ? 'pointer' : (slot9_30Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot9_30Booked ? 'disabled' : ''} ${!slot9_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '9:30', slot9_30Booked)} ${reservedSlotClass(date, '9:30', slot9_30Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '9:30', slot9_30Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '9:30', slot9_30Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot9_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot9_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '9:30', slot9_30Booked)}
@@ -1328,15 +1341,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot11_00Booked ? 'disabled' : ''} ${!slot11_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot11_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '11:00', slot11_00Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot11_00Booked) {
-                                        handleTechnicienSlotClick(date, '11:00')
-                                      } else if (!slot11_00Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '11:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot11_00Booked) ? 'pointer' : (slot11_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot11_00Booked ? 'disabled' : ''} ${!slot11_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '11:00', slot11_00Booked)} ${reservedSlotClass(date, '11:00', slot11_00Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '11:00', slot11_00Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '11:00', slot11_00Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot11_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot11_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '11:00', slot11_00Booked)}
@@ -1378,15 +1385,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot12_30Booked ? 'disabled' : ''} ${!slot12_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot12_30Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '12:30', slot12_30Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot12_30Booked) {
-                                        handleTechnicienSlotClick(date, '12:30')
-                                      } else if (!slot12_30Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '12:30')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot12_30Booked) ? 'pointer' : (slot12_30Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot12_30Booked ? 'disabled' : ''} ${!slot12_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '12:30', slot12_30Booked)} ${reservedSlotClass(date, '12:30', slot12_30Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '12:30', slot12_30Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '12:30', slot12_30Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot12_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot12_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '12:30', slot12_30Booked)}
@@ -1428,15 +1429,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot14_00Booked ? 'disabled' : ''} ${!slot14_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot14_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '14:00', slot14_00Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot14_00Booked) {
-                                        handleTechnicienSlotClick(date, '14:00')
-                                      } else if (!slot14_00Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '14:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot14_00Booked) ? 'pointer' : (slot14_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot14_00Booked ? 'disabled' : ''} ${!slot14_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '14:00', slot14_00Booked)} ${reservedSlotClass(date, '14:00', slot14_00Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '14:00', slot14_00Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '14:00', slot14_00Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot14_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot14_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '14:00', slot14_00Booked)}
@@ -1478,15 +1473,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot15_30Booked ? 'disabled' : ''} ${!slot15_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot15_30Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '15:30', slot15_30Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot15_30Booked) {
-                                        handleTechnicienSlotClick(date, '15:30')
-                                      } else if (!slot15_30Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '15:30')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot15_30Booked) ? 'pointer' : (slot15_30Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot15_30Booked ? 'disabled' : ''} ${!slot15_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '15:30', slot15_30Booked)} ${reservedSlotClass(date, '15:30', slot15_30Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '15:30', slot15_30Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '15:30', slot15_30Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot15_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot15_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '15:30', slot15_30Booked)}
@@ -1528,15 +1517,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot17_00Booked ? 'disabled' : ''} ${!slot17_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot17_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '17:00', slot17_00Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot17_00Booked) {
-                                        handleTechnicienSlotClick(date, '17:00')
-                                      } else if (!slot17_00Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '17:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot17_00Booked) ? 'pointer' : (slot17_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot17_00Booked ? 'disabled' : ''} ${!slot17_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '17:00', slot17_00Booked)} ${reservedSlotClass(date, '17:00', slot17_00Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '17:00', slot17_00Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '17:00', slot17_00Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot17_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot17_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '17:00', slot17_00Booked)}
@@ -1592,15 +1575,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                               return (
                                 <>
                                   <div 
-                                    className={`time-slot ${slot8_11Booked ? 'disabled' : ''} ${!slot8_11Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot8_11Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '8:00-11:00', slot8_11Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot8_11Booked) {
-                                        handleTechnicienSlotClick(date, '8:00-11:00')
-                                      } else if (!slot8_11Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '8:00-11:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot8_11Booked) ? 'pointer' : (slot8_11Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot8_11Booked ? 'disabled' : ''} ${!slot8_11Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '8:00-11:00', slot8_11Booked)} ${reservedSlotClass(date, '8:00-11:00', slot8_11Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '8:00-11:00', slot8_11Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '8:00-11:00', slot8_11Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot8_11Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot8_11Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '8:00-11:00', slot8_11Booked)}
@@ -1642,15 +1619,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot11_14Booked ? 'disabled' : ''} ${!slot11_14Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot11_14Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '11:00-14:00', slot11_14Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot11_14Booked) {
-                                        handleTechnicienSlotClick(date, '11:00-14:00')
-                                      } else if (!slot11_14Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '11:00-14:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot11_14Booked) ? 'pointer' : (slot11_14Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot11_14Booked ? 'disabled' : ''} ${!slot11_14Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '11:00-14:00', slot11_14Booked)} ${reservedSlotClass(date, '11:00-14:00', slot11_14Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '11:00-14:00', slot11_14Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '11:00-14:00', slot11_14Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot11_14Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot11_14Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '11:00-14:00', slot11_14Booked)}
@@ -1692,15 +1663,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot14_17Booked ? 'disabled' : ''} ${!slot14_17Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot14_17Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '14:00-17:00', slot14_17Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot14_17Booked) {
-                                        handleTechnicienSlotClick(date, '14:00-17:00')
-                                      } else if (!slot14_17Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '14:00-17:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot14_17Booked) ? 'pointer' : (slot14_17Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot14_17Booked ? 'disabled' : ''} ${!slot14_17Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '14:00-17:00', slot14_17Booked)} ${reservedSlotClass(date, '14:00-17:00', slot14_17Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '14:00-17:00', slot14_17Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '14:00-17:00', slot14_17Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot14_17Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot14_17Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '14:00-17:00', slot14_17Booked)}
@@ -2166,15 +2131,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                               return (
                                 <>
                                   <div 
-                                    className={`time-slot ${slot1Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot1Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '8:00-11:00', slot1Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot1Booked) {
-                                        handleTechnicienSlotClick(date, '8:00-11:00')
-                                      } else if (!slot1Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '8:00-11:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot1Booked) ? 'pointer' : (slot1Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot1Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '8:00-11:00', slot1Booked)} ${reservedSlotClass(date, '8:00-11:00', slot1Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '8:00-11:00', slot1Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '8:00-11:00', slot1Booked, isDisabled) }}
                                   >
                                     <span>{getSlotDisplayText(date, '8:00-11:00', isSlotBooked(date, '8:00-11:00'))}</span>
                                     {shouldShowInfoIcon(date, '8:00-11:00') && (
@@ -2188,15 +2147,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     )}
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot2Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot2Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '11:00-14:00', slot2Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot2Booked) {
-                                        handleTechnicienSlotClick(date, '11:00-14:00')
-                                      } else if (!slot2Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '11:00-14:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot2Booked) ? 'pointer' : (slot2Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot2Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '11:00-14:00', slot2Booked)} ${reservedSlotClass(date, '11:00-14:00', slot2Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '11:00-14:00', slot2Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '11:00-14:00', slot2Booked, isDisabled) }}
                                   >
                                     <span>{getSlotDisplayText(date, '11:00-14:00', isSlotBooked(date, '11:00-14:00'))}</span>
                                     {shouldShowInfoIcon(date, '11:00-14:00') && (
@@ -2210,15 +2163,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     )}
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot3Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot3Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '14:00-17:00', slot3Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot3Booked) {
-                                        handleTechnicienSlotClick(date, '14:00-17:00')
-                                      } else if (!slot3Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '14:00-17:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot3Booked) ? 'pointer' : (slot3Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot3Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '14:00-17:00', slot3Booked)} ${reservedSlotClass(date, '14:00-17:00', slot3Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '14:00-17:00', slot3Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '14:00-17:00', slot3Booked, isDisabled) }}
                                   >
                                     <span>{getSlotDisplayText(date, '14:00-17:00', isSlotBooked(date, '14:00-17:00'))}</span>
                                     {shouldShowInfoIcon(date, '14:00-17:00') && (
@@ -2249,15 +2196,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                               return (
                                 <>
                                   <div 
-                                    className={`time-slot ${slot8_00Booked ? 'disabled' : ''} ${!slot8_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot8_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '8:00', slot8_00Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot8_00Booked) {
-                                        handleTechnicienSlotClick(date, '8:00')
-                                      } else if (!slot8_00Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '8:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot8_00Booked) ? 'pointer' : (slot8_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot8_00Booked ? 'disabled' : ''} ${!slot8_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '8:00', slot8_00Booked)} ${reservedSlotClass(date, '8:00', slot8_00Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '8:00', slot8_00Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '8:00', slot8_00Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot8_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot8_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '8:00', slot8_00Booked)}
@@ -2299,15 +2240,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot9_30Booked ? 'disabled' : ''} ${!slot9_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot9_30Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '9:30', slot9_30Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot9_30Booked) {
-                                        handleTechnicienSlotClick(date, '9:30')
-                                      } else if (!slot9_30Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '9:30')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot9_30Booked) ? 'pointer' : (slot9_30Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot9_30Booked ? 'disabled' : ''} ${!slot9_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '9:30', slot9_30Booked)} ${reservedSlotClass(date, '9:30', slot9_30Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '9:30', slot9_30Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '9:30', slot9_30Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot9_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot9_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '9:30', slot9_30Booked)}
@@ -2349,15 +2284,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot11_00Booked ? 'disabled' : ''} ${!slot11_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot11_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '11:00', slot11_00Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot11_00Booked) {
-                                        handleTechnicienSlotClick(date, '11:00')
-                                      } else if (!slot11_00Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '11:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot11_00Booked) ? 'pointer' : (slot11_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot11_00Booked ? 'disabled' : ''} ${!slot11_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '11:00', slot11_00Booked)} ${reservedSlotClass(date, '11:00', slot11_00Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '11:00', slot11_00Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '11:00', slot11_00Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot11_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot11_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '11:00', slot11_00Booked)}
@@ -2399,15 +2328,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot12_30Booked ? 'disabled' : ''} ${!slot12_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot12_30Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '12:30', slot12_30Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot12_30Booked) {
-                                        handleTechnicienSlotClick(date, '12:30')
-                                      } else if (!slot12_30Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '12:30')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot12_30Booked) ? 'pointer' : (slot12_30Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot12_30Booked ? 'disabled' : ''} ${!slot12_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '12:30', slot12_30Booked)} ${reservedSlotClass(date, '12:30', slot12_30Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '12:30', slot12_30Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '12:30', slot12_30Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot12_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot12_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '12:30', slot12_30Booked)}
@@ -2449,15 +2372,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot14_00Booked ? 'disabled' : ''} ${!slot14_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot14_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '14:00', slot14_00Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot14_00Booked) {
-                                        handleTechnicienSlotClick(date, '14:00')
-                                      } else if (!slot14_00Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '14:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot14_00Booked) ? 'pointer' : (slot14_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot14_00Booked ? 'disabled' : ''} ${!slot14_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '14:00', slot14_00Booked)} ${reservedSlotClass(date, '14:00', slot14_00Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '14:00', slot14_00Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '14:00', slot14_00Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot14_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot14_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '14:00', slot14_00Booked)}
@@ -2499,15 +2416,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot15_30Booked ? 'disabled' : ''} ${!slot15_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot15_30Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '15:30', slot15_30Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot15_30Booked) {
-                                        handleTechnicienSlotClick(date, '15:30')
-                                      } else if (!slot15_30Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '15:30')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot15_30Booked) ? 'pointer' : (slot15_30Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot15_30Booked ? 'disabled' : ''} ${!slot15_30Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '15:30', slot15_30Booked)} ${reservedSlotClass(date, '15:30', slot15_30Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '15:30', slot15_30Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '15:30', slot15_30Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot15_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot15_30Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '15:30', slot15_30Booked)}
@@ -2549,15 +2460,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot17_00Booked ? 'disabled' : ''} ${!slot17_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot17_00Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '17:00', slot17_00Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot17_00Booked) {
-                                        handleTechnicienSlotClick(date, '17:00')
-                                      } else if (!slot17_00Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '17:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot17_00Booked) ? 'pointer' : (slot17_00Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot17_00Booked ? 'disabled' : ''} ${!slot17_00Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '17:00', slot17_00Booked)} ${reservedSlotClass(date, '17:00', slot17_00Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '17:00', slot17_00Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '17:00', slot17_00Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot17_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot17_00Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '17:00', slot17_00Booked)}
@@ -2613,15 +2518,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                               return (
                                 <>
                                   <div 
-                                    className={`time-slot ${slot8_11Booked ? 'disabled' : ''} ${!slot8_11Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot8_11Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '8:00-11:00', slot8_11Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot8_11Booked) {
-                                        handleTechnicienSlotClick(date, '8:00-11:00')
-                                      } else if (!slot8_11Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '8:00-11:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot8_11Booked) ? 'pointer' : (slot8_11Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot8_11Booked ? 'disabled' : ''} ${!slot8_11Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '8:00-11:00', slot8_11Booked)} ${reservedSlotClass(date, '8:00-11:00', slot8_11Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '8:00-11:00', slot8_11Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '8:00-11:00', slot8_11Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot8_11Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot8_11Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '8:00-11:00', slot8_11Booked)}
@@ -2663,15 +2562,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot11_14Booked ? 'disabled' : ''} ${!slot11_14Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot11_14Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '11:00-14:00', slot11_14Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot11_14Booked) {
-                                        handleTechnicienSlotClick(date, '11:00-14:00')
-                                      } else if (!slot11_14Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '11:00-14:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot11_14Booked) ? 'pointer' : (slot11_14Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot11_14Booked ? 'disabled' : ''} ${!slot11_14Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '11:00-14:00', slot11_14Booked)} ${reservedSlotClass(date, '11:00-14:00', slot11_14Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '11:00-14:00', slot11_14Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '11:00-14:00', slot11_14Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot11_14Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot11_14Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '11:00-14:00', slot11_14Booked)}
@@ -2713,15 +2606,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                                     </div>
                                   </div>
                                   <div 
-                                    className={`time-slot ${slot14_17Booked ? 'disabled' : ''} ${!slot14_17Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${isTechnicien && slot14_17Booked ? 'technicien-clickable' : ''} ${reservedSlotClass(date, '14:00-17:00', slot14_17Booked)}`}
-                                    onClick={() => {
-                                      if (isTechnicien && slot14_17Booked) {
-                                        handleTechnicienSlotClick(date, '14:00-17:00')
-                                      } else if (!slot14_17Booked && !isDisabled && !isTodayOrTomorrowDisabledForUser(date)) {
-                                        handleDateClick(date, '14:00-17:00')
-                                      }
-                                    }}
-                                    style={{ cursor: (isTechnicien && slot14_17Booked) ? 'pointer' : (slot14_17Booked || (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'not-allowed' : 'pointer') }}
+                                    className={`time-slot ${slot14_17Booked ? 'disabled' : ''} ${!slot14_17Booked && (isDisabled || isTodayOrTomorrowDisabledForUser(date)) ? 'disabled' : ''} ${getTimeSlotClickableClass(date, '14:00-17:00', slot14_17Booked)} ${reservedSlotClass(date, '14:00-17:00', slot14_17Booked)}`}
+                                    onClick={() => handleTimeSlotClick(date, '14:00-17:00', slot14_17Booked, isDisabled)}
+                                    style={{ cursor: getTimeSlotCursor(date, '14:00-17:00', slot14_17Booked, isDisabled) }}
                                   >
                                     <span style={{ fontWeight: slot14_17Booked && (binId === 'calendar2' || binId === 'calendar3') ? 500 : 'normal', fontSize: slot14_17Booked && (binId === 'calendar2' || binId === 'calendar3') ? '0.85rem' : 'inherit' }}>
                                       {getSlotDisplayText(date, '14:00-17:00', slot14_17Booked)}
