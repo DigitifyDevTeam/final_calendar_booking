@@ -2,6 +2,7 @@ from datetime import date, timedelta
 from rest_framework import serializers
 
 from .models import Booking, ContactMessage, Holiday, User, PasswordResetToken, Magasin
+from .permissions import normalize_person_name
 
 CALENDAR_DAILY_LIMITS = {
     'calendar1': 4,  # Pose calendar: 4 bookings per day
@@ -293,6 +294,23 @@ class BookingSerializer(serializers.ModelSerializer):
         )
         if not is_admin and 'statut_facturation' in attrs:
             attrs.pop('statut_facturation', None)
+
+        # designer_name is the ownership key: a concepteur can neither book on behalf
+        # of another concepteur nor reassign one of their bookings to someone else.
+        user = getattr(request, 'user', None) if request else None
+        if getattr(user, 'role', None) == 'concepteur':
+            own_name = (getattr(user, 'name', '') or '').strip()
+            if not own_name:
+                raise serializers.ValidationError({
+                    'designer_name': 'Votre compte concepteur n\'a pas de nom ; contactez un administrateur.'
+                })
+            requested = attrs.get('designer_name')
+            if requested is not None and normalize_person_name(requested) != normalize_person_name(own_name):
+                raise serializers.ValidationError({
+                    'designer_name': 'Vous ne pouvez enregistrer une réservation qu\'à votre nom.'
+                })
+            if not self.instance or 'designer_name' in attrs:
+                attrs['designer_name'] = own_name
 
         # For updates, use instance's calendar_id if not provided in attrs
         calendar_id = attrs.get('calendar_id')

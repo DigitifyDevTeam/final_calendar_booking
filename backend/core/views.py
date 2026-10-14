@@ -17,6 +17,7 @@ from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Booking, ContactMessage, Holiday, User, PasswordResetToken, Magasin
+from .permissions import CanModifyBooking
 from .serializers import BookingSerializer, ContactMessageSerializer, HolidaySerializer, UserSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer, MagasinSerializer
 
 logger = logging.getLogger(__name__)
@@ -423,7 +424,7 @@ class BookingListCreateView(generics.ListCreateAPIView):
 
 
 class BookingRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticatedCustom]
+    permission_classes = [IsAuthenticatedCustom, CanModifyBooking]
     serializer_class = BookingSerializer
     queryset = Booking.objects.all()
 

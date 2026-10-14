@@ -5,6 +5,7 @@ import { getAllUsers, UserRecord } from '../services/userService'
 import AdminBookingModal, { AdminBookingFormData } from './AdminBookingModal'
 import TechnicienViewModal from './TechnicienViewModal'
 import { isWithinTechnicianFinishCalendarWindow } from '../utils/finishWindow'
+import { isBookingDesignedBy } from '../utils/bookingOwnership'
 
 // Orange info icon component
 const InfoIcon: React.FC = () => (
@@ -14,9 +15,9 @@ const InfoIcon: React.FC = () => (
     xmlns="http://www.w3.org/2000/svg"
     style={{ width: '100%', height: '100%', display: 'block' }}
   >
-    <circle cx="12" cy="12" r="10" stroke="#284B73" strokeWidth="2" fill="none"/>
-    <path d="M12 16V12" stroke="#284B73" strokeWidth="2" strokeLinecap="round"/>
-    <circle cx="12" cy="8" r="1" fill="#284B73"/>
+    <circle cx="12" cy="12" r="10" stroke="#fa541c" strokeWidth="2" fill="none"/>
+    <path d="M12 16V12" stroke="#fa541c" strokeWidth="2" strokeLinecap="round"/>
+    <circle cx="12" cy="8" r="1" fill="#fa541c"/>
   </svg>
 )
 
@@ -80,6 +81,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   // Track editing/deleting bookings for Concepteur
   const [editingBooking, setEditingBooking] = useState<BookingRecord | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false)
+  // True when concepteur opens another concepteur's booking (view only)
+  const [isEditModalReadOnly, setIsEditModalReadOnly] = useState<boolean>(false)
   // Track info popup state - now includes booking records for admin
   const [infoPopup, setInfoPopup] = useState<{x: number, y: number, names: string[], bookings: BookingRecord[], date: Date, timeSlot?: string} | null>(null)
   // List of users for admin to select as designer
@@ -608,45 +611,43 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
 
   // Helper function to determine if info icon should be shown
   const shouldShowInfoIcon = (date: Date, timeSlot?: string): boolean => {
-    // Only show info icon for Pose calendar (calendar1), hide for SAV (calendar2) and Metré (calendar3)
-    if (binId === 'calendar2' || binId === 'calendar3') {
-      return false
-    }
-    
-    // Technicien: show info icon when there is at least one booking (incl. recent past within 48h window)
+    // Admin: never show the "i" (they already have edit/delete on every booking)
+    if (isAdmin) return false
+
+    // Technicien: show info icon when there is at least one booking
     if (isTechnicien) {
       if (timeSlot) {
         return isSlotBooked(date, timeSlot)
       }
       return getBookingsForDate(date).length > 0
     }
-    
-    if (isAdmin) {
-      // Admin sees all bookings
-      if (timeSlot) {
-        return isSlotBooked(date, timeSlot)
-      } else {
-        return getBookingStatus(date).count > 0
-      }
-    } else if (isConcepteur) {
-      if (timeSlot) {
-        return isSlotBooked(date, timeSlot)
-      }
-      return getBookingsForDate(date).length > 0
-    } else {
-      // Regular users see all bookings
-      if (timeSlot) {
-        return isSlotBooked(date, timeSlot) && getNamesForDate(date, timeSlot).length > 0
-      } else {
-        return getBookingStatus(date).count > 0 && getNamesForDate(date).length > 0
-      }
+
+    // Concepteur: "i" only for bookings that are NOT theirs (read-only peek at others)
+    if (isConcepteur) {
+      const others = getBookingsForDate(date, timeSlot).filter(
+        (b) => !isBookingDesignedBy(b.designer, userName)
+      )
+      return others.length > 0
     }
+
+    // Regular users: Pose only
+    if (binId === 'calendar2' || binId === 'calendar3') {
+      return false
+    }
+    if (timeSlot) {
+      return isSlotBooked(date, timeSlot) && getNamesForDate(date, timeSlot).length > 0
+    }
+    return getBookingStatus(date).count > 0 && getNamesForDate(date).length > 0
   }
 
   const handleInfoClick = (e: React.MouseEvent, date: Date, timeSlot?: string) => {
     e.stopPropagation()
     const bookings = getBookingsForDate(date, timeSlot)
-    if (bookings.length > 0) {
+    // Concepteur info popup lists only other concepteurs' bookings
+    const popupBookings = isConcepteur
+      ? bookings.filter((b) => !isBookingDesignedBy(b.designer, userName))
+      : bookings
+    if (popupBookings.length > 0) {
       const button = e.currentTarget as HTMLElement
       const calendarContainer = button.closest('.calendar')
       if (calendarContainer) {
@@ -655,8 +656,8 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
         setInfoPopup({
           x: buttonRect.right - containerRect.left + 8,
           y: buttonRect.top - containerRect.top,
-          names: bookings.map(b => b.name),
-          bookings: bookings,
+          names: popupBookings.map(b => b.name),
+          bookings: popupBookings,
           date: date,
           timeSlot: timeSlot
         })
@@ -664,24 +665,27 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     }
   }
 
-  // Close info popup when clicking outside or after 2 seconds
+  // Close info popup when clicking outside; short auto-close only when no clickable details
   useEffect(() => {
     const handleClickOutside = () => {
       setInfoPopup(null)
     }
     if (infoPopup) {
       document.addEventListener('click', handleClickOutside)
-      // Auto-close after 2 seconds
-      const autoCloseTimer = setTimeout(() => {
-        setInfoPopup(null)
-      }, 2000)
-      
+      // Concepteur / technicien click a name to open details — do not auto-close
+      const keepOpenForDetails = isConcepteur || isTechnicien
+      const autoCloseTimer = keepOpenForDetails
+        ? null
+        : setTimeout(() => {
+            setInfoPopup(null)
+          }, 2000)
+
       return () => {
         document.removeEventListener('click', handleClickOutside)
-        clearTimeout(autoCloseTimer)
+        if (autoCloseTimer) clearTimeout(autoCloseTimer)
       }
     }
-  }, [infoPopup])
+  }, [infoPopup, isConcepteur, isTechnicien])
 
   // Close booking select popup when clicking outside
   useEffect(() => {
@@ -721,40 +725,34 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     return emailMatch || nameMatch || false
   }
 
+  // Admin: any booking. Concepteur: only bookings where they are the designer.
+  const canModifyBooking = (booking: BookingRecord): boolean => {
+    if (isAdmin) return true
+    if (isConcepteur) return isBookingDesignedBy(booking.designer, userName)
+    if (isRegularUser) return isBookingByUser(booking)
+    return false
+  }
+
+  const openBookingDetails = (booking: BookingRecord) => {
+    setEditingBooking(booking)
+    setIsEditModalReadOnly(!canModifyBooking(booking))
+    setIsEditModalOpen(true)
+    setInfoPopup(null)
+  }
+
   // Get booking for a specific date and time slot that the current user can edit
   const getBookingForDateAndSlot = (date: Date, timeSlot?: string): BookingRecord | null => {
     if (timeSlot) {
       // For time slot calendars
       const booking = getBookingForSlot(date, timeSlot)
-      if (!booking) return null
-      
-      // Admin and concepteur can edit any booking
-      if (isAdmin || isConcepteur) return booking
-      // Regular users can edit their own bookings
-      if (isRegularUser && isBookingByUser(booking)) return booking
-      return null
+      return booking && canModifyBooking(booking) ? booking : null
     } else {
       // For Pose calendar, get the first booking for this date that the user can edit
       const year = date.getFullYear()
       const month = String(date.getMonth() + 1).padStart(2, '0')
       const day = String(date.getDate()).padStart(2, '0')
       const dateString = `${year}-${month}-${day}`
-      
-      // Admin and concepteur can edit any booking
-      if (isAdmin || isConcepteur) {
-        return allBookingsData.find(b => b.date === dateString) || null
-      }
-      
-      // Regular users can edit their own bookings
-      if (isRegularUser) {
-        return allBookingsData.find(b => {
-          const matchesDate = b.date === dateString
-          const matchesUser = isBookingByUser(b)
-          return matchesDate && matchesUser
-        }) || null
-      }
-      
-      return null
+      return allBookingsData.find(b => b.date === dateString && canModifyBooking(b)) || null
     }
   }
 
@@ -781,9 +779,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
   const handleUserEditBooking = (date: Date, timeSlot?: string) => {
     const booking = getUserBookingForDateAndSlot(date, timeSlot)
     if (booking) {
-      setEditingBooking(booking)
-      setIsEditModalOpen(true)
-      setInfoPopup(null) // Close info popup when opening edit modal
+      openBookingDetails(booking)
     }
   }
 
@@ -819,14 +815,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     const day = String(date.getDate()).padStart(2, '0')
     const dateString = `${year}-${month}-${day}`
     
-    return allBookingsData.filter(b => {
-      if (b.date !== dateString) return false
-      // Admin and concepteur can edit all bookings
-      if (isAdmin || isConcepteur) return true
-      // Regular users can edit their own bookings
-      if (isRegularUser) return isBookingByUser(b)
-      return false
-    })
+    return allBookingsData.filter(b => b.date === dateString && canModifyBooking(b))
   }
 
   const handleEditBooking = (date: Date, timeSlot?: string, event?: React.MouseEvent) => {
@@ -839,8 +828,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     if (timeSlot) {
       const booking = getBookingForDateAndSlot(date, timeSlot)
       if (booking) {
-        setEditingBooking(booking)
-        setIsEditModalOpen(true)
+        openBookingDetails(booking)
       }
       return
     }
@@ -854,8 +842,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     
     if (editableBookings.length === 1) {
       // Only one booking, edit directly
-      setEditingBooking(editableBookings[0])
-      setIsEditModalOpen(true)
+      openBookingDetails(editableBookings[0])
     } else {
       // Multiple bookings, show selection popup
       const rect = event?.currentTarget?.getBoundingClientRect()
@@ -939,8 +926,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
     if (!bookingSelectPopup) return
     
     if (bookingSelectPopup.action === 'edit') {
-      setEditingBooking(booking)
-      setIsEditModalOpen(true)
+      openBookingDetails(booking)
     } else if (bookingSelectPopup.action === 'delete') {
       const confirmMessage = `Êtes-vous sûr de vouloir supprimer la réservation de ${booking.name} du ${new Date(booking.date + 'T00:00:00').toLocaleDateString('fr-FR')} ?`
       
@@ -969,11 +955,9 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
       alert('❌ Les techniciens ne peuvent pas modifier les réservations')
       return
     }
-    if (!isAdmin && !isConcepteur) {
-      if (isRegularUser && !isBookingByUser(editingBooking)) {
-        alert('❌ Vous ne pouvez modifier que vos propres réservations')
-        return
-      }
+    if (!canModifyBooking(editingBooking)) {
+      alert('❌ Vous ne pouvez modifier que vos propres réservations')
+      return
     }
 
     try {
@@ -2817,7 +2801,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
               ×
             </button>
             <div className="calendar-info-popup-title">Réservée pour:</div>
-            {isTechnicien && (
+            {(isTechnicien || isConcepteur) && (
               <div style={{
                 fontSize: '11px',
                 color: '#284B73',
@@ -2832,16 +2816,20 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
             )}
             <div className="calendar-info-popup-names">
               {infoPopup.bookings && infoPopup.bookings.length > 0 ? (
-                // Show client names from bookings - clickable for Technicien
+                // Clickable for Technicien (view) and Concepteur (own=edit, others=read-only)
                 infoPopup.bookings.map((booking, idx) => (
-                  isTechnicien ? (
+                  isTechnicien || isConcepteur ? (
                     <button
                       key={idx}
                       onClick={(e) => {
                         e.stopPropagation()
-                        setTechnicienViewBooking(booking)
-                        setIsTechnicienModalOpen(true)
-                        setInfoPopup(null)
+                        if (isTechnicien) {
+                          setTechnicienViewBooking(booking)
+                          setIsTechnicienModalOpen(true)
+                          setInfoPopup(null)
+                        } else {
+                          openBookingDetails(booking)
+                        }
                       }}
                       style={{
                         display: 'block',
@@ -2867,7 +2855,13 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
                         e.currentTarget.style.borderColor = isDarkMode ? '#BA4E8E' : '#e5e7eb'
                       }}
                     >
-                      {booking.name}
+                      <div>{booking.name}</div>
+                      {isConcepteur && booking.designer && (
+                        <div style={{ fontSize: '11px', opacity: 0.75, marginTop: '2px' }}>
+                          Concepteur: {booking.designer}
+                          {!canModifyBooking(booking) ? ' · lecture seule' : ''}
+                        </div>
+                      )}
                     </button>
                   ) : (
                     <div key={idx}>{booking.name}</div>
@@ -3109,6 +3103,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           onClose={() => {
             setIsEditModalOpen(false)
             setEditingBooking(null)
+            setIsEditModalReadOnly(false)
           }}
           onSubmit={handleEditModalSubmit}
           booking={{
@@ -3130,14 +3125,17 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect, isDarkMode = true, re
           isDarkMode={isDarkMode}
           users={isAdmin ? usersList : []}
           isAdmin={isAdmin}
+          readOnly={isEditModalReadOnly}
           onFinalized={async () => {
             setIsEditModalOpen(false)
             setEditingBooking(null)
+            setIsEditModalReadOnly(false)
             setInternalRefreshTrigger(prev => prev + 1)
           }}
           onCancelled={async () => {
             setIsEditModalOpen(false)
             setEditingBooking(null)
+            setIsEditModalReadOnly(false)
             setInternalRefreshTrigger(prev => prev + 1)
           }}
         />

@@ -23,14 +23,17 @@ TEST_DATABASES = {
 }
 
 
-def create_authenticated_user(client, role='concepteur', email=None, password='testpass123'):
+TEST_USER_NAME = "Test User"
+
+
+def create_authenticated_user(client, role='concepteur', email=None, password='testpass123', name=TEST_USER_NAME):
     """Helper to create and authenticate a user"""
     import uuid
     if email is None:
         # Generate unique email for each call
         email = f"user_{uuid.uuid4().hex[:8]}@test.com"
     user = User.objects.create(
-        name="Test User",
+        name=name,
         email=email,
         phone="0123456789",
         role=role,
@@ -161,7 +164,7 @@ class BookingApiTests(TestCase):
             "booking_time": "",
             "client_name": "John Doe",
             "client_phone": "0123456789",
-            "designer_name": "Jane Designer",
+            "designer_name": TEST_USER_NAME,
             "message": "Test booking",
         }
         payload.update(overrides)
@@ -506,7 +509,7 @@ class BookingApiTests(TestCase):
             booking_date=date.fromisoformat(self.future_date),
             client_name="Client",
             client_phone="111",
-            designer_name="Designer"
+            designer_name=TEST_USER_NAME
         )
         detail_url = reverse("booking-detail", args=[booking.id])
         response = self.client.patch(detail_url, {"client_name": "Updated Name"}, format="json")
@@ -522,7 +525,7 @@ class BookingApiTests(TestCase):
             booking_date=date.fromisoformat(self.future_date),
             client_name="Client",
             client_phone="111",
-            designer_name="Designer"
+            designer_name=TEST_USER_NAME
         )
         detail_url = reverse("booking-detail", args=[booking.id])
         new_date = (date.today() + timedelta(days=5)).isoformat()
@@ -543,7 +546,7 @@ class BookingApiTests(TestCase):
             booking_date=date.fromisoformat(self.future_date),
             client_name="Client",
             client_phone="111",
-            designer_name="Designer"
+            designer_name=TEST_USER_NAME
         )
         detail_url = reverse("booking-detail", args=[booking.id])
         # Try to update to past date
@@ -558,7 +561,7 @@ class BookingApiTests(TestCase):
             booking_date=date.fromisoformat(self.future_date),
             client_name="Client",
             client_phone="111",
-            designer_name="Designer",
+            designer_name=TEST_USER_NAME,
             statut_facturation="en_attente"
         )
         detail_url = reverse("booking-detail", args=[booking.id])
@@ -617,7 +620,7 @@ class BookingApiTests(TestCase):
             booking_date=date.fromisoformat(self.future_date),
             client_name="Client",
             client_phone="111",
-            designer_name="Designer"
+            designer_name=TEST_USER_NAME
         )
         detail_url = reverse("booking-detail", args=[booking.id])
         response = self.client.delete(detail_url, format="json")
@@ -630,6 +633,110 @@ class BookingApiTests(TestCase):
         detail_url = reverse("booking-detail", args=[99999])
         response = self.client.delete(detail_url, format="json")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+@override_settings(DATABASES=TEST_DATABASES)
+class BookingOwnershipApiTests(TestCase):
+    """A concepteur may only modify/delete bookings where they are the designer."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.list_url = reverse("booking-list-create")
+        self.future_date = date.today() + timedelta(days=3)
+        self.owner, _ = create_authenticated_user(self.client, name="Alice Martin")
+        self.other = User.objects.create(
+            name="Bob Durand", email="bob@test.com", phone="1", role="concepteur", password="testpass123"
+        )
+        self.own_booking = self._create_booking("Alice Martin", "Client A")
+        self.other_booking = self._create_booking("Bob Durand", "Client B")
+
+    def _create_booking(self, designer_name, client_name):
+        return Booking.objects.create(
+            calendar_id="calendar1",
+            booking_date=self.future_date,
+            booking_time="21h00",
+            client_name=client_name,
+            client_phone="0600000000",
+            designer_name=designer_name,
+        )
+
+    def _detail(self, booking):
+        return reverse("booking-detail", args=[booking.id])
+
+    def test_concepteur_can_update_own_booking(self):
+        response = self.client.patch(self._detail(self.own_booking), {"client_name": "New"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_owner_match_ignores_case_and_extra_spaces(self):
+        booking = self._create_booking("  alice   MARTIN ", "Client C")
+        response = self.client.patch(self._detail(booking), {"client_name": "New"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_concepteur_cannot_update_other_booking(self):
+        response = self.client.patch(self._detail(self.other_booking), {"client_name": "Hacked"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.other_booking.refresh_from_db()
+        self.assertEqual(self.other_booking.client_name, "Client B")
+
+    def test_concepteur_cannot_put_other_booking(self):
+        payload = {
+            "calendar_id": "calendar1",
+            "booking_date": self.future_date.isoformat(),
+            "client_name": "Hacked",
+            "client_phone": "0600000000",
+            "designer_name": "Alice Martin",
+        }
+        response = self.client.put(self._detail(self.other_booking), payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.other_booking.refresh_from_db()
+        self.assertEqual(self.other_booking.designer_name, "Bob Durand")
+
+    def test_concepteur_cannot_delete_other_booking(self):
+        response = self.client.delete(self._detail(self.other_booking), format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Booking.objects.filter(pk=self.other_booking.pk).exists())
+
+    def test_concepteur_can_delete_own_booking(self):
+        response = self.client.delete(self._detail(self.own_booking), format="json")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_concepteur_can_still_read_other_booking(self):
+        response = self.client.get(self._detail(self.other_booking), format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_concepteur_cannot_reassign_own_booking(self):
+        response = self.client.patch(
+            self._detail(self.own_booking), {"designer_name": "Bob Durand"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.own_booking.refresh_from_db()
+        self.assertEqual(self.own_booking.designer_name, "Alice Martin")
+
+    def test_concepteur_cannot_create_booking_for_other_concepteur(self):
+        payload = {
+            "calendar_id": "calendar1",
+            "booking_date": (self.future_date + timedelta(days=1)).isoformat(),
+            "client_name": "Client D",
+            "client_phone": "0600000000",
+            "designer_name": "Bob Durand",
+        }
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Booking.objects.filter(client_name="Client D").exists())
+
+    def test_technicien_cannot_update_or_delete(self):
+        create_authenticated_user(self.client, role="technicien")
+        patch = self.client.patch(self._detail(self.own_booking), {"client_name": "X"}, format="json")
+        delete = self.client.delete(self._detail(self.own_booking), format="json")
+        self.assertEqual(patch.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(delete.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_can_update_and_delete_any_booking(self):
+        create_authenticated_user(self.client, role="admin")
+        patch = self.client.patch(self._detail(self.other_booking), {"client_name": "By admin"}, format="json")
+        self.assertEqual(patch.status_code, status.HTTP_200_OK)
+        delete = self.client.delete(self._detail(self.other_booking), format="json")
+        self.assertEqual(delete.status_code, status.HTTP_204_NO_CONTENT)
 
 
 @override_settings(DATABASES=TEST_DATABASES)

@@ -19,6 +19,8 @@ interface AdminBookingModalProps {
   isDarkMode?: boolean
   users?: UserOption[] // List of users for designer selection (admin only)
   isAdmin?: boolean // Only admin can edit statut de facturation
+  /** Concepteur viewing another concepteur's booking: show details, no writes */
+  readOnly?: boolean
   onFinalized?: () => void | Promise<void>
   onCancelled?: () => void | Promise<void>
 }
@@ -45,6 +47,7 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
   isDarkMode = true,
   users = [],
   isAdmin = false,
+  readOnly = false,
   onFinalized,
   onCancelled,
 }) => {
@@ -224,7 +227,8 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    
+    if (readOnly) return
+
     if (validateForm()) {
       // Determine the calendar_id to use (check both calendarId and calendar_id properties)
       const currentCalendarId = booking 
@@ -458,11 +462,21 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
     <div className={`admin-booking-modal-overlay ${isDarkMode ? 'dark-mode' : 'light-mode'}`} onClick={onClose}>
       <div className="admin-booking-modal" onClick={(e) => e.stopPropagation()}>
         <div className="admin-booking-modal-header">
-          <h2>{booking ? 'Modifier la réservation' : 'Nouvelle réservation'}</h2>
+          <h2>
+            {readOnly
+              ? 'Détails de la réservation'
+              : booking
+                ? 'Modifier la réservation'
+                : 'Nouvelle réservation'}
+          </h2>
           <button className="close-button" onClick={onClose}>×</button>
         </div>
 
         <form onSubmit={handleSubmit} className="admin-booking-modal-form">
+          <fieldset
+            disabled={readOnly}
+            style={{ border: 'none', margin: 0, padding: 0, minWidth: 0 }}
+          >
           {!booking && (
             <div className="form-group">
               <label htmlFor="calendar_id">Calendrier *</label>
@@ -592,6 +606,7 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
                 name="designer_name"
                 value={formData.designer_name}
                 onChange={handleInputChange}
+                readOnly={!isAdmin}
                 className={errors.designer_name ? 'error' : ''}
               />
             )}
@@ -761,11 +776,12 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
             )
           })()}
 
+          </fieldset>
           <div className="form-actions">
             <button type="button" className="cancel-button" onClick={onClose}>
               Fermer
             </button>
-            {booking && isAdmin && (() => {
+            {!readOnly && booking && isAdmin && (() => {
               const bookingStatus = (booking as any).status || 'en_attente'
               const canAct = bookingStatus !== 'termine' && bookingStatus !== 'annule'
               if (!canAct) return null
@@ -788,9 +804,11 @@ const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
                 </>
               )
             })()}
-            <button type="submit" className="submit-button">
-              {booking ? 'Modifier' : 'Créer'}
-            </button>
+            {!readOnly && (
+              <button type="submit" className="submit-button">
+                {booking ? 'Modifier' : 'Créer'}
+              </button>
+            )}
           </div>
         </form>
       </div>

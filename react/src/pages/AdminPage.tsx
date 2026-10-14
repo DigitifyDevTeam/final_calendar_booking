@@ -4,6 +4,7 @@ import { getAllBookings, BookingRecord, getCalendarName, CALENDAR_CONFIGS, updat
 import { getAllNotifications, NotificationItem, getTimeAgo as getNotificationTimeAgo } from '../services/notificationService'
 import { getAllUsers, UserRecord } from '../services/userService'
 import AdminBookingModal, { AdminBookingFormData } from '../components/AdminBookingModal'
+import { isBookingDesignedBy } from '../utils/bookingOwnership'
 import {
   Calendar,
   CalendarCheck,
@@ -268,11 +269,11 @@ function AdminPage() {
     }
   }
 
-  // Check if a booking belongs to the current user (regular users only;
-  // admin/concepteur can manage all bookings)
+  // Admin manages all bookings; a concepteur only the ones where they are the designer
   const isBookingOwnedByUser = (booking: any): boolean => {
     if (!currentUser) return false
-    if (isAdmin || currentUser.role === 'concepteur') return true
+    if (isAdmin) return true
+    if (currentUser.role === 'concepteur') return isBookingDesignedBy(booking.designer, currentUser.name)
 
     const userName = currentUser.name?.toLowerCase().trim() || ''
     const designer = (booking.designer || '').toLowerCase().trim()
@@ -438,6 +439,10 @@ function AdminPage() {
   const textSecondary = isDarkMode ? '#9ca3af' : '#6b7280'
   const borderColor = isDarkMode ? '#BA4E8E' : '#e5e7eb'
 
+
+  const handleViewClick = (booking: any) => {
+    setInfoBooking(booking)
+  }
 
   const handleEditClick = (booking: any) => {
     // Check if user can edit this booking
@@ -1637,9 +1642,13 @@ function AdminPage() {
                         </button>
                           </>
                         ) : (
-                          <span style={{ color: isDarkMode ? '#6b7280' : '#9ca3af', fontSize: '12px' }}>
-                            Non autorisé
-                          </span>
+                          <button
+                            className="edit-button"
+                            onClick={() => handleViewClick(booking)}
+                            title="Voir (lecture seule)"
+                          >
+                            👁️
+                          </button>
                         )}
                       </td>
                     </tr>
